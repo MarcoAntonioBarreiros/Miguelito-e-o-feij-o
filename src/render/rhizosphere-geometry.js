@@ -492,12 +492,22 @@ export function createRhizosphereGeometry({ state, painters }) {
       const entryY = block.y + band / 2;
       const dx = Math.abs(entryX - plant.x);
       const ceiling = ceilingLineAt(plant.x, platforms, clearance, surface + 40) ?? surface + 60;
-      // A ligação desce íngreme (> 45°) da principal até o bloco: vista de
-      // longe, nunca forma uma ponte ou rampa na altura das plataformas.
-      let attachY = entryY - clamp(dx * 1.25 + 40, 70, 240);
+      // Arco baixo e suave. Num vão estreito (principal a poucos px do bloco)
+      // a ligação sai bem mais de cima: quase horizontal ali, ela emendaria os
+      // blocos numa linha contínua e o vão sumiria.
+      const drop = dx < 90 ? 75 : clamp(dx * .3, 18, 80);
+      let attachY = entryY - drop;
       attachY = Math.max(attachY, ceiling + 22, surface + 60);
-      attachY = Math.min(attachY, entryY - 40);
-      links.push({ block, plant, side, band, entryX, entryY, attachY });
+      attachY = Math.min(attachY, entryY - 8);
+      // Vão livre do lado da ponta: a coifa só sai para fora se couber sem
+      // encostar no vizinho (senão ela emendaria os dois blocos).
+      let tipGap = Infinity;
+      for (const other of platforms) {
+        if (other === block || Math.abs(other.y - block.y) > 160) continue;
+        if (side < 0 && other.x >= block.x + block.w - 2) tipGap = Math.min(tipGap, other.x - (block.x + block.w));
+        if (side > 0 && other.x + other.w <= block.x + 2) tipGap = Math.min(tipGap, block.x - (other.x + other.w));
+      }
+      links.push({ block, plant, side, band, entryX, entryY, attachY, tipGap });
     }
 
     for (const [index, plant] of plants.entries()) {
@@ -602,12 +612,10 @@ export function createRhizosphereGeometry({ state, painters }) {
     const out = entryX >= plant.x ? 1 : -1;
     const startX = plant.goal ? plant.x : mainCenterX(plant, surface, attachY);
     const start = [startX + out * 4, attachY];
-    const end = [entryX - side * 6, entryY];
+    const end = [entryX - side * 10, entryY];
     const dx = end[0] - start[0];
-    const dy = end[1] - start[1];
-    // Sai da principal para o lado e cai quase na vertical sobre a entrada.
-    const c1 = [start[0] + dx * .55, start[1] + dy * .1];
-    const c2 = [end[0] - dx * .1, end[1] - dy * .55];
+    const c1 = [start[0] + dx * .35, start[1] + (end[1] - start[1]) * .15 + 10];
+    const c2 = [end[0] - dx * .35, end[1]];
     const points = [];
     const steps = 22;
     for (let i = 0; i <= steps; i++) {
@@ -726,22 +734,24 @@ export function createRhizosphereGeometry({ state, painters }) {
     const entryX = side < 0 ? block.x : block.x + block.w;
     const exitX = side < 0 ? block.x + block.w : block.x;
     const dir = -side; // sentido de crescimento, da entrada para a ponta
-    const capOut = clamp(band * 1.2, 16, 24);
+    const capOut = clamp(band * 1.4, 18, 28);
     const centers = [];
     const widths = [];
-    // A coifa dobra para baixo DENTRO do bloco: nada passa da borda e invade o vão.
-    const straightEnd = exitX - dir * (capOut + 6);
-    const straightLen = Math.abs(straightEnd - entryX);
+    // Vão largo: coifa curvando para fora, como no protótipo. Vão estreito:
+    // dobra rente à borda, sem avançar no vão.
+    const outward = (link.tipGap ?? Infinity) >= capOut * 3 + 40;
+    const straightEnd = exitX - dir * (outward ? 8 : capOut + 6);
+    const straightLen = Math.abs(straightEnd - (entryX + side * 8));
     const steps = Math.max(2, Math.ceil(straightLen / 12));
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
-      centers.push([entryX + dir * straightLen * t, y]);
+      centers.push([entryX + side * 8 + dir * straightLen * t, y]);
       // Na entrada ainda tem a espessura da lateral de ligação.
       widths.push(i === 0 ? band * .72 : band * (1 - t * .15));
     }
     const p0 = [straightEnd, y];
-    const p1 = [exitX - dir * 6, y];
-    const p2 = [exitX - dir * 4, y + capOut * 1.1];
+    const p1 = outward ? [exitX + dir * capOut * .75, y] : [exitX - dir * 6, y];
+    const p2 = outward ? [exitX + dir * capOut, y + capOut * .95] : [exitX - dir * 3, y + capOut * 1.1];
     for (let i = 1; i <= 8; i++) {
       const t = i / 8;
       const u = 1 - t;
