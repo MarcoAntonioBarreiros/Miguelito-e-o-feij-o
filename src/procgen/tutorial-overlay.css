@@ -65,14 +65,15 @@ html.tutorial-open, html.tutorial-open body { touch-action: pan-y; }
 .tutorial-title, .tutorial-library-title { font-family: var(--tutorial-display); font-weight: 800; font-size: 2.1rem; line-height: 1; margin: 0 0 .25rem; color: #fff4e2; overflow-wrap: anywhere; }
 .tutorial-subtitle { margin: 0 0 1rem; color: var(--tutorial-amber); font-weight: 700; line-height: 1.35; }
 .tutorial-page { min-height: 0; display: flex; }
-.tutorial-page-scroll { width: 100%; min-height: 0; max-height: 250px; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #7a5334 transparent; padding-right: 8px; user-select: text; }
+.tutorial-page-scroll { width: 100%; min-height: 0; max-height: 320px; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #7a5334 transparent; padding-right: 8px; user-select: text; }
 .tutorial-page-title { font: 700 .82rem/1.35 var(--tutorial-body); margin: 0 0 .5rem; color: var(--tutorial-muted); }
 .tutorial-page-body { margin: 0 0 .9rem; line-height: 1.55; color: #f1dcc6; max-width: 62ch; font-size: 1rem; }
-.tutorial-page-points { margin: 0 0 1rem; padding: .7rem .9rem .7rem 1.8rem; border-radius: 12px; background: rgba(108,231,223,.09); border-left: 3px solid var(--tutorial-cyan); color: #dff7f2; line-height: 1.5; }
+.tutorial-callout { margin: .35rem 0 .8rem; padding: .85rem 1rem; border-radius: 12px; background: rgba(108,231,223,.09); border-left: 3px solid var(--tutorial-cyan); color: #dff7f2; line-height: 1.5; }
+.tutorial-callout-title { display: inline; margin: 0; color: var(--tutorial-cyan); font: 700 1rem/1.5 var(--tutorial-body); }
+.tutorial-callout-title::after { content: '. '; }
+.tutorial-callout-body { display: inline; margin: 0; font-size: 1rem; }
+.tutorial-page-points { margin: .5rem 0 0; padding: 0 0 0 1rem; color: #dff7f2; line-height: 1.5; }
 .tutorial-page-points li + li { margin-top: .4rem; }
-.tutorial-card-view[data-page-tone="game"] .tutorial-page-scroll { padding: .7rem .9rem; border-left: 3px solid var(--tutorial-cyan); border-radius: 12px; background: rgba(108,231,223,.09); }
-.tutorial-card-view[data-page-tone="game"] .tutorial-page-body { color: #dff7f2; margin-bottom: 0; }
-.tutorial-card-view[data-page-tone="game"] .tutorial-page-points { border: 0; background: transparent; padding: 0 0 0 1rem; margin: .6rem 0 0; }
 .tutorial-cycle-block { position: relative; margin: 4px 0; height: var(--cycle-height); }
 .tutorial-cycle-label { display: none; }
 .tutorial-cycle { margin: 0; padding: 0; list-style: none; color: #f1dcc6; font-size: .9rem; line-height: 1.4; }

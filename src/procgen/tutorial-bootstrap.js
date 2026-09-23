@@ -2,7 +2,7 @@ export function ensureTutorialInterface() {
   if (!document.querySelector('[data-tutorial-styles]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = './src/procgen/tutorial-overlay.css?v=20260923-compact-microscope-2';
+    link.href = './src/procgen/tutorial-overlay.css?v=20260923-didactic-callout-3';
     link.dataset.tutorialStyles = 'true';
     document.head.appendChild(link);
   }

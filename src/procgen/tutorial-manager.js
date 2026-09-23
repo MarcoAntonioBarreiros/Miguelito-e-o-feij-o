@@ -1,4 +1,4 @@
-import { tutorialDisplayPages } from './tutorial-card-pages.js';
+import { tutorialDisplayPages, isTutorialGamePage } from './tutorial-card-pages.js';
 import { createTutorialMicroscope } from './tutorial-microscope.js';
 import { getTutorialCard, tutorialCardIds, tutorialCards } from './tutorial-registry.js';
 import { tutorialPacing } from './campaign-manifest.js';
@@ -122,7 +122,11 @@ export function createTutorialManager({ state }) {
               <div class="tutorial-page-scroll" tabindex="0" role="region" aria-label="Conteúdo do cartão">
                 <h2 class="tutorial-page-title"></h2>
                 <p class="tutorial-page-body"></p>
-                <ul class="tutorial-page-points"></ul>
+                <aside class="tutorial-callout" aria-labelledby="tutorial-callout-title" hidden>
+                  <h2 id="tutorial-callout-title" class="tutorial-callout-title"></h2>
+                  <p class="tutorial-callout-body"></p>
+                  <ul class="tutorial-page-points"></ul>
+                </aside>
                 <div class="tutorial-cycle-block">
                   <span class="tutorial-cycle-label"></span>
                   <svg class="tutorial-cycle-path" aria-hidden="true"></svg>
@@ -179,6 +183,9 @@ export function createTutorialManager({ state }) {
   const pageTitle = mount.querySelector('.tutorial-page-title');
   const pageBody = mount.querySelector('.tutorial-page-body');
   const pagePoints = mount.querySelector('.tutorial-page-points');
+  const callout = mount.querySelector('.tutorial-callout');
+  const calloutTitle = mount.querySelector('.tutorial-callout-title');
+  const calloutBody = mount.querySelector('.tutorial-callout-body');
   const pageDots = mount.querySelector('.tutorial-page-dots');
   const pageScroll = mount.querySelector('.tutorial-page-scroll');
   const previousButton = mount.querySelector('.tutorial-prev');
@@ -377,31 +384,37 @@ export function createTutorialManager({ state }) {
     const currentPage = availablePages[pageIndex];
     const pagePosition = pageIndex;
     cardView.dataset.pageKind = currentPage.kind;
-    cardView.dataset.pageTone = currentPage.kind !== 'cycle'
-      && /no jogo|como usar|poder inimigo|novo movimento|missão do jogador/i.test(currentPage.title) ? 'game' : 'science';
+    const gamePage = currentPage.kind !== 'cycle' && isTutorialGamePage(currentPage);
+    cardView.dataset.pageTone = gamePage ? 'game' : 'science';
     title.classList.toggle('tutorial-title--scientific', /^organism-(rhizobium|azospirillum|bacillus|pseudomonas|trichoderma|rhizoctonia|ralstonia|meloidogyne)/.test(card.id));
 
     panel.style.setProperty('--tutorial-accent', card.accent || '#70e5d6');
     setText(category, card.category);
     setText(title, card.title);
-    setText(subtitle, pageIndex === 0 ? card.subtitle : currentPage.title);
+    setText(subtitle, pageIndex === 0 || gamePage ? card.subtitle : currentPage.title);
     microscope.show(card.id);
     setText(pageCounter, `${pagePosition + 1} / ${availablePages.length}`);
     setText(pageTitle, currentPage.title);
-    pageTitle.hidden = pageIndex > 0;
+    pageTitle.hidden = pageIndex > 0 || gamePage || Boolean(currentPage.callout);
     setText(pageBody, currentPage.body);
     if (newBadge) newBadge.hidden = !activeFirstSeen;
 
+    const highlighted = currentPage.callout || (gamePage ? currentPage : null);
+    const highlightedPoints = highlighted?.points || currentPage.points || [];
+    callout.hidden = !highlighted && !highlightedPoints.length;
+    setText(calloutTitle, highlighted?.title || (currentPage.body ? 'Em destaque' : currentPage.title));
+    setText(calloutBody, highlighted?.body);
+    calloutBody.hidden = !highlighted?.body;
     pagePoints.replaceChildren();
-    for (const point of currentPage.points || []) {
+    for (const point of highlightedPoints) {
       const item = document.createElement('li');
       item.textContent = point;
       pagePoints.appendChild(item);
     }
-    pagePoints.hidden = !(currentPage.points || []).length;
+    pagePoints.hidden = !highlightedPoints.length;
 
     renderCycle(currentPage.kind === 'cycle' ? card : { cycle: [] });
-    pageBody.hidden = !currentPage.body;
+    pageBody.hidden = !currentPage.body || gamePage;
     pageDots.parentElement.hidden = availablePages.length <= 1;
     pageDots.parentElement.classList.toggle('tutorial-pagination--many', availablePages.length > 6);
     previousButton.hidden = availablePages.length <= 1;

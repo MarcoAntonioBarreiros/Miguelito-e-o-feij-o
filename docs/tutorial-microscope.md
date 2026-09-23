@@ -27,7 +27,14 @@ os textos. Essa paginação é apenas visual: IDs, índices persistidos, catálo
 desbloqueios e exports anteriores não mudam. Não se revela conteúdo bloqueado.
 
 O primeiro cabeçalho apresenta o subtítulo original; nos seguintes ele indica
-o assunto da página. Dentro de cada página, apenas o texto rola quando falta
+o assunto da página. A apresentação reúne conceito e aplicação quando a página
+de aplicação já está desbloqueada: o texto científico fica sobre o fundo marrom,
+e a instrução aparece em um bloco escuro com borda e título cianos. Essa instrução
+é movida, não duplicada. Se a dupla ultrapassa 320 caracteres, a primeira frase
+apresenta o conceito e o restante segue na próxima página, sem reescrever o texto.
+Nas páginas de aplicação, o título ciano permanece dentro do bloco, em vez de
+ser convertido em mais um subtítulo amarelo. Tópicos complementares também usam
+um destaque identificado. Dentro de cada página, apenas o texto rola quando falta
 altura. Em telas estreitas o microscópio vai acima do texto e a navegação usa
 contador e anterior/próxima; os pontos aparecem em desktop para até seis
 páginas. Cartões de uma página dispensam controles redundantes.
