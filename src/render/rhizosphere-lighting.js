@@ -173,6 +173,71 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     return [m.a * x + m.c * wy + m.e, m.b * x + m.d * wy + m.f];
   }
 
+  function beamHalfWidthAtY(shaft, y, yTop, yBottom) {
+    const span = Math.max(1, yBottom - yTop);
+    const u = Math.max(0, Math.min(1, (y - yTop) / span));
+    return shaft.w * (.30 + u * .48);
+  }
+
+  function beamCenterAtY(shaft, y, yTop) {
+    return shaft.x + (y - yTop) * shaft.slant;
+  }
+
+  function firstShaftImpact(shaft, yTop, yBottom) {
+    const platforms = state.level?.platforms || [];
+    let best = null;
+    for (const p of platforms) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.w) || !Number.isFinite(p.h)) continue;
+      if (p.recovery && state.recoveryPlatformsDisabled) continue;
+      if (p.mycorrhizaStructure || p.azospirillumStructure) continue;
+      if (p.y < yTop || p.y > yBottom) continue;
+
+      const center = beamCenterAtY(shaft, p.y, yTop);
+      const half = beamHalfWidthAtY(shaft, p.y, yTop, yBottom);
+      const left = Math.max(p.x, center - half);
+      const right = Math.min(p.x + p.w, center + half);
+      if (right - left < 3) continue;
+
+      if (!best || p.y < best.y || (p.y === best.y && right - left > best.right - best.left)) {
+        best = { platform: p, y: p.y, center, half, left, right };
+      }
+    }
+    return best;
+  }
+
+  function collectShaftImpacts() {
+    const bounds = geometryBounds();
+    const yTop = bounds.top - 260;
+    const yBottom = bounds.bottom + 60;
+    return {
+      yTop,
+      yBottom,
+      items: shafts.map(shaft => ({
+        shaft,
+        impact: firstShaftImpact(shaft, yTop, yBottom),
+      })),
+    };
+  }
+
+  function roundedScreenRect(ctx, x, y, w, h, radius) {
+    const r = Math.max(0, Math.min(radius, w / 2, h / 2));
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(x, y, w, h, r);
+      return;
+    }
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   function collectLights() {
     const level = state.level || {};
     const t = state.time || 0;
@@ -203,41 +268,73 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
   }
 
   // ---------- 2. feixes de luz ----------
-  function drawShafts(ctx, m, zoom, W, H, t) {
-    const { top, bottom } = geometryBounds();
-    const yTop = top - 260;
-    const yBot = bottom + 60;
+  function drawShafts(ctx, m, zoom, W, H, t, shaftImpacts) {
+    const yTop = shaftImpacts.yTop;
+    const yBottom = shaftImpacts.yBottom;
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (const s of shafts) {
-      const breathe = .72 + Math.sin(t * .45 + s.phase) * .28;
-      const alpha = .12 * s.strength * breathe * fade;
-      const [ax, ay] = project(m, s.x, yTop);
-      const [bx, by] = project(m, s.x + (yBot - yTop) * s.slant, yBot);
-      const halfTop = s.w * .32 * zoom;
-      const halfBot = s.w * .9 * zoom;
-      if (Math.max(ax, bx) + halfBot < -40 || Math.min(ax, bx) - halfBot > W + 40) continue;
-      const g = ctx.createLinearGradient(0, ay, 0, by);
-      g.addColorStop(0, `rgba(255,236,190,${alpha * 1.4})`);
-      g.addColorStop(.55, `rgba(214,240,220,${alpha * .7})`);
-      g.addColorStop(1, 'rgba(160,230,220,0)');
-      ctx.fillStyle = g;
+    ctx.globalCompositeOperation = 'screen';
+
+    for (const item of shaftImpacts.items) {
+      const s = item.shaft;
+      const impact = item.impact;
+      const yEnd = impact ? impact.y : yBottom;
+      if (yEnd <= yTop + 1) continue;
+
+      const breathe = .80 + Math.sin(t * .45 + s.phase) * .20;
+      const alpha = .075 * s.strength * breathe * fade;
+      const xTop = beamCenterAtY(s, yTop, yTop);
+      const xEnd = beamCenterAtY(s, yEnd, yTop);
+      const topPoint = project(m, xTop, yTop);
+      const endPoint = project(m, xEnd, yEnd);
+      const ax = topPoint[0], ay = topPoint[1];
+      const bx = endPoint[0], by = endPoint[1];
+      const halfTop = beamHalfWidthAtY(s, yTop, yTop, yBottom) * zoom;
+      const halfEnd = beamHalfWidthAtY(s, yEnd, yTop, yBottom) * zoom;
+      if (Math.max(ax, bx) + halfEnd < -40 || Math.min(ax, bx) - halfEnd > W + 40) continue;
+
+      // Feixe externo: existe no ar, mas nao e um trapezio branco opaco.
+      const outer = ctx.createLinearGradient(0, ay, 0, by);
+      outer.addColorStop(0, 'rgba(255,241,205,' + (alpha * .45) + ')');
+      outer.addColorStop(.68, 'rgba(239,235,202,' + alpha + ')');
+      outer.addColorStop(1, 'rgba(255,226,170,' + (alpha * 1.15) + ')');
+      ctx.fillStyle = outer;
       ctx.beginPath();
       ctx.moveTo(ax - halfTop, ay);
       ctx.lineTo(ax + halfTop, ay);
-      ctx.lineTo(bx + halfBot, by);
-      ctx.lineTo(bx - halfBot, by);
+      ctx.lineTo(bx + halfEnd, by);
+      ctx.lineTo(bx - halfEnd, by);
       ctx.closePath();
       ctx.fill();
-      // partículas em suspensão dentro do feixe
+
+      // Nucleo estreito para sugerir volume.
+      const coreTop = halfTop * .34;
+      const coreEnd = halfEnd * .38;
+      const core = ctx.createLinearGradient(0, ay, 0, by);
+      core.addColorStop(0, 'rgba(255,248,224,0)');
+      core.addColorStop(.35, 'rgba(255,247,218,' + (alpha * .65) + ')');
+      core.addColorStop(1, 'rgba(255,231,180,' + (alpha * 1.35) + ')');
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.moveTo(ax - coreTop, ay);
+      ctx.lineTo(ax + coreTop, ay);
+      ctx.lineTo(bx + coreEnd, by);
+      ctx.lineTo(bx - coreEnd, by);
+      ctx.closePath();
+      ctx.fill();
+
+      // Particulas param na mesma superficie que bloqueia a luz.
       for (const mo of s.motes) {
         const v = (mo.v + t * .018 * mo.s) % 1;
-        const wy = yTop + 120 + v * (yBot - yTop - 180);
-        const wx = s.x + (wy - yTop) * s.slant + (mo.u - .5) * s.w * 1.1 + Math.sin(t * .7 + mo.u * 20) * 8;
-        const [px, py] = project(m, wx, wy);
+        const wy = yTop + 70 + v * Math.max(1, yEnd - yTop - 85);
+        if (wy >= yEnd) continue;
+        const center = beamCenterAtY(s, wy, yTop);
+        const half = beamHalfWidthAtY(s, wy, yTop, yBottom);
+        const wx = center + (mo.u - .5) * half * 1.3 + Math.sin(t * .7 + mo.u * 20) * 5;
+        const pp = project(m, wx, wy);
+        const px = pp[0], py = pp[1];
         if (px < -10 || px > W + 10 || py < -10 || py > H + 10) continue;
         const tw = .5 + .5 * Math.sin(t * 2.2 + mo.u * 40);
-        ctx.fillStyle = `rgba(255,244,214,${(.25 + tw * .45) * fade * (1 - Math.abs(v - .5) * 1.4)})`;
+        ctx.fillStyle = 'rgba(255,244,214,' + ((.12 + tw * .25) * fade) + ')';
         ctx.beginPath();
         ctx.arc(px, py, mo.s * zoom, 0, TAU);
         ctx.fill();
@@ -246,8 +343,71 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     ctx.restore();
   }
 
+  function drawSoilIllumination(ctx, m, zoom, W, H, shaftImpacts) {
+    ctx.save();
+    for (const item of shaftImpacts.items) {
+      const s = item.shaft;
+      const impact = item.impact;
+      if (!impact) continue;
+      const p = impact.platform;
+
+      const a = project(m, p.x, p.y);
+      const b = project(m, p.x + p.w, p.y + p.h);
+      const left = Math.min(a[0], b[0]);
+      const top = Math.min(a[1], b[1]);
+      const width = Math.abs(b[0] - a[0]);
+      const height = Math.abs(b[1] - a[1]);
+      if (left + width < 0 || left > W || top + height < 0 || top > H) continue;
+
+      const q0 = project(m, impact.left, impact.y);
+      const q1 = project(m, impact.right, impact.y);
+      const qc = project(m, impact.center, impact.y);
+      const lo = Math.min(q0[0], q1[0]);
+      const hi = Math.max(q0[0], q1[0]);
+      const icx = qc[0], icy = qc[1];
+      const footprint = Math.max(22 * zoom, hi - lo);
+      const radius = Math.max(70 * zoom, footprint * .72);
+      const penetration = Math.min(height * .78, Math.max(65 * zoom, footprint * .82));
+
+      // A textura ja desenhada e clareada dentro da propria plataforma.
+      ctx.save();
+      roundedScreenRect(ctx, left, top, width, height, Math.min(22 * zoom, height * .16));
+      ctx.clip();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.translate(icx, icy);
+      ctx.scale(1, Math.max(.70, penetration / radius));
+      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+      const power = (.18 + s.strength * .18) * fade;
+      glow.addColorStop(0, 'rgba(255,224,157,' + (power * 1.35) + ')');
+      glow.addColorStop(.26, 'rgba(255,218,145,' + power + ')');
+      glow.addColorStop(.62, 'rgba(245,196,120,' + (power * .42) + ')');
+      glow.addColorStop(1, 'rgba(235,174,95,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(-radius, 0, radius * 2, radius);
+      ctx.restore();
+
+      // Reflexo forte apenas na borda superior atingida.
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const edge = ctx.createLinearGradient(lo, 0, hi, 0);
+      edge.addColorStop(0, 'rgba(255,226,166,0)');
+      edge.addColorStop(.22, 'rgba(255,231,177,' + (.30 * fade) + ')');
+      edge.addColorStop(.5, 'rgba(255,246,214,' + (.62 * fade) + ')');
+      edge.addColorStop(.78, 'rgba(255,231,177,' + (.30 * fade) + ')');
+      edge.addColorStop(1, 'rgba(255,226,166,0)');
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = Math.max(1.5, 2.2 * zoom);
+      ctx.beginPath();
+      ctx.moveTo(lo, icy + .5);
+      ctx.lineTo(hi, icy + .5);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
   // ---------- 3. escuridão ----------
-  function drawDarkness(ctx, m, zoom, W, H, lights, t) {
+  function drawDarkness(ctx, m, zoom, W, H, lights, t, shaftImpacts) {
     if (!dctx) return;
     const dw = Math.max(2, Math.ceil(W / DARK_SCALE));
     const dh = Math.max(2, Math.ceil(H / DARK_SCALE));
@@ -255,24 +415,22 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     dctx.globalCompositeOperation = 'source-over';
     dctx.clearRect(0, 0, dw, dh);
 
-    // profundidade: acima da geometria a luz é maior; abaixo, o solo fecha
-    const { top, bottom } = geometryBounds();
-    const [, yTop] = project(m, 0, top - 120);
-    const [, yBot] = project(m, 0, bottom + 80);
-    const g = dctx.createLinearGradient(0, yTop / DARK_SCALE, 0, yBot / DARK_SCALE);
-    g.addColorStop(0, 'rgba(2,9,14,.16)');
-    g.addColorStop(.55, 'rgba(2,8,13,.32)');
-    g.addColorStop(1, 'rgba(1,4,8,.58)');
+    const bounds = geometryBounds();
+    const topPoint = project(m, 0, bounds.top - 120);
+    const bottomPoint = project(m, 0, bounds.bottom + 80);
+    const g = dctx.createLinearGradient(0, topPoint[1] / DARK_SCALE, 0, bottomPoint[1] / DARK_SCALE);
+    g.addColorStop(0, 'rgba(2,9,14,.24)');
+    g.addColorStop(.55, 'rgba(2,8,13,.48)');
+    g.addColorStop(1, 'rgba(1,4,8,.76)');
     dctx.fillStyle = g;
     dctx.fillRect(0, 0, dw, dh);
-    // vinheta
-    const vg = dctx.createRadialGradient(dw / 2, dh * .52, Math.min(dw, dh) * .35, dw / 2, dh * .52, Math.max(dw, dh) * .75);
+
+    const vg = dctx.createRadialGradient(dw / 2, dh * .52, Math.min(dw, dh) * .34, dw / 2, dh * .52, Math.max(dw, dh) * .76);
     vg.addColorStop(0, 'rgba(1,4,8,0)');
-    vg.addColorStop(1, 'rgba(1,4,8,.34)');
+    vg.addColorStop(1, 'rgba(1,4,8,.30)');
     dctx.fillStyle = vg;
     dctx.fillRect(0, 0, dw, dh);
 
-    // recortes de luz
     dctx.globalCompositeOperation = 'destination-out';
     if (!stampSprite) stampSprite = radialSprite('#000000', [[0, 1], [.45, .55], [1, 0]]);
     const stamp = (sx, sy, r, a) => {
@@ -284,26 +442,32 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       dctx.drawImage(stampSprite, x - rr, y - rr, rr * 2, rr * 2);
     };
     for (const l of lights) {
-      const [sx, sy] = project(m, l.x, l.y);
-      stamp(sx, sy, l.r * zoom, l.a);
+      const p = project(m, l.x, l.y);
+      stamp(p[0], p[1], l.r * zoom, l.a);
     }
     dctx.globalAlpha = 1;
-    // feixes também clareiam a escuridão
-    const yT = top - 260;
-    const yB = bottom + 60;
-    for (const s of shafts) {
-      const breathe = .72 + Math.sin(t * .45 + s.phase) * .28;
-      const [ax, ay] = project(m, s.x, yT);
-      const [bx, by] = project(m, s.x + (yB - yT) * s.slant, yB);
-      const lg = dctx.createLinearGradient(0, ay / DARK_SCALE, 0, by / DARK_SCALE);
-      lg.addColorStop(0, `rgba(0,0,0,${.42 * s.strength * breathe})`);
-      lg.addColorStop(1, 'rgba(0,0,0,0)');
+
+    // O buraco do feixe na escuridao tambem termina no primeiro impacto.
+    for (const item of shaftImpacts.items) {
+      const s = item.shaft;
+      const yStart = shaftImpacts.yTop;
+      const yEnd = item.impact ? item.impact.y : shaftImpacts.yBottom;
+      if (yEnd <= yStart + 1) continue;
+      const breathe = .80 + Math.sin(t * .45 + s.phase) * .20;
+      const p0 = project(m, beamCenterAtY(s, yStart, yStart), yStart);
+      const p1 = project(m, beamCenterAtY(s, yEnd, yStart), yEnd);
+      const half0 = beamHalfWidthAtY(s, yStart, yStart, shaftImpacts.yBottom) * zoom;
+      const half1 = beamHalfWidthAtY(s, yEnd, yStart, shaftImpacts.yBottom) * zoom;
+      const lg = dctx.createLinearGradient(0, p0[1] / DARK_SCALE, 0, p1[1] / DARK_SCALE);
+      lg.addColorStop(0, 'rgba(0,0,0,' + (.22 * s.strength * breathe) + ')');
+      lg.addColorStop(.7, 'rgba(0,0,0,' + (.38 * s.strength * breathe) + ')');
+      lg.addColorStop(1, 'rgba(0,0,0,' + (.46 * s.strength * breathe) + ')');
       dctx.fillStyle = lg;
       dctx.beginPath();
-      dctx.moveTo((ax - s.w * .3 * zoom) / DARK_SCALE, ay / DARK_SCALE);
-      dctx.lineTo((ax + s.w * .3 * zoom) / DARK_SCALE, ay / DARK_SCALE);
-      dctx.lineTo((bx + s.w * .8 * zoom) / DARK_SCALE, by / DARK_SCALE);
-      dctx.lineTo((bx - s.w * .8 * zoom) / DARK_SCALE, by / DARK_SCALE);
+      dctx.moveTo((p0[0] - half0) / DARK_SCALE, p0[1] / DARK_SCALE);
+      dctx.lineTo((p0[0] + half0) / DARK_SCALE, p0[1] / DARK_SCALE);
+      dctx.lineTo((p1[0] + half1) / DARK_SCALE, p1[1] / DARK_SCALE);
+      dctx.lineTo((p1[0] - half1) / DARK_SCALE, p1[1] / DARK_SCALE);
       dctx.closePath();
       dctx.fill();
     }
@@ -413,10 +577,12 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     const W = canvas.width || 1280;
     const H = canvas.height || 720;
     const lights = collectLights();
+    const shaftImpacts = collectShaftImpacts();
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    drawDarkness(ctx, m, zoom, W, H, lights, t);
-    drawShafts(ctx, m, zoom, W, H, t);
+    drawDarkness(ctx, m, zoom, W, H, lights, t, shaftImpacts);
+    drawShafts(ctx, m, zoom, W, H, t, shaftImpacts);
+    drawSoilIllumination(ctx, m, zoom, W, H, shaftImpacts);
     drawGlows(ctx, m, zoom, W, H, lights);
     drawForeground(ctx, zoom, W, H, t);
     ctx.restore();
