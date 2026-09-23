@@ -955,12 +955,12 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"a90b7eb","subject":"Escada do Azospirillum com textura celular e escuridao do prototipo","builtAt":"2026-09-23 23:31"};
+window.__BEANS_BUILD__ = {"commit":"1ee9857","subject":"Cena de entrada da Fase 1: Miguelito cai na rizosfera pelo tunel de minh","builtAt":"2026-09-23 23:55"};
 (() => {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel, auditTraversableRoute } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { ensureAzospirillumBeforeAscentGates, generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { createRouteAnchorRegistry, recordRouteGeometryStage } = __require("src/procgen/route-geometry.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry, createPhosphateDepositAt, finalizePhosphateStockCapacity } = __require("src/procgen/phosphate-solubilization.js");const { createPhaseTenOptionalDetour } = __require("src/procgen/optional-detour-composer.js");const { createPhaseTenTopologyDetour } = __require("src/procgen/optional-detour-topology-synthesizer.js");const { validateOptionalDetour } = __require("src/procgen/optional-detour-validator.js");const { getNitrogenAvailability } = __require("src/procgen/nitrogen-availability.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, campaignManifest, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { updateContextPanel } = __require("src/procgen/hud-context.js");const { computeEcologicalScore } = __require("src/procgen/ecological-score.js");const { JETPACK_CONFIG, jetpackRechargeBonuses } = __require("src/player-jetpack.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createGameAudio } = __require("src/game-audio.js");const { createBiologicalAudio } = __require("src/procgen/biological-audio.js");const { biologicalGroupsForProgress, PHASE_VICTORY_TOAST_SECONDS, VICTORY_AUDIO_FALLBACK_SECONDS } = __require("src/audio-manifest.js");const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");const { createRenderer } = __require("src/render/renderer.js");const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createRhizosphereLighting, readLightingPreference } = __require("src/render/rhizosphere-lighting.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");const { ROUTE_GATE_KINDS, ROUTE_GATE_REQUIRED_ABILITY, ROUTE_GATE_REQUIRED_ORGANISM } = __require("src/procgen/phase-vertical-plan.js");const { synchronizeWorldBounds } = __require("src/procgen/world-bounds.js");const { validateAndRepairAzospirillumGates } = __require("src/procgen/azospirillum-gate-integrity.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { createPathogenArrival, PATHOGEN_ARRIVAL_DEFAULTS } = __require("src/procgen/pathogen-arrival.js");const { createPhaseFinale, phaseFinaleSeconds } = __require("src/procgen/phase-finale.js");const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
+const { generateLevel, auditTraversableRoute } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { ensureAzospirillumBeforeAscentGates, generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { createRouteAnchorRegistry, recordRouteGeometryStage } = __require("src/procgen/route-geometry.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry, createPhosphateDepositAt, finalizePhosphateStockCapacity } = __require("src/procgen/phosphate-solubilization.js");const { createPhaseTenOptionalDetour } = __require("src/procgen/optional-detour-composer.js");const { createPhaseTenTopologyDetour } = __require("src/procgen/optional-detour-topology-synthesizer.js");const { validateOptionalDetour } = __require("src/procgen/optional-detour-validator.js");const { getNitrogenAvailability } = __require("src/procgen/nitrogen-availability.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, campaignManifest, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { updateContextPanel } = __require("src/procgen/hud-context.js");const { computeEcologicalScore } = __require("src/procgen/ecological-score.js");const { JETPACK_CONFIG, jetpackRechargeBonuses } = __require("src/player-jetpack.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createGameAudio } = __require("src/game-audio.js");const { createBiologicalAudio } = __require("src/procgen/biological-audio.js");const { biologicalGroupsForProgress, PHASE_VICTORY_TOAST_SECONDS, VICTORY_AUDIO_FALLBACK_SECONDS } = __require("src/audio-manifest.js");const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");const { createRenderer } = __require("src/render/renderer.js");const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createRhizosphereLighting, readLightingPreference } = __require("src/render/rhizosphere-lighting.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");const { ROUTE_GATE_KINDS, ROUTE_GATE_REQUIRED_ABILITY, ROUTE_GATE_REQUIRED_ORGANISM } = __require("src/procgen/phase-vertical-plan.js");const { synchronizeWorldBounds } = __require("src/procgen/world-bounds.js");const { validateAndRepairAzospirillumGates } = __require("src/procgen/azospirillum-gate-integrity.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { createPathogenArrival, PATHOGEN_ARRIVAL_DEFAULTS } = __require("src/procgen/pathogen-arrival.js");const { createPhaseFinale, phaseFinaleSeconds } = __require("src/procgen/phase-finale.js");const { finalRootCollar } = __require("src/render/final-root-visual.js");const { GEOMETRY_ENABLED } = __require("src/render/geometry-preference.js");const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
   // alcançadas, não só da atual.
 
   createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
@@ -2234,7 +2234,33 @@ function initGame({ announce = false } = {}) {
   // qualquer download repetido.
   preloadPhaseBiologicalAudio();
 
-  if (announce) showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText());
+  // CENA DE ENTRADA (Fase 1): Miguelito começa em pé na superfície, sobre a
+  // boca de um túnel de minhoca, e cai por ele até a rizosfera. A queda é a
+  // física normal; a cena só o segura um instante na superfície e adia a
+  // escuridão e o cartão da fase para quando ele entra no solo.
+  sim.state.introFall = null;
+  sim.state.level.introBurrowX = undefined;
+  const introGoal = sim.state.level.goal;
+  if (announce && campaign.phase === 1 && GEOMETRY_ENABLED && introGoal && Number.isFinite(Number(introGoal.y))) {
+    const surface = finalRootCollar(introGoal).y;
+    const player = sim.state.player;
+    // A boca do túnel fica sobre a primeira raiz (onde ele pousa); ele começa
+    // um pouco à esquerda e anda até ela, como no protótipo.
+    sim.state.level.introBurrowX = 230;
+    player.x = 60;
+    player.y = surface - player.h;
+    player.vx = 0;
+    player.vy = 0;
+    player.facing = 1;
+    sim.state.introFall = {
+      stage: 'wait',
+      surface,
+      walkAt: (sim.state.time || 0) + .7,
+      releaseAt: Infinity,
+      card: () => showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText()),
+    };
+    cameraView.resetTracking();
+  } else if (announce) showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText());
 }
 
 let phaseCardTimer = null;
@@ -2607,6 +2633,44 @@ function maybeAnnounceTraversalEncounter() {
   sim.state.toastTime = 3.2;
 }
 
+function updateIntroFall() {
+  const intro = sim.state.introFall;
+  if (!intro) return;
+  const player = sim.state.player;
+  const time = sim.state.time || 0;
+  const burrow = sim.state.level.introBurrowX;
+  if (intro.stage === 'wait' || intro.stage === 'walk') {
+    // Na superfície: parado um instante, depois caminha até a boca do túnel.
+    if (intro.stage === 'wait' && time >= intro.walkAt) intro.stage = 'walk';
+    player.y = intro.surface - player.h;
+    player.vy = 0;
+    player.onGround = true;
+    player.facing = 1;
+    player.vx = intro.stage === 'walk' ? 120 : 0;
+    if (player.x + player.w / 2 >= burrow) {
+      intro.stage = 'stand';
+      intro.releaseAt = time + .3;
+    }
+    return;
+  }
+  if (intro.stage === 'stand') {
+    // Na beira do túnel, um instante antes de cair.
+    player.x = burrow - player.w / 2;
+    player.y = intro.surface - player.h;
+    player.vx = 0;
+    player.vy = 0;
+    player.onGround = true;
+    if ((sim.state.time || 0) >= intro.releaseAt) {
+      intro.stage = 'fall';
+      player.onGround = false;
+      intro.card();
+    }
+    return;
+  }
+  // Pousou lá embaixo: a cena acaba.
+  if (player.onGround && player.y > intro.surface + 120) sim.state.introFall = null;
+}
+
 function renderWorld() {
   // Limpeza defensiva em coordenadas de TELA, antes de qualquer zoom/camera:
   // garante que nenhum quadro residual sobreviva na faixa que o fundo do mundo
@@ -2628,6 +2692,14 @@ function renderWorld() {
     phaseFinale.renderWorldLayer(ctx);
     sim.state.level.traversalDebugVisible = showDebug;
     platformVisuals.drawWorld(ctx);
+    // Na cena de entrada o Miguelito está na superfície ou dentro do túnel —
+    // na frente do céu e da camada de solo, que são desenhados depois dele.
+    if (sim.state.introFall) {
+      ctx.save();
+      ctx.translate(-(sim.state.cameraX || 0), 0);
+      renderer.drawPlayer();
+      ctx.restore();
+    }
     lighting?.renderPlatformDepth(ctx);
     rhizoctoniaControl.render(ctx);
     ralstoniaControl.render(ctx);
@@ -2678,6 +2750,7 @@ function loop(now) {
         sim.setInputs(keys);
         sim.step(frameDt);
         fixedBlockRuntime.update(frameDt);
+        updateIntroFall();
         rhizoctoniaControl.update(frameDt);
         trichodermaRhizoctoniaControl.update(frameDt);
         trichodermaMeloidogyneControl.update(frameDt);
@@ -17946,11 +18019,60 @@ function createRhizosphereGeometry({ state, painters }) {
     ctx.lineWidth = 34;
     traceLine();
     ctx.stroke();
+    paintBurrow(ctx, line, top);
     ctx.restore();
     ctx.save();
     ctx.strokeStyle = soilPalette.outline;
     ctx.lineWidth = 3;
     traceLine();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Túnel de minhoca (bioporo) atravessando a camada de solo, por onde o
+  // Miguelito entra na rizosfera: parede lisa e escura (drilosfera), com a boca
+  // aberta na superfície e na caverna.
+  function burrowX() {
+    const x = Number(state.level?.introBurrowX);
+    return Number.isFinite(x) ? x : null;
+  }
+
+  function paintBurrow(ctx, line, top) {
+    const bx = burrowX();
+    if (bx === null || bx < line[0][0] || bx > line[line.length - 1][0]) return;
+    let bottom = top + 60;
+    for (let i = 1; i < line.length; i++) {
+      if (line[i][0] >= bx) {
+        const [x0, y0] = line[i - 1];
+        const [x1, y1] = line[i];
+        bottom = y0 + (y1 - y0) * ((bx - x0) / Math.max(1, x1 - x0));
+        break;
+      }
+    }
+    const half = 24;
+    const wobble = y => Math.sin(y * .05) * 3;
+    const path = () => {
+      ctx.beginPath();
+      ctx.moveTo(bx - half - 6, top - 2);
+      for (let y = top; y <= bottom + 16; y += 8) ctx.lineTo(bx - half + wobble(y), y);
+      for (let y = bottom + 16; y >= top; y -= 8) ctx.lineTo(bx + half + wobble(y + 30), y);
+      ctx.lineTo(bx + half + 6, top - 2);
+      ctx.closePath();
+    };
+    ctx.save();
+    path();
+    const inside = ctx.createLinearGradient(bx - half, 0, bx + half, 0);
+    inside.addColorStop(0, '#120906');
+    inside.addColorStop(.5, '#070403');
+    inside.addColorStop(1, '#120906');
+    ctx.fillStyle = inside;
+    ctx.fill();
+    // Drilosfera: revestimento liso e mais escuro nas paredes.
+    ctx.strokeStyle = 'rgba(60,34,22,.9)';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(150,104,70,.35)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.restore();
   }
@@ -17983,7 +18105,7 @@ function createRhizosphereGeometry({ state, painters }) {
       let chunkDeep = -Infinity;
       for (const point of chunkLine) chunkDeep = Math.max(chunkDeep, point[1]);
       const box = { x: x0, y: surface - 4, w: x1 - x0, h: chunkDeep - surface + 30 };
-      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}`, box, g => {
+      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}:${Math.round(burrowX() ?? -1)}`, box, g => {
         g.save();
         g.beginPath();
         g.rect(x0, surface - 4, x1 - x0, box.h);
@@ -18623,7 +18745,9 @@ function createRhizosphereGeometry({ state, painters }) {
     ctx.save();
     ctx.lineCap = 'round';
     const colors = ['#d9b36a', '#b58d4e', '#e8cf93', '#9c7a40'];
+    const mouth = burrowX();
     for (let x = Math.floor((view.left - 20) / 4) * 4; x < view.right + 20; x += 4) {
+      if (mouth !== null && Math.abs(x - mouth) < 30) continue;
       const k = hash2(x, 17);
       if (pseudo(k, 1) < .25) continue;
       const len = 7 + pseudo(k, 2) * 16;
@@ -44934,7 +45058,9 @@ function createRhizosphereLighting({ canvas, state, getAgents, enabled = true })
     const now = typeof performance !== 'undefined' ? performance.now() / 1000 : t;
     const dt = lastTime === null ? 0 : Math.min(.1, Math.max(0, now - lastTime));
     lastTime = now;
-    const target = on && !finaleActive && state.gameState !== 'intro' ? 1 : 0;
+    // Na superfície (cena de entrada) é dia: a escuridão só entra com a queda.
+    const onSurface = state.introFall && state.introFall.stage !== 'fall';
+    const target = on && !finaleActive && !onSurface && state.gameState !== 'intro' ? 1 : 0;
     fade += (target - fade) * Math.min(1, dt * 3.5);
     if (target === 0 && fade < .01) fade = 0;
     if (target === 1 && fade > .99) fade = 1;

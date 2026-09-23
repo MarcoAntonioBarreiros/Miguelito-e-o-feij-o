@@ -70,6 +70,8 @@ import {
   PATHOGEN_ARRIVAL_DEFAULTS,
 } from './pathogen-arrival.js';
 import { createPhaseFinale, phaseFinaleSeconds } from './phase-finale.js';
+import { finalRootCollar } from '../render/final-root-visual.js';
+import { GEOMETRY_ENABLED } from '../render/geometry-preference.js';
 import { celebrationCycleSeconds, resolvePlayerSkin } from '../render/player-skins.js';
 import {
   advanceCampaignPhase,
@@ -1354,7 +1356,33 @@ function initGame({ announce = false } = {}) {
   // qualquer download repetido.
   preloadPhaseBiologicalAudio();
 
-  if (announce) showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText());
+  // CENA DE ENTRADA (Fase 1): Miguelito começa em pé na superfície, sobre a
+  // boca de um túnel de minhoca, e cai por ele até a rizosfera. A queda é a
+  // física normal; a cena só o segura um instante na superfície e adia a
+  // escuridão e o cartão da fase para quando ele entra no solo.
+  sim.state.introFall = null;
+  sim.state.level.introBurrowX = undefined;
+  const introGoal = sim.state.level.goal;
+  if (announce && campaign.phase === 1 && GEOMETRY_ENABLED && introGoal && Number.isFinite(Number(introGoal.y))) {
+    const surface = finalRootCollar(introGoal).y;
+    const player = sim.state.player;
+    // A boca do túnel fica sobre a primeira raiz (onde ele pousa); ele começa
+    // um pouco à esquerda e anda até ela, como no protótipo.
+    sim.state.level.introBurrowX = 230;
+    player.x = 60;
+    player.y = surface - player.h;
+    player.vx = 0;
+    player.vy = 0;
+    player.facing = 1;
+    sim.state.introFall = {
+      stage: 'wait',
+      surface,
+      walkAt: (sim.state.time || 0) + .7,
+      releaseAt: Infinity,
+      card: () => showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText()),
+    };
+    cameraView.resetTracking();
+  } else if (announce) showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText());
 }
 
 let phaseCardTimer = null;
@@ -1727,6 +1755,44 @@ function maybeAnnounceTraversalEncounter() {
   sim.state.toastTime = 3.2;
 }
 
+function updateIntroFall() {
+  const intro = sim.state.introFall;
+  if (!intro) return;
+  const player = sim.state.player;
+  const time = sim.state.time || 0;
+  const burrow = sim.state.level.introBurrowX;
+  if (intro.stage === 'wait' || intro.stage === 'walk') {
+    // Na superfície: parado um instante, depois caminha até a boca do túnel.
+    if (intro.stage === 'wait' && time >= intro.walkAt) intro.stage = 'walk';
+    player.y = intro.surface - player.h;
+    player.vy = 0;
+    player.onGround = true;
+    player.facing = 1;
+    player.vx = intro.stage === 'walk' ? 120 : 0;
+    if (player.x + player.w / 2 >= burrow) {
+      intro.stage = 'stand';
+      intro.releaseAt = time + .3;
+    }
+    return;
+  }
+  if (intro.stage === 'stand') {
+    // Na beira do túnel, um instante antes de cair.
+    player.x = burrow - player.w / 2;
+    player.y = intro.surface - player.h;
+    player.vx = 0;
+    player.vy = 0;
+    player.onGround = true;
+    if ((sim.state.time || 0) >= intro.releaseAt) {
+      intro.stage = 'fall';
+      player.onGround = false;
+      intro.card();
+    }
+    return;
+  }
+  // Pousou lá embaixo: a cena acaba.
+  if (player.onGround && player.y > intro.surface + 120) sim.state.introFall = null;
+}
+
 function renderWorld() {
   // Limpeza defensiva em coordenadas de TELA, antes de qualquer zoom/camera:
   // garante que nenhum quadro residual sobreviva na faixa que o fundo do mundo
@@ -1748,6 +1814,14 @@ function renderWorld() {
     phaseFinale.renderWorldLayer(ctx);
     sim.state.level.traversalDebugVisible = showDebug;
     platformVisuals.drawWorld(ctx);
+    // Na cena de entrada o Miguelito está na superfície ou dentro do túnel —
+    // na frente do céu e da camada de solo, que são desenhados depois dele.
+    if (sim.state.introFall) {
+      ctx.save();
+      ctx.translate(-(sim.state.cameraX || 0), 0);
+      renderer.drawPlayer();
+      ctx.restore();
+    }
     lighting?.renderPlatformDepth(ctx);
     rhizoctoniaControl.render(ctx);
     ralstoniaControl.render(ctx);
@@ -1798,6 +1872,7 @@ function loop(now) {
         sim.setInputs(keys);
         sim.step(frameDt);
         fixedBlockRuntime.update(frameDt);
+        updateIntroFall();
         rhizoctoniaControl.update(frameDt);
         trichodermaRhizoctoniaControl.update(frameDt);
         trichodermaMeloidogyneControl.update(frameDt);

@@ -648,7 +648,9 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     const now = typeof performance !== 'undefined' ? performance.now() / 1000 : t;
     const dt = lastTime === null ? 0 : Math.min(.1, Math.max(0, now - lastTime));
     lastTime = now;
-    const target = on && !finaleActive && state.gameState !== 'intro' ? 1 : 0;
+    // Na superfície (cena de entrada) é dia: a escuridão só entra com a queda.
+    const onSurface = state.introFall && state.introFall.stage !== 'fall';
+    const target = on && !finaleActive && !onSurface && state.gameState !== 'intro' ? 1 : 0;
     fade += (target - fade) * Math.min(1, dt * 3.5);
     if (target === 0 && fade < .01) fade = 0;
     if (target === 1 && fade > .99) fade = 1;

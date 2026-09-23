@@ -252,11 +252,60 @@ export function createRhizosphereGeometry({ state, painters }) {
     ctx.lineWidth = 34;
     traceLine();
     ctx.stroke();
+    paintBurrow(ctx, line, top);
     ctx.restore();
     ctx.save();
     ctx.strokeStyle = soilPalette.outline;
     ctx.lineWidth = 3;
     traceLine();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Túnel de minhoca (bioporo) atravessando a camada de solo, por onde o
+  // Miguelito entra na rizosfera: parede lisa e escura (drilosfera), com a boca
+  // aberta na superfície e na caverna.
+  function burrowX() {
+    const x = Number(state.level?.introBurrowX);
+    return Number.isFinite(x) ? x : null;
+  }
+
+  function paintBurrow(ctx, line, top) {
+    const bx = burrowX();
+    if (bx === null || bx < line[0][0] || bx > line[line.length - 1][0]) return;
+    let bottom = top + 60;
+    for (let i = 1; i < line.length; i++) {
+      if (line[i][0] >= bx) {
+        const [x0, y0] = line[i - 1];
+        const [x1, y1] = line[i];
+        bottom = y0 + (y1 - y0) * ((bx - x0) / Math.max(1, x1 - x0));
+        break;
+      }
+    }
+    const half = 24;
+    const wobble = y => Math.sin(y * .05) * 3;
+    const path = () => {
+      ctx.beginPath();
+      ctx.moveTo(bx - half - 6, top - 2);
+      for (let y = top; y <= bottom + 16; y += 8) ctx.lineTo(bx - half + wobble(y), y);
+      for (let y = bottom + 16; y >= top; y -= 8) ctx.lineTo(bx + half + wobble(y + 30), y);
+      ctx.lineTo(bx + half + 6, top - 2);
+      ctx.closePath();
+    };
+    ctx.save();
+    path();
+    const inside = ctx.createLinearGradient(bx - half, 0, bx + half, 0);
+    inside.addColorStop(0, '#120906');
+    inside.addColorStop(.5, '#070403');
+    inside.addColorStop(1, '#120906');
+    ctx.fillStyle = inside;
+    ctx.fill();
+    // Drilosfera: revestimento liso e mais escuro nas paredes.
+    ctx.strokeStyle = 'rgba(60,34,22,.9)';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(150,104,70,.35)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.restore();
   }
@@ -289,7 +338,7 @@ export function createRhizosphereGeometry({ state, painters }) {
       let chunkDeep = -Infinity;
       for (const point of chunkLine) chunkDeep = Math.max(chunkDeep, point[1]);
       const box = { x: x0, y: surface - 4, w: x1 - x0, h: chunkDeep - surface + 30 };
-      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}`, box, g => {
+      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}:${Math.round(burrowX() ?? -1)}`, box, g => {
         g.save();
         g.beginPath();
         g.rect(x0, surface - 4, x1 - x0, box.h);
@@ -929,7 +978,9 @@ export function createRhizosphereGeometry({ state, painters }) {
     ctx.save();
     ctx.lineCap = 'round';
     const colors = ['#d9b36a', '#b58d4e', '#e8cf93', '#9c7a40'];
+    const mouth = burrowX();
     for (let x = Math.floor((view.left - 20) / 4) * 4; x < view.right + 20; x += 4) {
+      if (mouth !== null && Math.abs(x - mouth) < 30) continue;
       const k = hash2(x, 17);
       if (pseudo(k, 1) < .25) continue;
       const len = 7 + pseudo(k, 2) * 16;
