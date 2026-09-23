@@ -219,6 +219,37 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     };
   }
 
+  function collectGroundLightSources() {
+    const p = state.player;
+    if (!p) return [];
+    return [{
+      x: p.x + (p.w || 32) / 2,
+      y: p.y + (p.h || 48) * .92,
+      r: 108,
+      a: .96,
+      color: '#ffd89a',
+      kind: 'player',
+    }];
+  }
+
+  function findPlatformForGroundLight(source) {
+    const platforms = state.level?.platforms || [];
+    let best = null;
+    for (const p of platforms) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.w) || !Number.isFinite(p.h)) continue;
+      if (p.recovery && state.recoveryPlatformsDisabled) continue;
+      if (p.mycorrhizaStructure || p.azospirillumStructure) continue;
+
+      const insideX = source.x >= p.x - 12 && source.x <= p.x + p.w + 12;
+      if (!insideX) continue;
+
+      const dy = Math.abs(source.y - p.y);
+      if (dy > 46) continue;
+      if (!best || dy < best.dy) best = { platform: p, dy };
+    }
+    return best?.platform || null;
+  }
+
   function roundedScreenRect(ctx, x, y, w, h, radius) {
     const r = Math.max(0, Math.min(radius, w / 2, h / 2));
     ctx.beginPath();
@@ -246,9 +277,9 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     if (p) {
       const x = p.x + (p.w || 32) / 2;
       const y = p.y + (p.h || 48) * .45;
-      // Como no prototipo: halo amplo mais um nucleo claro.
-      lights.push({ x, y, r: 300, a: .56, color: '#bfeee6', glow: .05 });
-      lights.push({ x, y, r: 140, a: .86, color: '#dffbf3', glow: .09 });
+      // Halo quente e concentrado: penumbra curta + nucleo luminoso.
+      lights.push({ x, y, r: 230, a: .72, color: '#ffe2a8', glow: .10 });
+      lights.push({ x, y, r: 110, a: .96, color: '#fff1c9', glow: .18 });
     }
     for (const e of level.exudates || []) {
       if (e.taken) continue;
@@ -403,6 +434,64 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       ctx.stroke();
       ctx.restore();
     }
+
+    // A luz do Miguelito tambem incide no material do solo. Isso e separado do
+    // halo de tela: a plataforma recebe luz de verdade e a propria textura e
+    // clareada localmente, somando naturalmente com os feixes vindos de cima.
+    for (const source of collectGroundLightSources()) {
+      const p = findPlatformForGroundLight(source);
+      if (!p) continue;
+
+      const a = project(m, p.x, p.y);
+      const b = project(m, p.x + p.w, p.y + p.h);
+      const left = Math.min(a[0], b[0]);
+      const top = Math.min(a[1], b[1]);
+      const width = Math.abs(b[0] - a[0]);
+      const height = Math.abs(b[1] - a[1]);
+      if (left + width < 0 || left > W || top + height < 0 || top > H) continue;
+
+      const center = project(m, source.x, p.y);
+      const icx = center[0];
+      const icy = center[1];
+      const radius = Math.max(68 * zoom, source.r * zoom * .70);
+      const penetration = Math.min(height * .76, Math.max(46 * zoom, radius * .56));
+
+      ctx.save();
+      roundedScreenRect(ctx, left, top, width, height, Math.min(22 * zoom, height * .16));
+      ctx.clip();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.translate(icx, icy);
+      ctx.scale(1, Math.max(.50, penetration / radius));
+      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+      const power = source.a * .42 * fade;
+      glow.addColorStop(0, 'rgba(255,239,198,' + (power * 1.45) + ')');
+      glow.addColorStop(.20, 'rgba(255,222,154,' + (power * 1.08) + ')');
+      glow.addColorStop(.48, 'rgba(248,197,116,' + (power * .55) + ')');
+      glow.addColorStop(.78, 'rgba(239,177,93,' + (power * .18) + ')');
+      glow.addColorStop(1, 'rgba(235,174,95,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(-radius, -4 * zoom, radius * 2, radius);
+      ctx.restore();
+
+      // Reflexo curto e intenso no topo: cria o efeito de penumbra no bloco.
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const edgeHalf = Math.min(width * .34, 52 * zoom);
+      const edge = ctx.createLinearGradient(icx - edgeHalf, 0, icx + edgeHalf, 0);
+      edge.addColorStop(0, 'rgba(255,229,170,0)');
+      edge.addColorStop(.28, 'rgba(255,232,178,' + (.34 * fade) + ')');
+      edge.addColorStop(.5, 'rgba(255,249,225,' + (.84 * fade) + ')');
+      edge.addColorStop(.72, 'rgba(255,232,178,' + (.34 * fade) + ')');
+      edge.addColorStop(1, 'rgba(255,229,170,0)');
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = Math.max(1.8, 2.8 * zoom);
+      ctx.beginPath();
+      ctx.moveTo(icx - edgeHalf, icy + .5);
+      ctx.lineTo(icx + edgeHalf, icy + .5);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 
