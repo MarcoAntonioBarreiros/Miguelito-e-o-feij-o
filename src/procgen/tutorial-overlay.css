@@ -1,518 +1,109 @@
-#tutorial-library-button {
-  position: fixed;
-  z-index: 82;
-  top: calc(16px + var(--safe-top));
-  left: 50%;
-  transform: translateX(-50%);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid rgba(196,255,244,.42);
-  border-radius: 10px;
-  color: #effff9;
-  background: rgba(5,31,38,.7);
-  box-shadow: 0 5px 18px rgba(0,0,0,.28), inset 0 0 18px rgba(112,229,214,.08);
-  backdrop-filter: blur(7px);
-  font: 800 12px/1 Inter,system-ui,sans-serif;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-#tutorial-library-button:hover,
-#tutorial-library-button:focus-visible {
-  background: rgba(69,151,148,.84);
-  outline: 2px solid rgba(220,255,247,.76);
-  outline-offset: 2px;
-}
-.touch-device #tutorial-library-button { display: none; }
-
+/* Composição, paleta, moldura e entrada de miguelito-fase1 (1).html. */
 .tutorial-overlay {
+  --tutorial-ink: #fbeedd;
+  --tutorial-muted: #dcbfa3;
+  --tutorial-amber: #ffc35a;
+  --tutorial-cyan: #6ce7df;
+  --tutorial-line: rgba(255,214,170,.2);
+  --tutorial-display: 'Tutorial Grandstander', 'Grandstander', 'Trebuchet MS', system-ui, sans-serif;
+  --tutorial-body: 'Tutorial Atkinson', 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
   position: fixed;
   z-index: 220;
   inset: 0;
   display: grid;
   place-items: center;
-  padding: calc(18px + var(--safe-top)) calc(18px + var(--safe-right)) calc(18px + var(--safe-bottom)) calc(18px + var(--safe-left));
-  touch-action: none;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  touch-action: pan-y;
+  font-family: var(--tutorial-body);
+  color: var(--tutorial-ink);
 }
-.tutorial-overlay[hidden] { display: none; }
-.tutorial-backdrop {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(50,167,159,.2), transparent 38%),
-    rgba(1,8,12,.84);
-  backdrop-filter: blur(7px) saturate(.72);
-}
+.tutorial-overlay *, .tutorial-overlay *::before, .tutorial-overlay *::after { box-sizing: border-box; }
+.tutorial-overlay [hidden], .tutorial-overlay[hidden] { display: none !important; }
+.tutorial-backdrop { position: absolute; inset: 0; background: rgba(15,5,3,.55); backdrop-filter: blur(3px); touch-action: none; }
+.tutorial-overlay button { -webkit-tap-highlight-color: transparent; }
+html.tutorial-open, html.tutorial-open body { touch-action: pan-y; }
 .tutorial-panel {
-  --tutorial-accent: #70e5d6;
   position: relative;
-  z-index: 1;
-  width: min(920px, 96vw);
-  max-height: min(90dvh, 760px);
+  width: min(780px, 100%);
+  max-height: calc(100dvh - 48px);
+  background: linear-gradient(160deg,#3a1a11,#2a130d 60%);
+  border: 1px solid var(--tutorial-line);
+  border-radius: 28px 28px 28px 8px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.55);
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 68%, transparent);
-  border-radius: 22px;
-  color: #effff9;
-  background:
-    linear-gradient(135deg, rgba(10,43,49,.97), rgba(3,17,25,.985) 56%, rgba(7,30,37,.98)),
-    #071b22;
-  box-shadow:
-    0 30px 80px rgba(0,0,0,.62),
-    0 0 42px color-mix(in srgb, var(--tutorial-accent) 18%, transparent),
-    inset 0 0 42px rgba(104,231,220,.05);
-  isolation: isolate;
 }
-.tutorial-panel::before,
-.tutorial-panel::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-}
-.tutorial-panel::before {
-  inset: 10px;
-  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 24%, transparent);
-  border-radius: 15px;
-}
-.tutorial-panel::after {
-  width: 220px;
-  height: 220px;
-  right: -95px;
-  top: -110px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--tutorial-accent) 18%, transparent);
-  filter: blur(28px);
-}
-.tutorial-scanlines {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  opacity: .16;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 4px,
-    rgba(211,255,247,.13) 5px,
-    transparent 6px
-  );
-  animation: tutorial-scan 10s linear infinite;
-}
-@keyframes tutorial-scan {
-  from { transform: translateY(-16px); }
-  to { transform: translateY(16px); }
-}
-.tutorial-close {
-  position: absolute;
-  z-index: 5;
-  top: 14px;
-  right: 14px;
-  width: 38px;
-  height: 38px;
-  border: 1px solid rgba(226,255,250,.36);
-  border-radius: 50%;
-  color: #f1fffb;
-  background: rgba(3,20,27,.78);
-  font: 400 27px/1 system-ui,sans-serif;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.tutorial-close:hover,
-.tutorial-close:focus-visible {
-  background: color-mix(in srgb, var(--tutorial-accent) 42%, rgba(3,20,27,.9));
-  outline: 2px solid var(--tutorial-accent);
-  outline-offset: 2px;
-}
-.tutorial-card-view,
-.tutorial-library-view {
-  position: relative;
-  max-height: min(90dvh, 760px);
-  scrollbar-color: color-mix(in srgb, var(--tutorial-accent) 55%, transparent) rgba(0,0,0,.2);
-}
-.tutorial-library-view { overflow: auto; }
-/* O cartao rola por dentro, nao por fora. Quando a view inteira rolava, em
-   paisagem no celular o cabecalho saia da tela e o jogador perdia justamente o
-   nome do organismo que o cartao esta ensinando. Cabecalho e rodape ficam
-   presos; so o miolo rola. */
+.tutorial-panel--card { animation: tutorial-card-in .35s cubic-bezier(.2,1.3,.4,1); }
+@keyframes tutorial-card-in { from { transform: translateY(18px) scale(.97); opacity: 0; } }
 .tutorial-card-view {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 28px 32px 24px;
-}
-.tutorial-header { flex: none; padding-right: 46px; }
-.tutorial-footer { flex: none; }
-.tutorial-heading-meta {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(180px,250px) minmax(0,1fr);
+  gap: 28px;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  padding: 28px 32px 26px 28px;
+  height: min(600px, calc(100dvh - 50px));
 }
-.tutorial-category,
-.tutorial-new-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-.tutorial-category {
-  color: color-mix(in srgb, var(--tutorial-accent) 86%, white);
-  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 45%, transparent);
-  background: color-mix(in srgb, var(--tutorial-accent) 11%, transparent);
-}
-.tutorial-new-badge {
-  color: #08191b;
-  background: var(--tutorial-accent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--tutorial-accent) 32%, transparent);
-}
-.tutorial-title,
-.tutorial-library-title {
-  margin: 0;
-  color: #f4fffc;
-  font-size: clamp(26px, 4vw, 44px);
-  line-height: 1.04;
-  letter-spacing: -.035em;
-}
-.tutorial-subtitle,
-.tutorial-library-description {
-  margin: 7px 0 0;
-  color: rgba(231,255,249,.72);
-  font-size: clamp(13px, 1.8vw, 17px);
-  line-height: 1.4;
-}
-.tutorial-content {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: grid;
-  grid-template-columns: minmax(215px, 280px) minmax(0, 1fr);
-  gap: 30px;
-  align-items: stretch;
-  margin-top: 24px;
-}
-.tutorial-visual {
-  position: relative;
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  padding: 18px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 34%, transparent);
-  border-radius: 18px;
-  background:
-    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--tutorial-accent) 24%, transparent), transparent 42%),
-    linear-gradient(180deg, rgba(3,25,31,.62), rgba(2,13,20,.78));
-}
-/* Simbolo e aneis num unico bloco, com o mesmo centro.
-   Antes os aneis eram absolutos em top:38% do container e o glifo era um item
-   flex com margem — dois sistemas de ancoragem diferentes. Bastava o container
-   mudar de tamanho para eles se separarem, e era isso que desalinhava no
-   celular. Agora o anel se centra no simbolo, entao nao ha como derivar. */
-.tutorial-symbol {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: clamp(96px, 13vw, 150px);
-  aspect-ratio: 1;
-}
-.tutorial-hologram-ring {
-  position: absolute;
-  left: 50%;
-  top: 50%;
+.tutorial-scope {
   width: 100%;
-  height: 100%;
-  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 65%, transparent);
+  height: auto;
+  position: static;
+  inset: auto;
+  max-height: none;
+  image-rendering: auto;
+  aspect-ratio: 1;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 22px color-mix(in srgb, var(--tutorial-accent) 18%, transparent);
-}
-/* Proporcionais ao simbolo, nao em pixels fixos: assim acompanham o clamp em
-   qualquer tela sem precisar de um override por media query. */
-.ring-one { animation: tutorial-ring 8s linear infinite; }
-.ring-two {
-  width: 72%;
-  height: 72%;
-  border-style: dashed;
-  animation: tutorial-ring-reverse 6s linear infinite;
-}
-@keyframes tutorial-ring {
-  from { transform: translate(-50%, -50%) rotate(0); }
-  to { transform: translate(-50%, -50%) rotate(360deg); }
-}
-@keyframes tutorial-ring-reverse {
-  from { transform: translate(-50%, -50%) rotate(360deg); }
-  to { transform: translate(-50%, -50%) rotate(0); }
-}
-.tutorial-glyph {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 62%;
-  height: 62%;
-  color: #f4fffc;
-  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 72%, transparent);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--tutorial-accent) 16%, rgba(2,15,21,.88));
-  box-shadow:
-    0 0 30px color-mix(in srgb, var(--tutorial-accent) 38%, transparent),
-    inset 0 0 26px color-mix(in srgb, var(--tutorial-accent) 16%, transparent);
-  font: 900 clamp(24px, 4vw, 38px)/1 ui-monospace,monospace;
-  letter-spacing: -.08em;
-  text-shadow: 0 0 14px var(--tutorial-accent);
-}
-/* Faixa propria, largura toda, entre o miolo e o rodape. Centralizada, entao
-   uma sequencia curta fica no meio em vez de sobrar espaco de um lado so. */
-.tutorial-cycle-block {
-  flex: none;
-  margin-top: 16px;
-  padding: 12px 16px;
-  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 26%, transparent);
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(3,25,31,.5), rgba(2,13,20,.66));
-}
-.tutorial-cycle-block:has(.tutorial-cycle:empty) { display: none; }
-.tutorial-cycle-label {
   display: block;
-  margin-bottom: 8px;
-  color: rgba(233,255,249,.63);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  text-align: center;
+  background: #050202;
+  box-shadow: 0 0 0 7px #7a5334,0 0 0 9px #3a2215,0 0 0 11px #a57a4f,inset 0 0 40px rgba(0,0,0,.8);
 }
-.tutorial-cycle {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 5px 6px;
-}
-/* Com a largura toda disponivel, a etapa nunca precisa quebrar no meio do
-   nome — era o que fazia a sequencia parecer pequena e truncada. */
-.tutorial-cycle-step {
-  padding: 5px 10px;
-  border-radius: 999px;
-  color: #eafff8;
-  background: color-mix(in srgb, var(--tutorial-accent) 12%, rgba(0,0,0,.28));
-  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 30%, transparent);
-  font-size: 11px;
-  line-height: 1.15;
-  white-space: nowrap;
-  text-align: center;
-}
-.tutorial-cycle-arrow {
-  color: var(--tutorial-accent);
-  font-size: 15px;
-  opacity: .85;
-}
-.tutorial-page {
-  min-height: 390px;
-  padding: 25px 27px;
-  border: 1px solid rgba(219,255,248,.12);
-  border-radius: 18px;
-  background: rgba(1,12,18,.52);
-  user-select: text;
-  outline: none;
-}
-.tutorial-page-counter {
-  color: var(--tutorial-accent);
-  font: 900 11px/1 ui-monospace,monospace;
-  letter-spacing: .12em;
-}
-.tutorial-page-title {
-  margin: 18px 0 13px;
-  color: #f4fffc;
-  font-size: clamp(22px, 3vw, 32px);
-  line-height: 1.08;
-}
-.tutorial-page-body {
-  margin: 0;
-  color: rgba(237,255,251,.86);
-  font-size: clamp(15px, 2vw, 18px);
-  line-height: 1.58;
-}
-.tutorial-page-points {
-  display: grid;
-  gap: 10px;
-  margin: 21px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.tutorial-page-points li {
-  position: relative;
-  padding-left: 21px;
-  color: rgba(231,255,249,.78);
-  font-size: 14px;
-  line-height: 1.45;
-}
-.tutorial-page-points li::before {
-  content: '◇';
-  position: absolute;
-  left: 0;
-  color: var(--tutorial-accent);
-}
-.tutorial-footer {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 18px;
-  margin-top: 20px;
-}
-.tutorial-button {
-  min-height: 43px;
-  padding: 0 18px;
-  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 45%, transparent);
-  border-radius: 12px;
-  color: #effff9;
-  background: color-mix(in srgb, var(--tutorial-accent) 13%, rgba(2,17,23,.88));
-  font: 850 13px/1 Inter,system-ui,sans-serif;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.tutorial-button:hover,
-.tutorial-button:focus-visible {
-  color: #041619;
-  background: var(--tutorial-accent);
-  outline: 2px solid rgba(235,255,250,.76);
-  outline-offset: 2px;
-}
-.tutorial-button:disabled {
-  opacity: .32;
-  cursor: default;
-}
-.tutorial-button:disabled:hover { color: #effff9; background: rgba(2,17,23,.88); }
-.tutorial-page-dots {
-  display: flex;
-  justify-content: center;
-  gap: 7px;
-}
-.tutorial-page-dot {
-  width: 10px;
-  height: 10px;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 52%, transparent);
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.tutorial-page-dot.active {
-  background: var(--tutorial-accent);
-  box-shadow: 0 0 12px var(--tutorial-accent);
-}
-
-.tutorial-library-view { padding: 30px 32px 24px; }
-.tutorial-library-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding-right: 8px;
-}
-.tutorial-library-count {
-  flex: 0 0 auto;
-  padding: 9px 12px;
-  border: 1px solid rgba(112,229,214,.32);
-  border-radius: 11px;
-  color: #bff9ec;
-  background: rgba(9,48,52,.42);
-  font-size: 12px;
-  font-weight: 900;
-}
-.tutorial-library-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 26px;
-}
-.tutorial-library-card {
-  --card-accent: #70e5d6;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 11px;
-  min-height: 76px;
-  padding: 11px;
-  border: 1px solid color-mix(in srgb, var(--card-accent) 30%, rgba(255,255,255,.05));
-  border-radius: 14px;
-  color: #effff9;
-  background: color-mix(in srgb, var(--card-accent) 7%, rgba(1,13,19,.72));
-  text-align: left;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.tutorial-library-card:hover,
-.tutorial-library-card:focus-visible {
-  border-color: var(--card-accent);
-  background: color-mix(in srgb, var(--card-accent) 15%, rgba(1,13,19,.78));
-  outline: 2px solid color-mix(in srgb, var(--card-accent) 40%, transparent);
-  outline-offset: 2px;
-}
-.tutorial-library-card-glyph {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border: 1px solid color-mix(in srgb, var(--card-accent) 54%, transparent);
-  border-radius: 50%;
-  color: #f3fffc;
-  background: color-mix(in srgb, var(--card-accent) 13%, rgba(0,0,0,.2));
-  font: 900 14px/1 ui-monospace,monospace;
-  text-shadow: 0 0 10px var(--card-accent);
-}
-.tutorial-library-card-copy {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-}
-.tutorial-library-card-copy strong {
-  overflow: hidden;
-  color: #f1fffb;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tutorial-library-card-copy small {
-  overflow: hidden;
-  color: rgba(224,255,247,.56);
-  font-size: 9px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tutorial-library-card-state {
-  color: var(--card-accent);
-  font-size: 9px;
-  font-weight: 900;
-}
-.tutorial-library-empty {
-  margin: 40px 0;
-  color: rgba(230,255,249,.62);
-  text-align: center;
-}
-.tutorial-library-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 22px;
-}
-.tutorial-library-status {
-  min-height: 1.4em;
-  margin: 10px 0 0;
-  color: #bff9ec;
-  font-size: 11px;
-  text-align: center;
-}
-
+.tutorial-paper-content { display: grid; grid-template-rows: auto minmax(0,1fr) auto; height: 100%; min-height: 0; min-width: 0; overflow: hidden; }
+.tutorial-header { padding-right: 14px; }
+.tutorial-heading-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+.tutorial-category, .tutorial-new-badge { color: var(--tutorial-muted); font: 700 10px/1.3 var(--tutorial-body); letter-spacing: .12em; text-transform: uppercase; }
+.tutorial-new-badge { color: var(--tutorial-amber); }
+.tutorial-title, .tutorial-library-title { font-family: var(--tutorial-display); font-weight: 800; font-size: 2.1rem; line-height: 1; margin: 0 0 .25rem; color: #fff4e2; overflow-wrap: anywhere; }
+.tutorial-subtitle { margin: 0 0 1rem; color: var(--tutorial-amber); font-weight: 700; line-height: 1.35; }
+.tutorial-page { min-height: 0; display: flex; }
+.tutorial-page-scroll { width: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #7a5334 transparent; padding-right: 8px; user-select: text; }
+.tutorial-page-title { font: 700 1.05rem/1.35 var(--tutorial-body); margin: 0 0 .65rem; color: #fff4e2; }
+.tutorial-page-body { margin: 0 0 .9rem; line-height: 1.55; color: #f1dcc6; max-width: 62ch; font-size: 1rem; }
+.tutorial-page-points { margin: 0 0 1rem; padding: .7rem .9rem .7rem 1.8rem; border-radius: 12px; background: rgba(108,231,223,.09); border-left: 3px solid var(--tutorial-cyan); color: #dff7f2; line-height: 1.5; }
+.tutorial-page-points li + li { margin-top: .4rem; }
+.tutorial-cycle-block { margin-top: 1rem; padding-top: .65rem; border-top: 1px solid var(--tutorial-line); }
+.tutorial-cycle-label { display: block; color: var(--tutorial-muted); font-size: .72rem; margin-bottom: .3rem; }
+.tutorial-cycle { display: flex; flex-wrap: wrap; gap: 3px 5px; color: var(--tutorial-muted); font-size: .75rem; line-height: 1.5; }
+.tutorial-cycle-link { display: inline-flex; align-items: baseline; gap: 5px; }
+.tutorial-cycle-step { overflow-wrap: anywhere; }
+.tutorial-cycle-arrow { color: var(--tutorial-amber); }
+.tutorial-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 16px 0 5px; }
+.tutorial-button { color: var(--tutorial-ink); background: transparent; border: 1.5px solid var(--tutorial-line); border-radius: 999px; min-height: 44px; padding: .7rem 1rem; font: 700 .95rem/1.2 var(--tutorial-body); cursor: pointer; touch-action: manipulation; }
+.tutorial-next { background: var(--tutorial-amber); color: #3a1608; border: 0; padding: .8rem 1.35rem; font: 800 1.1rem/1.2 var(--tutorial-display); box-shadow: 0 4px 0 #b3651f,0 12px 24px rgba(0,0,0,.35); transition: transform .08s; }
+.tutorial-next:active { transform: translateY(3px); box-shadow: 0 1px 0 #b3651f; }
+.tutorial-prev { font-size: 1.3rem; padding: .5rem; min-width: 44px; }
+.tutorial-button:disabled { opacity: .3; cursor: default; }
+.tutorial-button:hover:not(:disabled) { filter: brightness(1.12); }
+.tutorial-overlay :focus-visible { outline: 3px solid var(--tutorial-cyan); outline-offset: -3px; }
+.tutorial-pagination { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-right: auto; }
+.tutorial-page-dots { display: flex; }
+.tutorial-page-dot { width: 24px; height: 26px; border: 0; padding: 0; background: transparent; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; }
+.tutorial-page-dot::after { content: ''; width: 6px; height: 6px; border: 1px solid var(--tutorial-muted); border-radius: 50%; }
+.tutorial-page-dot.active::after { background: var(--tutorial-amber); border-color: var(--tutorial-amber); }
+.tutorial-page-counter { color: var(--tutorial-muted); font-size: .7rem; }
+.tutorial-close { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 0; background: transparent; color: var(--tutorial-muted); font: 24px/1 var(--tutorial-body); cursor: pointer; touch-action: manipulation; z-index: 2; }
+.tutorial-library-view { padding: 28px; max-height: calc(100dvh - 50px); overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; }
+.tutorial-library-header { display: flex; gap: 20px; align-items: start; }
+.tutorial-library-title { margin-top: 8px; }
+.tutorial-library-description, .tutorial-library-count, .tutorial-library-empty, .tutorial-library-status { color: var(--tutorial-muted); line-height: 1.5; }
+.tutorial-library-count { font-size: .8rem; }
+.tutorial-library-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 24px 0; }
+.tutorial-library-card { display: flex; align-items: center; text-align: left; gap: 12px; min-height: 70px; border: 1px solid var(--tutorial-line); border-radius: 12px; padding: 12px; background: rgba(15,5,3,.22); color: var(--tutorial-ink); font: inherit; cursor: pointer; touch-action: manipulation; }
+.tutorial-library-card:hover { background: #3a1a11; }
+.tutorial-library-card-glyph { color: var(--card-accent); min-width: 30px; }
+.tutorial-library-card-copy { display: grid; gap: 4px; }
+.tutorial-library-card-copy small { color: var(--tutorial-muted); }
+.tutorial-library-card-state { color: var(--tutorial-amber); font-size: .65rem; margin-left: auto; }
+.tutorial-library-footer { display: flex; justify-content: space-between; gap: 12px; }
+#tutorial-library-button { position: fixed; z-index: 82; top: calc(16px + var(--safe-top)); left: 50%; transform: translateX(-50%); min-height: 34px; padding: 0 12px; border: 1px solid rgba(255,214,170,.2); border-radius: 999px; color: #fbeedd; background: rgba(42,19,13,.9); cursor: pointer; touch-action: manipulation; }
+.touch-device #tutorial-library-button { display: none; }
 html.tutorial-open #toast,
 html.tutorial-open #phase-card,
 html.tutorial-open #mission,
@@ -522,679 +113,29 @@ html.tutorial-open #hud-alerts,
 html.tutorial-open #survival-hud,
 html.tutorial-open #touch-controls,
 html.tutorial-open #mobile-tools,
-html.tutorial-open #tutorial-library-button {
-  opacity: .08 !important;
-  pointer-events: none !important;
-}
-/* O Phase Lab vive em z-index 10020 e o cartao em 220: sem isto o botao fica
-   por cima do cartao, tapando o holograma do organismo. Some de vez em vez de
-   desbotar, senao continua um fantasma sobre o conteudo. */
-html.tutorial-open .phase-lab-toggle,
-html.tutorial-open .phase-lab {
-  display: none !important;
-}
-
-@media (max-width: 760px) {
-  .tutorial-overlay { padding: calc(8px + var(--safe-top)) calc(8px + var(--safe-right)) calc(8px + var(--safe-bottom)) calc(8px + var(--safe-left)); }
-  .tutorial-panel { width: 100%; max-height: 95dvh; border-radius: 17px; }
-  .tutorial-card-view,
-  .tutorial-library-view { max-height: 95dvh; }
-  .tutorial-card-view { padding: 22px 18px 17px; }
-  .tutorial-title { font-size: 29px; }
-  .tutorial-subtitle { font-size: 13px; }
-  .tutorial-content {
-    grid-template-columns: 1fr;
-    gap: 14px;
-    margin-top: 16px;
-  }
-  /* O simbolo e os aneis agora sao um bloco so e escalam pelo clamp, entao
-     nao precisam mais de posicao nem tamanho por media query. */
-  .tutorial-visual { padding: 12px; }
-  .tutorial-symbol { width: clamp(78px, 22vw, 110px); }
-  .tutorial-cycle-block { margin-top: 12px; padding: 10px 12px; }
-  .tutorial-cycle-step { font-size: 10px; padding: 4px 8px; }
-  .tutorial-page { min-height: 255px; padding: 19px 18px; }
-  .tutorial-page-title { margin-top: 12px; font-size: 24px; }
-  .tutorial-page-body { font-size: 15px; line-height: 1.48; }
-  .tutorial-footer { gap: 8px; }
-  .tutorial-button { min-height: 41px; padding: 0 12px; font-size: 12px; }
-  .tutorial-library-view { padding: 24px 17px 17px; }
-  .tutorial-library-header { display: grid; gap: 13px; }
-  .tutorial-library-count { width: max-content; }
-  .tutorial-library-grid { grid-template-columns: 1fr; gap: 9px; margin-top: 18px; }
+html.tutorial-open #tutorial-library-button { opacity: .08 !important; pointer-events: none !important; }
+html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: none !important; }
+@media (max-width: 640px) {
+  .tutorial-overlay { padding: max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); }
+  .tutorial-panel { max-height: calc(100dvh - 32px); }
+  .tutorial-card-view { grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr); padding: 20px; gap: 24px; height: min(820px,calc(100dvh - 34px)); }
+  .tutorial-scope { max-width: min(170px,24dvh); margin: 0 auto; }
+  .tutorial-title { font-size: 1.7rem; }
+  .tutorial-subtitle { font-size: .9rem; margin-bottom: .75rem; }
+  .tutorial-next { font-size: 1rem; padding: .8rem 1rem; }
+  .tutorial-page-dot { width: 20px; }
+  .tutorial-footer { gap: 5px; }
+  .tutorial-library-grid { grid-template-columns: 1fr; }
+  .tutorial-library-header { display: block; }
   .tutorial-library-footer { flex-direction: column-reverse; }
 }
-
-/* Paisagem no celular e o modo em que o jogo e feito para ser jogado, e era o
-   mais quebrado: sobra largura e falta altura. As alturas minimas pediam 275px
-   de miolo quando a tela inteira oferecia ~345px, entao tudo transbordava e o
-   cabecalho rolava para fora. Aqui nada tem altura minima — o miolo rola por
-   dentro — e a coluna do holograma fica larga o bastante para os passos do
-   ciclo nao virarem uma pilha de uma palavra por linha. */
-@media (max-height: 560px) and (orientation: landscape) {
-  .tutorial-overlay { padding: calc(6px + var(--safe-top)) calc(10px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(10px + var(--safe-left)); }
-  .tutorial-panel,
-  .tutorial-card-view,
-  .tutorial-library-view { max-height: 97dvh; }
-  .tutorial-card-view { padding: 12px 18px 11px; }
+@media (max-height: 560px) and (min-width: 641px) {
+  .tutorial-overlay { padding: 12px max(24px,env(safe-area-inset-right)) 12px max(24px,env(safe-area-inset-left)); }
+  .tutorial-panel { max-height: calc(100dvh - 24px); }
+  .tutorial-card-view { height: calc(100dvh - 26px); grid-template-columns: minmax(150px,200px) minmax(0,1fr); padding: 20px 28px; }
+  .tutorial-title { font-size: 1.7rem; }
+  .tutorial-subtitle { font-size: .9rem; margin-bottom: .6rem; }
   .tutorial-heading-meta { margin-bottom: 4px; }
-  .tutorial-title { font-size: clamp(19px, 3.4vh, 26px); }
-  .tutorial-subtitle { margin-top: 3px; font-size: 12px; }
-  .tutorial-content {
-    grid-template-columns: minmax(210px, 250px) minmax(0, 1fr);
-    gap: 14px;
-    margin-top: 9px;
-  }
-  .tutorial-visual,
-  .tutorial-page { min-height: 0; }
-  /* Em paisagem falta altura: o simbolo encolhe e a faixa da sequencia fica
-     rasa, mas continua com a largura toda — que e o que ela precisa. */
-  .tutorial-visual { padding: 10px; }
-  .tutorial-symbol { width: clamp(64px, 16vh, 104px); }
-  .tutorial-cycle-block { margin-top: 8px; padding: 7px 10px; }
-  .tutorial-cycle-label { margin-bottom: 5px; font-size: 9px; }
-  .tutorial-cycle-step { font-size: 10px; padding: 3px 8px; }
-  .tutorial-page { padding: 12px 15px; }
-  .tutorial-page-counter { font-size: 10px; }
-  .tutorial-page-title { margin: 6px 0 6px; font-size: clamp(17px, 3vh, 22px); }
-  .tutorial-page-body { font-size: 13px; line-height: 1.4; }
-  .tutorial-page-points { gap: 5px; margin-top: 9px; }
-  .tutorial-page-points li { font-size: 11px; }
-  .tutorial-footer { margin-top: 9px; }
-  .tutorial-button { min-height: 36px; padding: 0 13px; font-size: 12px; }
-  .tutorial-close { width: 34px; height: 34px; top: 8px; right: 8px; font-size: 19px; }
+  .tutorial-footer { padding-top: 8px; }
 }
-
-/* ==================================================
-   GLOBAL PROTECTION FOR NAV IMAGES
-   ================================================== */
-.tutorial-nav-image {
-  appearance: none;
-  -webkit-appearance: none;
-  border: 0 !important;
-  outline: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-}
-
-.tutorial-nav-image img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 0 !important;
-  outline: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-/* ==================================================
-   NEW PNG TUTORIAL CARD STYLING (.tutorial-panel--card)
-   ================================================== */
-
-.tutorial-overlay:has(.tutorial-panel--card) .tutorial-backdrop {
-  background: rgba(12, 8, 4, 0.66) !important;
-  backdrop-filter: blur(2px) !important;
-}
-
-.tutorial-panel--card {
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-  overflow: visible !important;
-  width: auto !important;
-  max-height: none !important;
-  animation: tutorial-card-appear 210ms cubic-bezier(0.16, 1, 0.3, 1) !important;
-  isolation: auto !important;
-}
-
-@keyframes tutorial-card-appear {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.tutorial-panel--card::before,
-.tutorial-panel--card::after,
-.tutorial-panel--card .tutorial-scanlines,
-.tutorial-panel--card .tutorial-visual,
-.tutorial-panel--card .tutorial-symbol,
-.tutorial-panel--card .tutorial-hologram-ring,
-.tutorial-panel--card .tutorial-glyph,
-.tutorial-panel--card .tutorial-heading-meta,
-.tutorial-panel--card .tutorial-new-badge,
-.tutorial-panel--card .tutorial-page-dots {
-  display: none !important;
-}
-
-.tutorial-panel--card .tutorial-card-view {
-  --paper-left: 21%;
-  --paper-top: 24.5%;
-  --paper-width: 58%;
-  --paper-height: 51.5%;
-
-  --nav-width: 15%;
-  --nav-bottom: 6%;
-  --prev-left: 33%;
-  --next-right: 33%;
-
-  --tutorial-card-ratio: calc(2660 / 1984);
-
-  position: relative !important;
-  width: min(96vw, calc(94dvh * var(--tutorial-card-ratio)), 1120px) !important;
-  aspect-ratio: 2660 / 1984 !important;
-  overflow: visible !important;
-  container-type: inline-size;
-  padding: 0 !important;
-  margin: 0 auto !important;
-  max-height: none !important;
-  display: block !important;
-}
-
-.tutorial-panel--card .tutorial-card-art {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain !important;
-  pointer-events: none !important;
-  user-select: none !important;
-  z-index: 1 !important;
-}
-
-/* A AREA DE PAPEL TEM ALTURA FIXA — ENTAO PRECISA CONTER O QUE CRESCE.
-   Ela ocupa uma fracao fixa da arte (`--paper-height`), e as linhas 1 e 3 do
-   grid sao `auto`: crescem com o conteudo. Sem `overflow` isso vazava. Medido
-   antes do conserto, em 360x640: a caixa tinha 133px de altura e o bloco do
-   ciclo terminava 133px ABAIXO dela, 130px por cima das setas de navegacao, com
-   a regiao rolavel esmagada a 0px — o texto do cartao ficava inacessivel.
-   Quatro das cinco resolucoes moveis testadas estavam assim.
-   O `overflow: hidden` garante que nada saia da folha; as linhas com minimo 0
-   garantem que a do meio possa encolher em vez de empurrar as outras. */
-.tutorial-panel--card .tutorial-paper-content {
-  position: absolute !important;
-  left: var(--paper-left) !important;
-  top: var(--paper-top) !important;
-  width: var(--paper-width) !important;
-  height: var(--paper-height) !important;
-
-  display: grid !important;
-  grid-template-rows:
-    minmax(0, auto)
-    minmax(0, 1fr)
-    minmax(0, auto) !important;
-
-  min-width: 0 !important;
-  min-height: 0 !important;
-  overflow: hidden !important;
-  z-index: 2 !important;
-}
-
-.tutorial-panel--card .tutorial-close {
-  position: absolute !important;
-  top: 3.2% !important;
-  right: 3.4% !important;
-  left: auto !important;
-  width: 6.2% !important;
-  min-width: 44px !important;
-  max-width: 76px !important;
-  aspect-ratio: 267 / 225 !important;
-  height: auto !important;
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  z-index: 6 !important;
-  cursor: pointer !important;
-  border-radius: 0 !important;
-  transition: transform .15s ease !important;
-}
-
-@media (max-height: 480px) and (orientation: landscape) {
-  .tutorial-panel--card .tutorial-close {
-    width: 5.8% !important;
-    min-width: 38px !important;
-    max-width: 58px !important;
-  }
-}
-
-.tutorial-panel--card .tutorial-close img {
-  display: block !important;
-  width: 100% !important;
-  height: auto !important;
-  border: 0 !important;
-  background: transparent !important;
-  object-fit: contain !important;
-  pointer-events: none !important;
-}
-
-.tutorial-panel--card .tutorial-close:hover {
-  transform: scale(1.06) !important;
-  background: transparent !important;
-  outline: none !important;
-}
-
-.tutorial-panel--card .tutorial-close:active {
-  transform: scale(.93) !important;
-}
-
-.tutorial-panel--card .tutorial-close:focus-visible {
-  outline: 4px solid #f5d98c !important;
-  outline-offset: 3px !important;
-}
-
-.tutorial-panel--card .tutorial-header {
-  width: 100% !important;
-  margin: 0 !important;
-  padding: 0 5% !important;
-  text-align: center !important;
-  flex: none !important;
-}
-
-.tutorial-panel--card .tutorial-title {
-  width: 100% !important;
-  margin: 0 !important;
-  color: #5f8739 !important;
-  font-family: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif !important;
-  font-size: clamp(15px, 4.2cqw, 50px) !important;
-  font-weight: 900 !important;
-  line-height: 1 !important;
-  text-align: center !important;
-  letter-spacing: -0.02em !important;
-  text-shadow:
-    0 2px 0 rgba(255,255,255,.55),
-    0 3px 3px rgba(76,53,27,.14) !important;
-}
-
-.tutorial-panel--card .tutorial-subtitle {
-  width: 86% !important;
-  max-width: none !important;
-  margin: .38em auto 0 !important;
-  color: #6a4934 !important;
-  font-size: clamp(10px, 1.8cqw, 21px) !important;
-  font-weight: 700 !important;
-  line-height: 1.2 !important;
-  text-align: center !important;
-  text-wrap: balance !important;
-}
-
-.tutorial-panel--card .tutorial-page-counter {
-  position: absolute !important;
-  top: 1% !important;
-  right: 1% !important;
-  color: rgba(76,48,30,.55) !important;
-  font-size: clamp(8px, 1.1cqw, 14px) !important;
-  font-weight: 800 !important;
-  font-family: inherit !important;
-  letter-spacing: 0 !important;
-}
-
-.tutorial-panel--card .tutorial-page {
-  width: 84% !important;
-  margin: 1.25em auto 0 !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  justify-content: flex-start !important;
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  padding: 0 !important;
-  outline: none !important;
-  user-select: text;
-}
-
-.tutorial-panel--card .tutorial-page-title {
-  width: 100% !important;
-  margin: 0 0 .48em !important;
-  padding: 0 !important;
-
-  color: #5f8739 !important;
-  font-size: clamp(12px, 2.3cqw, 28px) !important;
-  font-weight: 900 !important;
-  line-height: 1.12 !important;
-  text-align: left !important;
-}
-
-/* A UNICA regiao rolavel do cartao.
-   `touch-action: pan-y` e obrigatorio: a sobreposicao inteira declara
-   `touch-action: none` para o dedo nao arrastar a pagina por tras, e sem esta
-   excecao o gesto de rolar morria aqui — o texto que nao coubesse ficava
-   inalcancavel no celular. */
-.tutorial-panel--card .tutorial-page-scroll {
-  width: 100% !important;
-  min-height: 0 !important;
-  min-width: 0 !important;
-  flex: 1;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  overscroll-behavior: contain;
-  touch-action: pan-y !important;
-  -webkit-overflow-scrolling: touch;
-  padding-right: 6px !important;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(107,73,50,.35) transparent;
-}
-
-.tutorial-panel--card .tutorial-page-body {
-  width: 100% !important;
-  max-width: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-
-  color: #4b3020 !important;
-  font-size: clamp(12px, 1.72cqw, 21px) !important;
-  font-weight: 600 !important;
-  line-height: 1.43 !important;
-  text-align: left !important;
-  text-wrap: pretty !important;
-}
-
-.tutorial-panel--card .tutorial-page-points {
-  width: 100% !important;
-  margin: .62em 0 0 !important;
-  padding-left: 1.3em !important;
-
-  color: #4b3020 !important;
-  font-size: clamp(11px, 1.5cqw, 18px) !important;
-  font-weight: 600 !important;
-  line-height: 1.36 !important;
-  text-align: left !important;
-  list-style-type: disc !important;
-  display: grid !important;
-  gap: 6px !important;
-}
-
-.tutorial-panel--card .tutorial-page-points li {
-  padding-left: 0 !important;
-  color: #4b3020 !important;
-  font-size: clamp(11px, 1.5cqw, 18px) !important;
-  line-height: 1.36 !important;
-}
-
-.tutorial-panel--card .tutorial-page-points li::before {
-  content: none !important;
-}
-
-.tutorial-panel--card .tutorial-cycle-block {
-  width: 92% !important;
-  margin: .7em auto 0 !important;
-  padding-top: .62em !important;
-  border-top: 1px solid rgba(100,70,40,.22) !important;
-  min-width: 0 !important;
-  background: transparent !important;
-  border-radius: 0 !important;
-  border-left: none !important;
-  border-right: none !important;
-  border-bottom: none !important;
-  flex: none !important;
-}
-
-.tutorial-panel--card .tutorial-cycle-label {
-  display: block !important;
-  margin-bottom: .45em !important;
-  color: #5f8739 !important;
-  font-size: clamp(9px, 1.3cqw, 15px) !important;
-  font-weight: 900 !important;
-  text-align: left !important;
-  letter-spacing: 0 !important;
-  text-transform: none !important;
-}
-
-.tutorial-panel--card .tutorial-cycle {
-  width: 100% !important;
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
-  flex-wrap: wrap !important;
-  gap: .36em .42em !important;
-}
-
-.tutorial-panel--card .tutorial-cycle-link {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: .38em !important;
-  break-inside: avoid !important;
-  white-space: nowrap !important;
-}
-
-.tutorial-panel--card .tutorial-cycle-step {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 2em !important;
-  padding: .35em .75em !important;
-  border: 1px solid rgba(103,126,58,.45) !important;
-  border-radius: 999px !important;
-  background: linear-gradient(180deg, rgba(246,238,185,.92), rgba(218,201,135,.92)) !important;
-  color: #5a3b27 !important;
-  font-size: clamp(8px, 1.15cqw, 14px) !important;
-  font-weight: 800 !important;
-  line-height: 1.1 !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 2px 3px rgba(74,48,29,.14) !important;
-  white-space: nowrap !important;
-}
-
-.tutorial-panel--card .tutorial-cycle--long .tutorial-cycle-step {
-  padding: .30em .62em !important;
-  font-size: clamp(7px, 1.03cqw, 13px) !important;
-}
-
-.tutorial-panel--card .tutorial-cycle-arrow {
-  color: #6c873f !important;
-  font-size: clamp(10px, 1.45cqw, 18px) !important;
-  font-weight: 900 !important;
-  opacity: 1 !important;
-}
-
-.tutorial-panel--card .tutorial-cycle-enter .tutorial-cycle-step,
-.tutorial-panel--card .tutorial-cycle-enter .tutorial-cycle-link {
-  animation: tutorial-cycle-step-in .28s ease both !important;
-}
-
-.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(1) { animation-delay: 0ms !important; }
-.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(2) { animation-delay: 45ms !important; }
-.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(3) { animation-delay: 90ms !important; }
-.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(4) { animation-delay: 135ms !important; }
-.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(5) { animation-delay: 180ms !important; }
-.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(6) { animation-delay: 225ms !important; }
-
-@keyframes tutorial-cycle-step-in {
-  from {
-    opacity: 0;
-    transform: translateY(5px) scale(.96);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tutorial-panel--card .tutorial-cycle-step,
-  .tutorial-panel--card .tutorial-cycle-link {
-    animation: none !important;
-  }
-}
-
-.tutorial-panel--card .tutorial-footer {
-  margin-top: 0 !important;
-  display: block !important;
-  grid-template-columns: none !important;
-}
-
-.tutorial-panel--card .tutorial-nav-image {
-  position: absolute !important;
-  bottom: var(--nav-bottom) !important;
-  width: var(--nav-width) !important;
-  min-width: 76px !important;
-  max-width: 150px !important;
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  cursor: pointer !important;
-  z-index: 5 !important;
-  transition: transform .15s ease, opacity .15s ease, filter .15s ease !important;
-  min-height: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-@media (max-height: 480px) and (orientation: landscape) {
-  .tutorial-panel--card .tutorial-nav-image {
-    min-width: 62px !important;
-    max-width: 110px !important;
-  }
-}
-
-.tutorial-panel--card .tutorial-prev {
-  left: var(--prev-left) !important;
-}
-
-.tutorial-panel--card .tutorial-next {
-  right: var(--next-right) !important;
-}
-
-.tutorial-panel--card .tutorial-nav-image img {
-  display: block !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  height: auto !important;
-  pointer-events: none !important;
-}
-
-.tutorial-panel--card .tutorial-prev img {
-  transform: scaleX(-1) !important;
-}
-
-.tutorial-panel--card .tutorial-next img {
-  transform: none !important;
-}
-
-.tutorial-panel--card .tutorial-nav-image:hover:not(:disabled) {
-  transform: scale(1.07) !important;
-  background: transparent !important;
-  outline: none !important;
-}
-
-.tutorial-panel--card .tutorial-nav-image:active:not(:disabled) {
-  transform: scale(.92) !important;
-}
-
-.tutorial-panel--card .tutorial-nav-image:disabled {
-  opacity: .22 !important;
-  filter: grayscale(.35) !important;
-  cursor: default !important;
-}
-
-.tutorial-panel--card .tutorial-nav-image:focus-visible img {
-  filter:
-    drop-shadow(0 0 3px #fff1a8)
-    drop-shadow(0 0 6px rgba(245,217,140,.8)) !important;
-}
-
-@media (max-height: 480px) and (orientation: landscape) {
-  .tutorial-panel--card .tutorial-cycle {
-    justify-content: flex-start !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    white-space: nowrap !important;
-  }
-}
-
-
-
-
-/* ==================================================
-   CARTAO EM TELA PEQUENA
-   ==================================================
-
-   A folha desenhada na arte e bem maior que a area que o texto usava: o
-   retangulo de conteudo ocupava 58% x 51,5% dentro de um creme que vai de
-   ~14% a ~88%. Em desktop sobra altura e isso nunca incomodou. No celular o
-   cartao inteiro encolhe — em 360x640 a folha util tinha 133px de altura — e a
-   margem desperdicada passa a ser a diferenca entre ler e nao ler.
-
-   Aqui a area de conteudo cresce para dentro do creme, sem encostar nas vinhas
-   nem nos bichos das bordas. O desktop nao entra nesta consulta e continua
-   exatamente como estava. */
-@media (max-width: 900px), (max-height: 560px) {
-  .tutorial-panel--card .tutorial-card-view {
-    --paper-left: 19%;
-    --paper-top: 21%;
-    --paper-width: 62%;
-    --paper-height: 60%;
-  }
-  .tutorial-panel--card .tutorial-page { margin-top: .7em !important; }
-  .tutorial-panel--card .tutorial-page-title { margin-bottom: .3em !important; }
-  .tutorial-panel--card .tutorial-cycle-block {
-    width: 100% !important;
-    margin-top: .45em !important;
-    padding-top: .4em !important;
-  }
-  .tutorial-panel--card .tutorial-cycle-label { margin-bottom: .25em !important; }
-  .tutorial-panel--card .tutorial-subtitle { width: 96% !important; }
-  .tutorial-panel--card .tutorial-page-points { margin-top: .45em !important; gap: 4px !important; }
-
-  /* Contraste no papel: em telas pequenas os tons medios de verde/marrom
-     perdiam leitura sobre o creme da folha (#eddab8). Escurecidos aqui
-     mantendo o MESMO matiz — o desktop (que voce aprovou) fica intacto. */
-  .tutorial-panel--card .tutorial-title,
-  .tutorial-panel--card .tutorial-page-title { color: #435f28 !important; }
-  .tutorial-panel--card .tutorial-cycle-link { color: #4e612d !important; }
-  .tutorial-panel--card .tutorial-subtitle { color: #4c3525 !important; }
-  /* Titulo um pouco mais baixo dentro da folha, sem colar na borda de cima. */
-  .tutorial-panel--card .tutorial-title { margin-top: .38em !important; }
-}
-
-/* CELULAR EM PE — o caso mais apertado, e o unico que muda de estrategia.
-   Aqui o cartao e limitado pela LARGURA (96vw), entao a arte inteira fica baixa
-   e sobra tela vazia em cima e embaixo. Medido em 360x640, ja com a area
-   ampliada acima: a folha tinha 165px e o cabecalho, o titulo da pagina e o
-   ciclo consumiam ~130px — o miolo rolavel colapsava a zero e o texto do cartao
-   continuava inalcancavel.
-
-   Nao da para resolver isso encolhendo mais a tipografia sem torna-la ilegivel,
-   e cortar conteudo didatico esta fora de questao. Em pe, entao, quem rola e a
-   FOLHA INTEIRA, com o cabecalho preso no topo: continua havendo uma unica
-   regiao rolavel, o nome do organismo nunca sai da vista, e o ciclo entra na
-   rolagem em vez de disputar altura com o texto. */
-@media (max-width: 560px) and (orientation: portrait) {
-  .tutorial-panel--card .tutorial-card-view {
-    --paper-left: 16%;
-    --paper-top: 13%;
-    --paper-width: 68%;
-    --paper-height: 63%;
-  }
-  .tutorial-panel--card .tutorial-paper-content {
-    display: block !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    overscroll-behavior: contain;
-    touch-action: pan-y !important;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(107,73,50,.35) transparent;
-  }
-  /* Um scroller so: o miolo deixa de rolar por dentro do que ja rola por fora. */
-  .tutorial-panel--card .tutorial-page-scroll {
-    overflow: visible !important;
-    touch-action: auto !important;
-  }
-  .tutorial-panel--card .tutorial-header {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 3 !important;
-    padding-bottom: .25em !important;
-    /* A cor sai da propria folha desenhada (#eddab8 amostrado na arte), com uma
-       borda desfocada embaixo para nao aparecer emenda reta sobre a textura. */
-    background: linear-gradient(#eddab8 78%, rgba(237,218,184,0)) !important;
-  }
-  .tutorial-panel--card .tutorial-page { margin-top: .45em !important; }
-  .tutorial-panel--card .tutorial-cycle-block { margin-top: .5em !important; }
-}
+@media (prefers-reduced-motion: reduce) { .tutorial-panel--card { animation: none; } }

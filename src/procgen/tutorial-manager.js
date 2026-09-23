@@ -1,3 +1,4 @@
+import { createTutorialMicroscope } from './tutorial-microscope.js';
 import { getTutorialCard, tutorialCardIds, tutorialCards } from './tutorial-registry.js';
 import { tutorialPacing } from './campaign-manifest.js';
 import { createTutorialFlow } from './tutorial-flow.js';
@@ -95,55 +96,54 @@ export function createTutorialManager({ state }) {
   if (!mount) throw new Error('Elemento #tutorial-root não encontrado.');
 
   mount.innerHTML = `
+    <style>
+      /* Relativas ao documento tanto no desenvolvimento quanto no build inline. */
+      @font-face { font-family: 'Tutorial Atkinson'; font-style: normal; font-weight: 400; font-display: swap; src: url('./assets/ui/tutorial/fonts/atkinson-regular.ttf') format('truetype'); }
+      @font-face { font-family: 'Tutorial Atkinson'; font-style: normal; font-weight: 700; font-display: swap; src: url('./assets/ui/tutorial/fonts/atkinson-bold.ttf') format('truetype'); }
+      @font-face { font-family: 'Tutorial Grandstander'; font-style: normal; font-weight: 800; font-display: swap; src: url('./assets/ui/tutorial/fonts/grandstander-bold.ttf') format('truetype'); }
+    </style>
     <div class="tutorial-overlay" hidden aria-hidden="true">
       <div class="tutorial-backdrop"></div>
       <section class="tutorial-panel" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
-        <div class="tutorial-scanlines" aria-hidden="true"></div>
-        <button class="tutorial-close" type="button" aria-label="Fechar cartão">
-          <img src="./assets/ui/tutorial/tutorial-close.png" alt="" draggable="false">
-        </button>
-
+        <button class="tutorial-close" type="button" aria-label="Fechar cartão">×</button>
         <div class="tutorial-card-view">
-          <img class="tutorial-card-art" src="./assets/ui/tutorial/tutorial-card.png" alt="" draggable="false">
-
+          <canvas class="tutorial-scope" width="440" height="440" aria-hidden="true"></canvas>
           <div class="tutorial-paper-content">
-            <div class="tutorial-page-counter"></div>
-
             <header class="tutorial-header">
+              <div class="tutorial-heading-meta">
+                <span class="tutorial-category"></span>
+                <span class="tutorial-new-badge">Novo</span>
+              </div>
               <h1 id="tutorial-title" class="tutorial-title"></h1>
               <p class="tutorial-subtitle"></p>
             </header>
-
-            <main class="tutorial-page" tabindex="0">
-              <h2 class="tutorial-page-title"></h2>
-              <div class="tutorial-page-scroll">
+            <main class="tutorial-page">
+              <div class="tutorial-page-scroll" tabindex="0" role="region" aria-label="Conteúdo do cartão">
+                <h2 class="tutorial-page-title"></h2>
                 <p class="tutorial-page-body"></p>
                 <ul class="tutorial-page-points"></ul>
+                <div class="tutorial-cycle-block">
+                  <span class="tutorial-cycle-label"></span>
+                  <div class="tutorial-cycle"></div>
+                </div>
               </div>
             </main>
-
-            <div class="tutorial-cycle-block">
-              <span class="tutorial-cycle-label"></span>
-              <div class="tutorial-cycle"></div>
-            </div>
+            <footer class="tutorial-footer">
+              <button class="tutorial-button tutorial-prev" type="button" aria-label="Página anterior">←</button>
+              <div class="tutorial-pagination">
+                <div class="tutorial-page-dots" aria-label="Páginas do cartão"></div>
+                <span class="tutorial-page-counter" aria-live="polite" aria-atomic="true"></span>
+              </div>
+              <button class="tutorial-button tutorial-next" type="button" aria-label="Próxima página">Próximo →</button>
+            </footer>
           </div>
-
-          <footer class="tutorial-footer">
-            <button class="tutorial-nav-image tutorial-prev" type="button" aria-label="Página anterior">
-              <img src="./assets/ui/tutorial/tutorial-arrow.png" alt="" draggable="false">
-            </button>
-            <div class="tutorial-page-dots" aria-label="Páginas do cartão" hidden style="display:none"></div>
-            <button class="tutorial-nav-image tutorial-next" type="button" aria-label="Próxima página">
-              <img src="./assets/ui/tutorial/tutorial-arrow.png" alt="" draggable="false">
-            </button>
-          </footer>
         </div>
 
         <div class="tutorial-library-view" hidden>
           <header class="tutorial-library-header">
             <div>
               <span class="tutorial-category">Biblioteca didática</span>
-              <h1 class="tutorial-library-title">Descobertas da rizosfera</h1>
+              <h1 id="tutorial-library-title" class="tutorial-library-title">Descobertas da rizosfera</h1>
               <p class="tutorial-library-description">Reabra os cartões encontrados nesta sessão da campanha.</p>
             </div>
             <div class="tutorial-library-count"></div>
@@ -169,7 +169,7 @@ export function createTutorialManager({ state }) {
   const newBadge = mount.querySelector('.tutorial-new-badge');
   const title = mount.querySelector('.tutorial-title');
   const subtitle = mount.querySelector('.tutorial-subtitle');
-  const glyph = mount.querySelector('.tutorial-glyph');
+  const microscope = createTutorialMicroscope(mount.querySelector('.tutorial-scope'));
   const cycleLabel = mount.querySelector('.tutorial-cycle-label');
   const cycle = mount.querySelector('.tutorial-cycle');
   const cycleBlock = mount.querySelector('.tutorial-cycle-block');
@@ -253,6 +253,7 @@ export function createTutorialManager({ state }) {
       state.player.jumpBuffer = 0;
       state.jumpHeldLast = false;
     }
+    microscope.stop();
     overlay.hidden = true;
     overlay.setAttribute('aria-hidden', 'true');
     document.documentElement.classList.remove('tutorial-open');
@@ -316,6 +317,7 @@ export function createTutorialManager({ state }) {
       dot.type = 'button';
       dot.className = `tutorial-page-dot${index === pageIndex ? ' active' : ''}`;
       dot.setAttribute('aria-label', `Ir para página ${index + 1}`);
+      if (index === pageIndex) dot.setAttribute('aria-current', 'page');
       dot.addEventListener('click', () => {
         pageIndex = index;
         renderCard();
@@ -337,7 +339,7 @@ export function createTutorialManager({ state }) {
     setText(category, card.category);
     setText(title, card.title);
     setText(subtitle, card.subtitle);
-    setText(glyph, card.glyph);
+    microscope.show(card.id);
     setText(pageCounter, `${pagePosition + 1} / ${availablePages.length}`);
     setText(pageTitle, currentPage.title);
     setText(pageBody, currentPage.body);
@@ -366,6 +368,7 @@ export function createTutorialManager({ state }) {
 
     nextButton.setAttribute('aria-label', nextActionLabel);
     nextButton.title = nextActionLabel;
+    nextButton.textContent = finalPage ? nextActionLabel : 'Próximo →';
     nextButton.dataset.action = finalPage ? 'finish' : 'next';
 
     previousButton.disabled = pagePosition === 0;
@@ -389,6 +392,7 @@ export function createTutorialManager({ state }) {
     activeAutomaticEntry = automaticEntry;
     pausedSupport = support;
     pauseGame();
+    panel.setAttribute('aria-labelledby', 'tutorial-title');
     panel.classList.add('tutorial-panel--card');
     panel.classList.remove('tutorial-panel--library');
     mode = 'card';
@@ -474,6 +478,8 @@ export function createTutorialManager({ state }) {
   }
 
   function openLibrary() {
+    microscope.stop();
+    panel.setAttribute('aria-labelledby', 'tutorial-library-title');
     pauseGame();
     panel.classList.remove('tutorial-panel--card');
     panel.classList.add('tutorial-panel--library');
@@ -631,7 +637,26 @@ export function createTutorialManager({ state }) {
     }
 
     if (event.code) heldDuringTutorial.add(event.code);
-    if (event.code === 'Tab') return;
+    if (event.code === 'Tab') {
+      const controls = [...panel.querySelectorAll('button:not(:disabled), [tabindex="0"]')]
+        .filter(element => element.getClientRects().length);
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      event.stopImmediatePropagation();
+      return;
+    }
+    if (pageScroll.contains(document.activeElement)
+      && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'Space'].includes(event.code)) {
+      event.stopImmediatePropagation();
+      return;
+    }
+    if (panel.contains(document.activeElement) && document.activeElement.tagName === 'BUTTON'
+      && ['Enter', 'Space'].includes(event.code)) {
+      if (event.repeat) event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     event.preventDefault();
     event.stopImmediatePropagation();
 
