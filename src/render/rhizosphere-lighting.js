@@ -277,10 +277,9 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     if (p) {
       const x = p.x + (p.w || 32) / 2;
       const y = p.y + (p.h || 48) * .45;
-      // Miguelito: menos recorte neutro da escuridão e mais emissão amarela.
-      // O raio menor deixa o falloff perceptível e concentra a penumbra.
-      lights.push({ x, y, r: 190, a: .46, color: '#ffc857', glow: .48, kind: 'player' });
-      lights.push({ x, y, r: 82,  a: .68, color: '#ffe9a8', glow: .78, kind: 'player-core' });
+      // Miguelito: intensidade original restaurada; apenas a matiz fica mais amarela.
+      lights.push({ x, y, r: 230, a: .72, color: '#ffc247', glow: .11, kind: 'player' });
+      lights.push({ x, y, r: 110, a: .96, color: '#ffe18a', glow: .20, kind: 'player' });
     }
     for (const e of level.exudates || []) {
       if (e.taken) continue;
@@ -626,8 +625,7 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       if (!l.glow) continue;
       const [sx, sy] = project(m, l.x, l.y);
       let glowScale = .72;
-      if (l.kind === 'player') glowScale = .64;
-      else if (l.kind === 'player-core') glowScale = .76;
+      if (l.kind === 'player') glowScale = .44;
       else if (l.kind === 'exudate') glowScale = .78;
       else if (l.kind === 'iron') glowScale = .72;
       const r = l.r * glowScale * zoom;
