@@ -70,6 +70,13 @@ export const MUTED_ROOT_PALETTE = mutePalette(ROOT_PALETTE);
 export const LINK_ROOT_PALETTE = mutePalette(ROOT_PALETTE, { saturation: .6, contrast: .68 });
 
 
+// Retângulo visível (mundo) para as próximas pinturas de tecido. Células fora
+// dele não são desenhadas — elas cairiam fora da tela ou do recorte da raiz.
+let tissueCull = null;
+export function setTissueCull(rect) {
+  tissueCull = rect || null;
+}
+
 export function drawTissueLayerCanvas(ctx, seed, options) {
   const { startX, endX, startY, endY, cellW, cellH, fillColors, strokeColor, strokeWidth } = options;
   const width = endX - startX;
@@ -79,8 +86,10 @@ export function drawTissueLayerCanvas(ctx, seed, options) {
   const dx = width / cols;
   const dy = height / rows;
 
+  const cull = tissueCull;
   for (let i = 0; i < rows; i++) {
     const rowY = startY + i * dy;
+    if (cull && (rowY + dy * 1.2 < cull.y0 || rowY - dy * .2 > cull.y1)) continue;
     const isOffset = (i % 2 === 1);
     const currentCols = isOffset ? cols + 1 : cols;
 
@@ -91,6 +100,7 @@ export function drawTissueLayerCanvas(ctx, seed, options) {
       const jy = (pseudo(seed, idx + 2) - 0.5) * dy * 0.2;
       const w = dx * (0.95 + pseudo(seed, idx + 3) * 0.13);
       const h = dy * (0.95 + pseudo(seed, idx + 4) * 0.13);
+      if (cull && (cellX + jx + w < cull.x0 || cellX + jx > cull.x1)) continue;
       const rx = Math.min(w, h) * (0.25 + pseudo(seed, idx + 5) * 0.2);
       const fill = fillColors[Math.floor(pseudo(seed, idx + 6) * fillColors.length)];
 

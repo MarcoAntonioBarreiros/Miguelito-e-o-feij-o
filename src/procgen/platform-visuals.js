@@ -186,6 +186,82 @@ export function createPlatformVisuals({ state }) {
     }
   }
 
+  function paintSoilTextureBatched(ctx, seed, x, y, width, height, grain = height, withBase = true) {
+    if (typeof Path2D === 'undefined') {
+      paintSoilTexture(ctx, seed, x, y, width, height, grain, withBase);
+      return;
+    }
+    const area = width * height;
+    if (withBase) {
+      ctx.fillStyle = SOIL_PALETTE.base;
+      ctx.fillRect(x, y, width, height);
+    }
+    const flush = buckets => {
+      for (const [key, path] of buckets) {
+        const [color, alpha] = key.split('|');
+        ctx.globalAlpha = Number(alpha);
+        ctx.fillStyle = color;
+        ctx.fill(path);
+      }
+      ctx.globalAlpha = 1;
+    };
+    const blob = (buckets, idx, cx, cy, radius, color, alpha) => {
+      const key = `${color}|${(Math.round(alpha * 20) / 20).toFixed(2)}`;
+      if (!buckets.has(key)) buckets.set(key, new Path2D());
+      const path = buckets.get(key);
+      const sides = Math.floor(5 + pseudo(seed, idx + 1) * 4);
+      const grow = radius * 0.1;
+      for (let i = 0; i < sides; i++) {
+        const angle = (i / sides) * TAU;
+        const r = radius * (0.6 + pseudo(seed, idx + 10 + i) * 0.6) + grow;
+        const px = cx + Math.cos(angle) * r;
+        const py = cy + Math.sin(angle) * r;
+        if (i === 0) path.moveTo(px, py);
+        else path.lineTo(px, py);
+      }
+      path.closePath();
+    };
+    ctx.save();
+    const macro = new Map();
+    const macroCount = Math.floor(area / 1500);
+    for (let i = 0; i < macroCount; i++) {
+      const idx = i * 13 + 500;
+      const cx = x + pseudo(seed, idx) * width;
+      const cy = y + pseudo(seed, idx + 1) * height;
+      const r = (0.15 + pseudo(seed, idx + 2) * 0.20) * grain;
+      const color = SOIL_PALETTE.aggregates[Math.floor(pseudo(seed, idx + 3) * SOIL_PALETTE.aggregates.length)];
+      blob(macro, idx, cx, cy, r, color, 0.7 + pseudo(seed, idx + 4) * 0.3);
+    }
+    flush(macro);
+    const pores = new Map();
+    const poreCount = Math.floor(area / 2000);
+    for (let i = 0; i < poreCount; i++) {
+      const idx = i * 17 + 1000;
+      const cx = x + pseudo(seed, idx) * width;
+      const cy = y + pseudo(seed, idx + 1) * height;
+      const r = (0.05 + pseudo(seed, idx + 2) * 0.07) * grain;
+      blob(pores, idx, cx, cy, r, SOIL_PALETTE.pores, 0.8);
+    }
+    flush(pores);
+    const silt = new Map();
+    const siltCount = Math.floor(area / 800);
+    for (let i = 0; i < siltCount; i++) {
+      const idx = i * 19 + 2000;
+      const cx = x + pseudo(seed, idx) * width;
+      const cy = y + pseudo(seed, idx + 1) * height;
+      const r = 1.5 + pseudo(seed, idx + 2) * 2.5;
+      const color = SOIL_PALETTE.silt[Math.floor(pseudo(seed, idx + 3) * SOIL_PALETTE.silt.length)];
+      const alpha = 0.5 + pseudo(seed, idx + 4) * 0.4;
+      const key = `${color}|${(Math.round(alpha * 20) / 20).toFixed(2)}`;
+      if (!silt.has(key)) silt.set(key, new Path2D());
+      const path = silt.get(key);
+      path.moveTo(cx + r, cy);
+      path.arc(cx, cy, r, 0, TAU);
+    }
+    flush(silt);
+    ctx.restore();
+  }
+
   function drawSoil(ctx, platform) {
     const seed = platformSeed(platform);
     const radius = 10;
@@ -211,7 +287,7 @@ export function createPlatformVisuals({ state }) {
   const geometry = createRhizosphereGeometry({
     state,
     painters: {
-      paintSoilTexture,
+      paintSoilTexture: paintSoilTextureBatched,
       paintRootTissue,
       paintRootTissueVertical,
       paintRootCondition,

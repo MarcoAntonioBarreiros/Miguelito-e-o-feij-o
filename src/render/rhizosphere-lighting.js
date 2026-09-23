@@ -16,6 +16,8 @@
 //
 // Desliga com `?luz=0` na URL ou com a tecla L durante o jogo, para comparar.
 
+import { currentCeilingLine } from './rhizosphere-geometry.js';
+
 const TAU = Math.PI * 2;
 const DARK_SCALE = 4; // escuridão calculada em 1/4 da resolução e ampliada com suavização
 const SHAFT_SPACING = 760;
@@ -126,6 +128,45 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
         kind: k,
       });
     }
+  }
+
+  // Linha da superfície: a mesma do colo da raiz final e da cinemática.
+  function surfaceLineY() {
+    const goal = state.level?.goal;
+    if (goal && Number.isFinite(Number(goal.y))) return Number(goal.y) - 205;
+    return geometryBounds().top - 120;
+  }
+
+  // A luz vem de cima: o feixe nasce na intensidade máxima POR TRÁS da camada
+  // de solo (recortado pela linha de baixo do teto) e só a ponta, no subsolo,
+  // some em gradiente.
+  function clipBelowCeiling(ctx, m, scale = 1) {
+    const line = currentCeilingLine();
+    if (!line || line.length < 2) return false;
+    const pt = point => {
+      const q = project(m, point[0], point[1]);
+      return [q[0] / scale, q[1] / scale];
+    };
+    const first = pt(line[0]);
+    const last = pt(line[line.length - 1]);
+    ctx.beginPath();
+    ctx.moveTo(first[0], first[1]);
+    for (let i = 1; i < line.length; i++) {
+      const p = pt(line[i - 1]);
+      const q = pt(line[i]);
+      ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+    }
+    ctx.lineTo(last[0], last[1]);
+    ctx.lineTo(last[0], 1e5);
+    ctx.lineTo(first[0], 1e5);
+    ctx.closePath();
+    ctx.clip();
+    return true;
+  }
+
+  // Início do gradiente: a superfície (a camada de solo cobre o que fica acima).
+  function shaftLightTop(yTop) {
+    return currentCeilingLine() ? Math.max(yTop, surfaceLineY()) : yTop;
   }
 
   function geometryBounds() {
@@ -363,6 +404,7 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     const yBottom = shaftImpacts.yBottom;
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
+    clipBelowCeiling(ctx, m);
 
     for (const item of shaftImpacts.items) {
       const s = item.shaft;
@@ -383,10 +425,11 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       if (Math.max(ax, bx) + halfEnd < -40 || Math.min(ax, bx) - halfEnd > W + 40) continue;
 
       // Feixe externo: existe no ar, mas nao e um trapezio branco opaco.
-      const outer = ctx.createLinearGradient(0, ay, 0, by);
-      outer.addColorStop(0, 'rgba(255,241,205,' + (alpha * .45) + ')');
-      outer.addColorStop(.68, 'rgba(239,235,202,' + alpha + ')');
-      outer.addColorStop(1, 'rgba(255,226,170,' + (alpha * 1.15) + ')');
+      const lightTop = project(m, 0, shaftLightTop(yTop))[1];
+      const outer = ctx.createLinearGradient(0, lightTop, 0, by);
+      outer.addColorStop(0, 'rgba(255,241,205,' + (alpha * 1.15) + ')');
+      outer.addColorStop(.6, 'rgba(239,235,202,' + (alpha * .75) + ')');
+      outer.addColorStop(1, 'rgba(255,226,170,0)');
       ctx.fillStyle = outer;
       ctx.beginPath();
       ctx.moveTo(ax - halfTop, ay);
@@ -399,10 +442,10 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       // Nucleo estreito para sugerir volume.
       const coreTop = halfTop * .34;
       const coreEnd = halfEnd * .38;
-      const core = ctx.createLinearGradient(0, ay, 0, by);
-      core.addColorStop(0, 'rgba(255,248,224,0)');
-      core.addColorStop(.35, 'rgba(255,247,218,' + (alpha * .65) + ')');
-      core.addColorStop(1, 'rgba(255,231,180,' + (alpha * 1.35) + ')');
+      const core = ctx.createLinearGradient(0, lightTop, 0, by);
+      core.addColorStop(0, 'rgba(255,247,218,' + (alpha * 1.3) + ')');
+      core.addColorStop(.55, 'rgba(255,240,200,' + (alpha * .75) + ')');
+      core.addColorStop(1, 'rgba(255,231,180,0)');
       ctx.fillStyle = core;
       ctx.beginPath();
       ctx.moveTo(ax - coreTop, ay);
@@ -415,7 +458,8 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       // Particulas param na mesma superficie que bloqueia a luz.
       for (const mo of s.motes) {
         const v = (mo.v + t * .018 * mo.s) % 1;
-        const wy = yTop + 70 + v * Math.max(1, yEnd - yTop - 85);
+        const litTop = shaftLightTop(yTop);
+        const wy = litTop + v * Math.max(1, yEnd - litTop - 20);
         if (wy >= yEnd) continue;
         const center = beamCenterAtY(s, wy, yTop);
         const half = beamHalfWidthAtY(s, wy, yTop, yBottom);
@@ -476,6 +520,8 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     dctx.globalAlpha = 1;
 
     // O buraco do feixe na escuridao tambem termina no primeiro impacto.
+    dctx.save();
+    clipBelowCeiling(dctx, m, DARK_SCALE);
     for (const item of shaftImpacts.items) {
       const s = item.shaft;
       const yStart = shaftImpacts.yTop;
@@ -486,10 +532,11 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       const p1 = project(m, beamCenterAtY(s, yEnd, yStart), yEnd);
       const half0 = beamHalfWidthAtY(s, yStart, yStart, shaftImpacts.yBottom) * zoom;
       const half1 = beamHalfWidthAtY(s, yEnd, yStart, shaftImpacts.yBottom) * zoom;
-      const lg = dctx.createLinearGradient(0, p0[1] / DARK_SCALE, 0, p1[1] / DARK_SCALE);
-      lg.addColorStop(0, 'rgba(0,0,0,' + (.22 * s.strength * breathe) + ')');
-      lg.addColorStop(.7, 'rgba(0,0,0,' + (.38 * s.strength * breathe) + ')');
-      lg.addColorStop(1, 'rgba(0,0,0,' + (.46 * s.strength * breathe) + ')');
+      const holeTop = project(m, 0, shaftLightTop(yStart))[1];
+      const lg = dctx.createLinearGradient(0, holeTop / DARK_SCALE, 0, p1[1] / DARK_SCALE);
+      lg.addColorStop(0, 'rgba(0,0,0,' + (.46 * s.strength * breathe) + ')');
+      lg.addColorStop(.6, 'rgba(0,0,0,' + (.32 * s.strength * breathe) + ')');
+      lg.addColorStop(1, 'rgba(0,0,0,0)');
       dctx.fillStyle = lg;
       dctx.beginPath();
       dctx.moveTo((p0[0] - half0) / DARK_SCALE, p0[1] / DARK_SCALE);
@@ -499,6 +546,7 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       dctx.closePath();
       dctx.fill();
     }
+    dctx.restore();
 
     ctx.save();
     ctx.globalAlpha = fade;
@@ -527,8 +575,12 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
   }
 
   // ---------- 5. primeiro plano ----------
-  function drawForeground(ctx, zoom, W, H, t) {
+  function drawForeground(ctx, zoom, W, H, t, m) {
     const off = ((state.cameraX || 0) * FG_FACTOR * zoom) % (FG_TILE * zoom);
+    // Se a superfície está na tela, as raízes penduradas nascem nela (e não no
+    // topo da tela, que aí é céu).
+    const surfaceScreenY = m ? project(m, 0, surfaceLineY())[1] : -Infinity;
+    const hangFrom = Math.max(0, surfaceScreenY + 12);
     ctx.save();
     ctx.globalAlpha = .9 * fade;
     for (let tile = -1; tile <= Math.ceil(W / (FG_TILE * zoom)) + 1; tile++) {
@@ -536,6 +588,8 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
         const sx = tile * FG_TILE * zoom + piece.x * zoom - off;
         if (sx < -300 * zoom || sx > W + 300 * zoom) continue;
         if (piece.top) {
+          ctx.save();
+          ctx.translate(0, hangFrom);
           // raiz fina pendendo do teto: forma afunilada preenchida, com pelos
           const sway = Math.sin(t * .6 + piece.kind) * 5 * zoom;
           // comprimento limitado a uma faixa do topo da tela: no celular, com
@@ -568,6 +622,7 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
             ctx.quadraticCurveTo(cx + side * 10 * zoom, yy + 4 * zoom, cx + side * 16 * zoom, yy + 12 * zoom);
             ctx.stroke();
           }
+          ctx.restore();
         } else {
           // agregado escuro na base da tela
           const w = piece.w * zoom;
@@ -612,7 +667,7 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     drawDarkness(ctx, m, zoom, W, H, lights, t, shaftImpacts);
     drawShafts(ctx, m, zoom, W, H, t, shaftImpacts);
     drawGlows(ctx, m, zoom, W, H, lights);
-    drawForeground(ctx, zoom, W, H, t);
+    drawForeground(ctx, zoom, W, H, t, m);
     ctx.restore();
     if (started) lastRenderMs = performance.now() - started;
   }

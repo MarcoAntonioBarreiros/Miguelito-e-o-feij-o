@@ -26,7 +26,7 @@ import { drawRootTube, growPlantRoots, seededRandom } from './root-architecture.
 import { GEOMETRY_ENABLED } from './geometry-preference.js';
 import { FINAL_ROOT_SCALE, finalRootCollar } from './final-root-visual.js';
 import {
-  LINK_ROOT_PALETTE, MUTED_ROOT_PALETTE, ROOT_PALETTE, clamp, paintRootCondition, paintRootTissue, pseudo,
+  LINK_ROOT_PALETTE, MUTED_ROOT_PALETTE, ROOT_PALETTE, clamp, paintRootCondition, paintRootTissue, pseudo, setTissueCull,
 } from './root-tissue.js';
 
 const TAU = Math.PI * 2;
@@ -52,6 +52,13 @@ function traceSmooth(ctx, points) {
 
 export function geometryEnabled() {
   return GEOMETRY_ENABLED;
+}
+
+// Linha de baixo do teto desenhada neste quadro (mundo), para a luz ficar
+// por trás da camada de solo. null quando não há teto.
+let currentCeiling = null;
+export function currentCeilingLine() {
+  return currentCeiling;
 }
 
 // Espessura da raiz visível sobre um bloco 'root' (14–20 px).
@@ -95,6 +102,51 @@ const UNDER_HEADROOM = 170;
 export function createRhizosphereGeometry({ state, painters }) {
   const { paintSoilTexture, soilPalette, rootPalette } = painters;
 
+  // CACHE DO QUE NÃO SE MEXE
+  // Solo, teto, torrões e o corpo das raízes são desenhados pelo mesmo código
+  // procedural, UMA vez, numa tela em memória (2× a escala da câmera, para não
+  // perder nitidez) e depois só copiados. O que anima — pelos balançando,
+  // radicelas do teto, plantas, estado de saúde da raiz, brilho do objetivo —
+  // continua sendo desenhado a cada quadro. Sem DOM (testes), desenha direto.
+  const drawCache = new Map();
+  let cacheFrame = 0;
+  const CACHE_MAX_ENTRIES = 320;
+  const canCache = typeof document !== 'undefined' && typeof document.createElement === 'function';
+
+  function cached(ctx, key, box, paint) {
+    if (!canCache || typeof ctx.getTransform !== 'function') { paint(ctx); return; }
+    const m = ctx.getTransform();
+    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * 2 * 4) / 4;
+    let entry = drawCache.get(key);
+    if (!entry || entry.q !== q) {
+      const cw = Math.max(1, Math.ceil(box.w * q));
+      const ch = Math.max(1, Math.ceil(box.h * q));
+      if (cw * ch > 12e6) { paint(ctx); return; }
+      const canvas = entry?.canvas || document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const g = canvas.getContext('2d');
+      g.setTransform(q, 0, 0, q, -box.x * q, -box.y * q);
+      paint(g);
+      entry = { canvas, q, x: box.x, y: box.y, w: cw / q, h: ch / q };
+      drawCache.set(key, entry);
+    }
+    entry.frame = cacheFrame;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(entry.canvas, entry.x, entry.y, entry.w, entry.h);
+    ctx.restore();
+  }
+
+  function trimCache() {
+    if (drawCache.size <= CACHE_MAX_ENTRIES) return;
+    const old = [...drawCache.entries()].filter(([, e]) => e.frame !== cacheFrame).sort((a, b) => a[1].frame - b[1].frame);
+    for (const [key] of old.slice(0, drawCache.size - CACHE_MAX_ENTRIES)) drawCache.delete(key);
+  }
+
+  const FULL_VIEW = Object.freeze({ left: -1e9, right: 1e9, top: -1e9, bottom: 1e9 });
+
   function solidPlatforms() {
     return (state.level?.platforms || []).filter(platform => !(
       platform.mycorrhizaStructure
@@ -137,45 +189,34 @@ export function createRhizosphereGeometry({ state, painters }) {
 
   // A faixa vai da superfície (linha do colo) até a linha do teto. Acima da
   // superfície fica o céu da cinemática final, que ela nunca cobre.
-  function drawCeiling(ctx, view, platforms, surface) {
-    if (!platforms.length) return false;
-    // Com propulsão o jogador voa até o limite do mundo: não há onde pôr teto.
-    if (state.campaign?.unlocks?.jetpack) return false;
-    const clearance = ceilingClearance();
-    const topLimit = surface + 40;
-    const first = Math.floor((view.left - 60) / CEILING_STEP);
-    const last = Math.ceil((view.right + 60) / CEILING_STEP);
+  function ceilingLine(x0, x1, platforms, clearance, topLimit) {
+    const first = Math.floor((x0 - 60) / CEILING_STEP);
+    const last = Math.ceil((x1 + 60) / CEILING_STEP);
     const line = [];
     for (let i = first; i <= last; i++) {
       const x = i * CEILING_STEP;
       const y = ceilingLineAt(x, platforms, clearance, topLimit);
       if (y !== null) line.push([x, y]);
     }
-    if (line.length < 2) return false;
-    let deepest = -Infinity;
-    for (const point of line) deepest = Math.max(deepest, point[1]);
-    // Acima da câmera: existe, só não aparece.
-    if (deepest < view.top - 10) return true;
-    const top = surface;
+    return line;
+  }
+
+  // Faixa do teto (preenchimento, textura, sombra da face de baixo, contorno).
+  function paintCeilingBand(ctx, line, top) {
     const leftX = line[0][0];
     const rightX = line[line.length - 1][0];
-
-    const outline = () => {
-      ctx.beginPath();
-      ctx.moveTo(leftX, top);
-      ctx.lineTo(rightX, top);
-      ctx.lineTo(rightX, line[line.length - 1][1]);
-      for (let i = line.length - 1; i > 0; i--) {
-        const p = line[i];
-        const q = line[i - 1];
-        ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
-      }
-      ctx.lineTo(leftX, line[0][1]);
-      ctx.closePath();
-    };
-
     ctx.save();
-    outline();
+    ctx.beginPath();
+    ctx.moveTo(leftX, top);
+    ctx.lineTo(rightX, top);
+    ctx.lineTo(rightX, line[line.length - 1][1]);
+    for (let i = line.length - 1; i > 0; i--) {
+      const p = line[i];
+      const q = line[i - 1];
+      ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+    }
+    ctx.lineTo(leftX, line[0][1]);
+    ctx.closePath();
     ctx.fillStyle = soilPalette.base;
     ctx.fill();
     ctx.clip();
@@ -198,30 +239,68 @@ export function createRhizosphereGeometry({ state, painters }) {
       }
     }
     // A face de baixo do teto, voltada para o túnel, fica um pouco mais escura.
+    const traceLine = () => {
+      ctx.beginPath();
+      ctx.moveTo(line[0][0], line[0][1]);
+      for (let i = 1; i < line.length; i++) {
+        const p = line[i - 1];
+        const q = line[i];
+        ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+      }
+    };
     ctx.strokeStyle = 'rgba(10,5,3,.34)';
     ctx.lineWidth = 34;
-    ctx.beginPath();
-    ctx.moveTo(line[0][0], line[0][1]);
-    for (let i = 1; i < line.length; i++) {
-      const p = line[i - 1];
-      const q = line[i];
-      ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
-    }
+    traceLine();
     ctx.stroke();
     ctx.restore();
-
     ctx.save();
     ctx.strokeStyle = soilPalette.outline;
     ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(line[0][0], line[0][1]);
-    for (let i = 1; i < line.length; i++) {
-      const p = line[i - 1];
-      const q = line[i];
-      ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
-    }
+    traceLine();
     ctx.stroke();
-    // Radicelas finas pendendo do teto.
+    ctx.restore();
+  }
+
+  const CEILING_CHUNK = 512;
+
+  // A faixa vai da superfície (linha do colo) até a linha do teto. Acima da
+  // superfície fica o céu da cinemática final, que ela nunca cobre.
+  function drawCeiling(ctx, view, platforms, surface) {
+    if (!platforms.length) return false;
+    // Com propulsão o jogador voa até o limite do mundo: não há onde pôr teto.
+    if (state.campaign?.unlocks?.jetpack) return false;
+    const clearance = ceilingClearance();
+    const topLimit = surface + 40;
+    const line = ceilingLine(view.left, view.right, platforms, clearance, topLimit);
+    if (line.length < 2) return false;
+    currentCeiling = line;
+    let deepest = -Infinity;
+    for (const point of line) deepest = Math.max(deepest, point[1]);
+    // Acima da câmera: existe, só não aparece.
+    if (deepest < view.top - 10) return true;
+
+    const firstChunk = Math.floor((view.left - 60) / CEILING_CHUNK);
+    const lastChunk = Math.floor((view.right + 60) / CEILING_CHUNK);
+    for (let chunk = firstChunk; chunk <= lastChunk; chunk++) {
+      const x0 = chunk * CEILING_CHUNK - 2;
+      const x1 = (chunk + 1) * CEILING_CHUNK + 2;
+      const chunkLine = ceilingLine(x0, x1, platforms, clearance, topLimit);
+      if (chunkLine.length < 2) continue;
+      let chunkDeep = -Infinity;
+      for (const point of chunkLine) chunkDeep = Math.max(chunkDeep, point[1]);
+      const box = { x: x0, y: surface - 4, w: x1 - x0, h: chunkDeep - surface + 30 };
+      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}`, box, g => {
+        g.save();
+        g.beginPath();
+        g.rect(x0, surface - 4, x1 - x0, box.h);
+        g.clip();
+        paintCeilingBand(g, chunkLine, surface);
+        g.restore();
+      });
+    }
+
+    // Radicelas finas pendendo do teto (balançam: a cada quadro).
+    ctx.save();
     ctx.strokeStyle = rootPalette.radicle;
     ctx.globalAlpha = .55;
     ctx.lineWidth = 1.2;
@@ -636,7 +715,9 @@ export function createRhizosphereGeometry({ state, painters }) {
     const band = link.band;
     const points = aggregateOutline(block, seed);
     const time = state.time || 0;
+    const key = `agg:${seed}:${Math.round(x)}:${Math.round(y)}:${Math.round(w)}:${Math.round(h)}`;
 
+    cached(ctx, `${key}:body`, { x: x - 6, y: y - 6, w: w + 12, h: h + 46 }, ctx => {
     // Corpo de solo com a textura do autor.
     ctx.save();
     traceSmooth(ctx, points);
@@ -665,17 +746,30 @@ export function createRhizosphereGeometry({ state, painters }) {
     // Grãos soltos embaixo da base.
     ctx.save();
     const grains = Math.floor(w / 14);
+    const grainColors = new Map();
     for (let i = 0; i < grains; i++) {
       const gx = x + 8 + pseudo(seed, 60 + i) * (w - 16);
       const gy = y + h * .8 + pseudo(seed, 90 + i) * (h * .2 + 14);
-      ctx.fillStyle = pseudo(seed, 120 + i) < .4 ? soilPalette.silt[1] : soilPalette.aggregates[i % 3];
+      const color = pseudo(seed, 120 + i) < .4 ? soilPalette.silt[1] : soilPalette.aggregates[i % 3];
+      if (!grainColors.has(color)) grainColors.set(color, []);
+      grainColors.get(color).push([gx, gy, 1.2 + pseudo(seed, 150 + i) * 2.2]);
+    }
+    for (const [color, list] of grainColors) {
+      ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(gx, gy, 1.2 + pseudo(seed, 150 + i) * 2.2, 0, TAU);
+      for (const [gx, gy, r] of list) { ctx.moveTo(gx + r, gy); ctx.arc(gx, gy, r, 0, TAU); }
       ctx.fill();
     }
     ctx.restore();
+    });
 
     const { centers, widths, dir, exitX } = blockRootCenters(link);
+    let tubeMinX = Infinity; let tubeMaxX = -Infinity; let tubeMaxY = -Infinity;
+    for (const [cx, cy] of centers) { tubeMinX = Math.min(tubeMinX, cx); tubeMaxX = Math.max(tubeMaxX, cx); tubeMaxY = Math.max(tubeMaxY, cy); }
+    const tubeBox = {
+      x: Math.min(tubeMinX, x) - band - 8, y: y - band - 8,
+      w: Math.max(tubeMaxX, x + w) - Math.min(tubeMinX, x) + band * 2 + 16, h: tubeMaxY - y + band * 3 + 16,
+    };
     // Pelos radiculares no terço perto da ponta: entram no solo do bloco e
     // alguns saem pela base.
     const hairStart = exitX - dir * w / 3;
@@ -683,6 +777,9 @@ export function createRhizosphereGeometry({ state, painters }) {
     ctx.strokeStyle = rootPalette.radicle;
     ctx.lineCap = 'round';
     ctx.lineWidth = 1;
+    // Todos os pelos com o mesmo estilo: um caminho por nível de opacidade.
+    const hairsIn = [];
+    const hairsOut = [];
     for (let k = 0; k < 40; k++) {
       const hx = hairStart + dir * k * 6;
       if ((hx - exitX) * dir > -4) break;
@@ -690,35 +787,46 @@ export function createRhizosphereGeometry({ state, painters }) {
       const sway = Math.sin(time * 1.5 + hx * .05) * 1.5;
       const from = y + band - 2;
       const len = 8 + r * (h * .5);
-      ctx.globalAlpha = .75;
-      ctx.beginPath();
-      ctx.moveTo(hx, from);
-      ctx.quadraticCurveTo(hx + sway, from + len * .6, hx + sway * 1.5 + dir * 2, from + len);
-      ctx.stroke();
+      hairsIn.push([hx, from, hx + sway, from + len * .6, hx + sway * 1.5 + dir * 2, from + len]);
       if (r > .55) {
         const out = y + h * (.82 + r * .1);
-        ctx.globalAlpha = .6;
-        ctx.beginPath();
-        ctx.moveTo(hx + 2, out);
-        ctx.quadraticCurveTo(hx + 2 + sway, out + 8, hx + 3 + sway * 1.6, out + 12 + r * 8);
-        ctx.stroke();
+        hairsOut.push([hx + 2, out, hx + 2 + sway, out + 8, hx + 3 + sway * 1.6, out + 12 + r * 8]);
       }
+    }
+    for (const [alpha, list] of [[.75, hairsIn], [.6, hairsOut]]) {
+      if (!list.length) continue;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      for (const [ax, ay, cx, cy, bx, by] of list) { ctx.moveTo(ax, ay); ctx.quadraticCurveTo(cx, cy, bx, by); }
+      ctx.stroke();
     }
     ctx.restore();
 
     // A raiz: textura celular do autor, contraste pleno.
-    ctx.save();
-    traceTube(ctx, centers, widths, .45);
-    ctx.fillStyle = rootPalette.innerBase;
-    ctx.fill();
-    ctx.clip();
     const minX = Math.min(...centers.map(point => point[0])) - band;
     const maxX = Math.max(...centers.map(point => point[0])) + band;
     const maxY = Math.max(...centers.map(point => point[1])) + band;
-    paintRootTissue(ctx, seed, minX, y, maxX - minX, band);
-    // A ponta que dobra para baixo continua em córtex.
-    paintRootTissue(ctx, seed + 17, minX, y + band, maxX - minX, maxY - y - band + 4);
+    cached(ctx, `${key}:tissue`, tubeBox, ctx => {
+      ctx.save();
+      traceTube(ctx, centers, widths, .45);
+      ctx.fillStyle = rootPalette.innerBase;
+      ctx.fill();
+      ctx.clip();
+      paintRootTissue(ctx, seed, minX, y, maxX - minX, band);
+      // A ponta que dobra para baixo continua em córtex.
+      paintRootTissue(ctx, seed + 17, minX, y + band, maxX - minX, maxY - y - band + 4);
+      ctx.restore();
+    });
+    // Estado de saúde muda durante a fase: por quadro.
+    ctx.save();
+    traceTube(ctx, centers, widths, .45);
+    ctx.clip();
     paintRootCondition(ctx, visibleRootRect(block));
+    ctx.restore();
+    cached(ctx, `${key}:top`, tubeBox, ctx => {
+    ctx.save();
+    traceTube(ctx, centers, widths, .45);
+    ctx.clip();
     // Coifa mais clara e translúcida.
     const tip = centers[centers.length - 1];
     const cap = ctx.createRadialGradient(tip[0], tip[1], 1, tip[0], tip[1], band * .9);
@@ -738,16 +846,22 @@ export function createRhizosphereGeometry({ state, painters }) {
 
     // Parcialmente enterrada: grumos do agregado grudados na borda de baixo.
     ctx.save();
+    const crumbs = [[soilPalette.aggregates[0], []], [soilPalette.base, []]];
     for (let k = 0; k < 60; k++) {
       const px = x + 10 + k * 11 + pseudo(seed, 300 + k) * 6;
       if (px > x + w - 10) break;
       if (pseudo(seed, 360 + k) < .35) continue;
-      ctx.fillStyle = pseudo(seed, 420 + k) < .5 ? soilPalette.aggregates[0] : soilPalette.base;
+      crumbs[pseudo(seed, 420 + k) < .5 ? 0 : 1][1].push([px, y + band - 1 + pseudo(seed, 480 + k) * 2, 2 + pseudo(seed, 540 + k) * 2.6]);
+    }
+    for (const [color, list] of crumbs) {
+      if (!list.length) continue;
+      ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(px, y + band - 1 + pseudo(seed, 480 + k) * 2, 2 + pseudo(seed, 540 + k) * 2.6, 0, TAU);
+      for (const [cx, cy, r] of list) { ctx.moveTo(cx + r, cy); ctx.arc(cx, cy, r, 0, TAU); }
       ctx.fill();
     }
     ctx.restore();
+    });
 
     if (block.fixedObjective) {
       const entryX = link.side < 0 ? x : x + w;
@@ -879,6 +993,8 @@ export function createRhizosphereGeometry({ state, painters }) {
 
   function draw(ctx, view, seedOf) {
     const started = typeof performance !== 'undefined' ? performance.now() : 0;
+    cacheFrame++;
+    currentCeiling = null;
     const platforms = solidPlatforms();
     const worldBottom = Number(state.level?.worldBottomY);
     const floor = Math.max(Number.isFinite(worldBottom) ? worldBottom : view.bottom, view.bottom) + 40;
@@ -902,7 +1018,12 @@ export function createRhizosphereGeometry({ state, painters }) {
           if (!inX(box.minX, box.maxX, 20) || box.maxY < view.top - 20 || box.minY > view.bottom + 20) continue;
           const palette = root.linkIndex !== undefined ? ROOT_PALETTE
             : root.layer === 'link' ? LINK_ROOT_PALETTE : MUTED_ROOT_PALETTE;
-          drawRootTube(ctx, root, { palette, seed: root.seed, time, fade: root.layer === 'link' ? .2 : .5 });
+          const fade = root.layer === 'link' ? .2 : .5;
+          const pad = Math.max(...root.widths) + 14;
+          cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
+            x: box.minX - pad, y: box.minY - pad, w: box.maxX - box.minX + pad * 2, h: box.maxY - box.minY + pad * 2,
+          }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' }));
+          drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' });
         }
       }
     }
@@ -913,7 +1034,12 @@ export function createRhizosphereGeometry({ state, painters }) {
     }
     for (const platform of platforms) {
       if (platform.type !== 'soil' || !inX(platform.x, platform.x + platform.w)) continue;
-      drawSoilMass(ctx, platform, platforms, view, floor, seedOf(platform));
+      const massSeed = seedOf(platform);
+      const bottom = massBottom(platform, platforms, floor);
+      if (platform.y > view.bottom || bottom < view.top) continue;
+      cached(ctx, `mass:${massSeed}:${Math.round(platform.x)}:${Math.round(platform.y)}:${Math.round(platform.w)}:${Math.round(bottom)}`, {
+        x: platform.x - 96, y: platform.y - 12, w: platform.w + 192, h: bottom - platform.y + 72,
+      }, g => drawSoilMass(g, platform, platforms, FULL_VIEW, floor, massSeed));
     }
     links.forEach((link, index) => {
       const { block } = link;
@@ -921,6 +1047,7 @@ export function createRhizosphereGeometry({ state, painters }) {
       if (block.y > view.bottom || block.y + block.h < view.top) return;
       drawAggregate(ctx, link, seedOf(block));
     });
+    trimCache();
     if (started) lastRenderMs = performance.now() - started;
   }
 

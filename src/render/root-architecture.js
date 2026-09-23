@@ -11,7 +11,7 @@
 // autor (epiderme verde, camada cinza, córtex ocre) e sombreamento cilíndrico
 // por cima — sombra de um lado, realce e brilho do outro.
 
-import { ROOT_PALETTE, clamp, paintRootTissueVertical } from './root-tissue.js';
+import { ROOT_PALETTE, clamp, paintRootTissueVertical, setTissueCull } from './root-tissue.js';
 
 const TAU = Math.PI * 2;
 
@@ -248,12 +248,15 @@ function traceShape(ctx, left, right, tipRound = true) {
  *   faixa cinza, córtex ocre) com as paredes celulares em tracinhos.
  * `palette` define o quanto ela recua (paleta apagada para o fundo).
  */
-export function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time = 0, fade = 0 } = {}) {
+// `part`: 'body' (tudo o que é estático — cabe no cache), 'hairs' (só os pelos,
+// que balançam) ou 'all'.
+export function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time = 0, fade = 0, view = null, part = 'all' } = {}) {
   const { points, widths } = root;
   if (points.length < 2) return;
   const maxW = Math.max(...widths);
 
   ctx.save();
+  if (part !== 'hairs') {
   if (root.main && maxW >= 8) {
     const { left, right } = outline(points, widths);
     let minY = Infinity; let maxY = -Infinity; let sumX = 0;
@@ -263,7 +266,16 @@ export function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time
     ctx.fill();
     ctx.save();
     ctx.clip();
+    let minX = Infinity; let maxX = -Infinity;
+    for (const [x] of points) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
+    setTissueCull({
+      x0: Math.max(minX - maxW, view ? view.left : -Infinity),
+      x1: Math.min(maxX + maxW, view ? view.right : Infinity),
+      y0: Math.max(minY - 8, view ? view.top : -Infinity),
+      y1: Math.min(maxY + 12, view ? view.bottom : Infinity),
+    });
     paintRootTissueVertical(ctx, seed, sumX / points.length, minY - 4, maxY + 12, maxW * .62 + 8, palette);
+    setTissueCull(null);
     ctx.restore();
     traceShape(ctx, left, right);
     ctx.strokeStyle = palette.outline;
@@ -272,12 +284,16 @@ export function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time
   } else {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    // Cada camada = um polígono afunilado (uma chamada), com ponta arredondada.
     const stroke = (color, factor, extra = 0) => {
-      ctx.strokeStyle = color;
-      for (let i = 0; i < points.length - 1; i++) {
-        ctx.lineWidth = Math.max(.5, widths[i] * factor + extra);
-        ctx.beginPath(); ctx.moveTo(points[i][0], points[i][1]); ctx.lineTo(points[i + 1][0], points[i + 1][1]); ctx.stroke();
-      }
+      const layerWidths = widths.map(value => Math.max(.5, value * factor + extra));
+      const shape = outline(points, layerWidths);
+      traceShape(ctx, shape.left, shape.right);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(points[0][0], points[0][1], layerWidths[0] / 2, 0, TAU);
+      ctx.fill();
     };
     stroke(palette.outline, 1, 1.6);
     stroke(palette.green[1], 1);
@@ -287,6 +303,7 @@ export function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time
       // Paredes celulares ao longo do córtex (divisão celular).
       ctx.strokeStyle = palette.ochreStroke;
       ctx.lineWidth = .7;
+      ctx.beginPath();
       for (let i = 1; i < points.length - 1; i++) {
         if (widths[i] < 3) continue;
         const [x, y] = points[i];
@@ -294,8 +311,9 @@ export function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time
         const len = Math.hypot(nx - x, ny - y) || 1;
         const px = -(ny - y) / len * widths[i] * .3;
         const py = (nx - x) / len * widths[i] * .3;
-        ctx.beginPath(); ctx.moveTo(x - px, y - py); ctx.lineTo(x + px, y + py); ctx.stroke();
+        ctx.moveTo(x - px, y - py); ctx.lineTo(x + px, y + py);
       }
+      ctx.stroke();
     }
   }
   // Coifa translúcida na ponta.
@@ -309,13 +327,16 @@ export function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time
     ctx.fillStyle = cap;
     ctx.beginPath(); ctx.arc(tip[0], tip[1], r, 0, TAU); ctx.fill();
   }
+  }
   // Pelos radiculares na zona de maturação (terço perto da ponta): finos,
   // esparsos, cada um com comprimento e curva próprios.
-  if (root.hairs && maxW >= 1.5) {
+  if (part !== 'body' && root.hairs && maxW >= 1.5) {
     const random = seededRandom(seed * 3 + 1);
     const start = Math.floor(points.length * .66);
     ctx.lineCap = 'round';
     ctx.lineWidth = .55;
+    // Três níveis de transparência, cada um num único caminho.
+    const hairPaths = [[], [], []];
     for (let i = start; i < points.length - 2; i++) {
       if (random() > .38) continue;
       const [x, y] = points[i];
@@ -327,15 +348,20 @@ export function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time
       const h = widths[i] / 2;
       const l = 4 + random() * (5 + widths[i] * 1.4);
       const bend = (random() - .5) * l * .8 + Math.sin(time * 1.2 + i) * .6;
-      ctx.strokeStyle = `rgba(240,230,200,${(.22 + random() * .22) * (1 - fade * .5)})`;
-      ctx.beginPath();
-      ctx.moveTo(x + px * h, y + py * h);
-      ctx.quadraticCurveTo(
+      const level = Math.min(2, Math.floor(random() * 3));
+      hairPaths[level].push([
+        x + px * h, y + py * h,
         x + px * (h + l * .55) + (nx - x) / len * bend, y + py * (h + l * .55) + (ny - y) / len * bend,
         x + px * (h + l), y + py * (h + l) + l * .2,
-      );
-      ctx.stroke();
+      ]);
     }
+    hairPaths.forEach((hairs, level) => {
+      if (!hairs.length) return;
+      ctx.strokeStyle = `rgba(240,230,200,${(.26 + level * .07) * (1 - fade * .5)})`;
+      ctx.beginPath();
+      for (const [ax, ay, cx, cy, bx, by] of hairs) { ctx.moveTo(ax, ay); ctx.quadraticCurveTo(cx, cy, bx, by); }
+      ctx.stroke();
+    });
   }
   ctx.restore();
 }
