@@ -42,6 +42,8 @@ páginas. Cartões de uma página dispensam controles redundantes.
 O botão principal preserva as proporções do protótipo e usa “Continuar”, com
 centralização óptica do texto; seu aria-label distingue avançar, finalizar e
 voltar à biblioteca.
+O contorno ciano é permanente, separado do amarelo por 3px de fundo escuro.
+O foco de teclado engrossa esse contorno; o rodapé reserva espaço para não cortá-lo.
 
 `tests/tutorial-card-pages.test.js` verifica a preservação de todos os textos,
 títulos, tópicos e ciclos, além do isolamento dos desbloqueios científicos.

@@ -83,16 +83,18 @@ html.tutorial-open, html.tutorial-open body { touch-action: pan-y; }
 .tutorial-cycle-step--lower { top: 110px; align-items: flex-start; padding: 16px 10px 0; }
 .tutorial-cycle-step--lower::after { top: -2.5px; bottom: auto; }
 .tutorial-cycle-block--narrow .tutorial-cycle-step { overflow-wrap: normal; }
-.tutorial-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 0 5px; }
+.tutorial-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 8px 10px 0; }
 .tutorial-button { color: var(--tutorial-ink); background: transparent; border: 1.5px solid var(--tutorial-line); border-radius: 999px; min-height: 44px; padding: .7rem 1rem; font: 700 .95rem/1.2 var(--tutorial-body); cursor: pointer; touch-action: manipulation; }
 .tutorial-next { display: inline-flex; align-items: center; justify-content: center; background: var(--tutorial-amber); color: #3a1608; border: 0; padding: .8rem 1.9rem; font: 800 1.2rem/1.2 var(--tutorial-display); text-align: center; box-shadow: 0 4px 0 #b3651f,0 12px 24px rgba(0,0,0,.35); transition: transform .08s; }
 .tutorial-button-label { display: block; transform: translateY(.09em); }
+.tutorial-next { outline: 3px solid var(--tutorial-cyan); outline-offset: 3px; }
 .tutorial-next:active { transform: translateY(3px); box-shadow: 0 1px 0 #b3651f; }
 .tutorial-prev { font-size: 1.3rem; padding: .5rem; min-width: 44px; }
 .tutorial-button:disabled { opacity: .3; cursor: default; }
 .tutorial-prev:disabled { visibility: hidden; }
 .tutorial-button:hover:not(:disabled) { filter: brightness(1.12); }
 .tutorial-overlay :focus-visible { outline: 3px solid var(--tutorial-cyan); outline-offset: -3px; }
+.tutorial-overlay .tutorial-next:focus-visible { outline-width: 4px; outline-offset: 3px; }
 .tutorial-pagination { display: flex; flex-direction: column; align-items: center; gap: 0; margin-right: auto; }
 .tutorial-page-dots { display: flex; }
 .tutorial-page-dot { width: 24px; height: 26px; border: 0; padding: 0; background: transparent; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; }
