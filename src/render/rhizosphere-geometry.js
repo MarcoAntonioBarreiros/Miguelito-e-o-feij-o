@@ -22,10 +22,11 @@
 // autor e chegam prontas por `painters`; este módulo só decide a forma.
 
 import { drawBeanPlant } from './bean-plant-visual.js';
+import { drawRootTube, growPlantRoots, seededRandom } from './root-architecture.js';
 import { GEOMETRY_ENABLED } from './geometry-preference.js';
 import { FINAL_ROOT_SCALE, finalRootCollar } from './final-root-visual.js';
 import {
-  LINK_ROOT_PALETTE, MUTED_ROOT_PALETTE, clamp, paintRootCondition, paintRootTissue, paintRootTissueVertical, pseudo,
+  LINK_ROOT_PALETTE, MUTED_ROOT_PALETTE, ROOT_PALETTE, clamp, paintRootCondition, paintRootTissue, pseudo,
 } from './root-tissue.js';
 
 const TAU = Math.PI * 2;
@@ -130,7 +131,7 @@ export function createRhizosphereGeometry({ state, painters }) {
     // o teto continua na altura da mais próxima: a superfície não fica sem solo.
     if (!Number.isFinite(best) && nearest) best = nearest.y - clearance - 66;
     if (!Number.isFinite(best)) return null;
-    const bump = (pseudo(hash2(Math.floor(x / CEILING_STEP), 7), 3) - .5) * 14;
+    const bump = (pseudo(hash2(Math.floor(x / CEILING_STEP), 7), 3) - .5) * 14 + Math.sin(x * .013) * 9;
     return Math.max(topLimit, best + bump);
   }
 
@@ -400,7 +401,8 @@ export function createRhizosphereGeometry({ state, painters }) {
   // Distância máxima entre duas plantas vizinhas ao longo da fase.
   const PLANT_SPACING = 720;
   const PLANT_MIN_GAP = 220;
-  const MAIN_ROOT_WIDTH = 26;
+  // Mesma espessura do caule do feijoeiro no colo (40 × escala da planta).
+  const MAIN_ROOT_WIDTH = 14;
 
   function surfaceLine(platforms) {
     const goal = state.level?.goal;
@@ -521,16 +523,6 @@ export function createRhizosphereGeometry({ state, painters }) {
     return { surface, plants, links };
   }
 
-  function mainHalfWidth(plant, surface, y) {
-    const k = clamp((y - surface) / Math.max(1, plant.tipY - surface), 0, 1);
-    return MAIN_ROOT_WIDTH / 2 * (1 - k * .6) * (k > .92 ? 1 - (k - .92) * 9 : 1);
-  }
-
-  function mainCenterX(plant, surface, y) {
-    const k = clamp((y - surface) / Math.max(1, plant.tipY - surface), 0, 1);
-    return plant.x + Math.sin(y * .011 + plant.seed * .001) * 6 * k;
-  }
-
   // Tubo a partir de uma linha central e das larguras em cada ponto.
   function traceTube(ctx, centers, widths, capBulge = .3) {
     const left = [];
@@ -563,132 +555,6 @@ export function createRhizosphereGeometry({ state, painters }) {
     for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
     ctx.closePath();
     return { left, right };
-  }
-
-  // Raiz principal: da superfície até a coifa, afinando para baixo. Textura em
-  // faixas verticais com a paleta apagada (menos saturação e contraste).
-  function drawMainRoot(ctx, plant, surface, view) {
-    if (plant.goal) return; // a raiz-objetivo é desenhada pelo goal-system
-    if (plant.tipY < view.top || surface > view.bottom) return;
-    const centers = [];
-    const widths = [];
-    const n = Math.max(6, Math.ceil((plant.tipY - surface) / 16));
-    for (let i = 0; i <= n; i++) {
-      const y = surface + (plant.tipY - surface) * i / n;
-      centers.push([mainCenterX(plant, surface, y), y]);
-      widths.push(Math.max(2, mainHalfWidth(plant, surface, y) * 2));
-    }
-    const palette = MUTED_ROOT_PALETTE;
-    ctx.save();
-    const { left, right } = traceTube(ctx, centers, widths);
-    ctx.fillStyle = palette.innerBase;
-    ctx.fill();
-    ctx.clip();
-    paintRootTissueVertical(ctx, plant.seed, plant.x, surface, plant.tipY + 12, MAIN_ROOT_WIDTH * .62, palette);
-    ctx.restore();
-    ctx.save();
-    traceTube(ctx, centers, widths);
-    ctx.strokeStyle = palette.outline;
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-    // Pelos só no terço perto da ponta.
-    ctx.strokeStyle = palette.radicle;
-    ctx.globalAlpha = .55;
-    ctx.lineWidth = .9;
-    for (let i = Math.floor(n * .67); i < n - 1; i++) {
-      const sway = Math.sin((state.time || 0) * 1.3 + i) * 1.5;
-      ctx.beginPath();
-      ctx.moveTo(left[i][0], left[i][1]);
-      ctx.lineTo(left[i][0] + 8 + sway, left[i][1] + 5);
-      ctx.moveTo(right[i][0], right[i][1]);
-      ctx.lineTo(right[i][0] - 8 - sway, right[i][1] + 5);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  function linkCenters(link, surface) {
-    const { plant, entryX, entryY, attachY, side } = link;
-    const out = entryX >= plant.x ? 1 : -1;
-    const startX = plant.goal ? plant.x : mainCenterX(plant, surface, attachY);
-    const start = [startX + out * 4, attachY];
-    const end = [entryX - side * 10, entryY];
-    const dx = end[0] - start[0];
-    const c1 = [start[0] + dx * .35, start[1] + (end[1] - start[1]) * .15 + 10];
-    const c2 = [end[0] - dx * .35, end[1]];
-    const points = [];
-    const steps = 22;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const u = 1 - t;
-      const x = u * u * u * start[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * end[0];
-      const y = u * u * u * start[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * end[1];
-      // Sinuosa, mas presa nas duas pontas.
-      const wave = Math.sin(t * Math.PI * 2.4 + link.block.x * .01) * 4.5 * Math.sin(t * Math.PI);
-      points.push([x, y + wave]);
-    }
-    return points;
-  }
-
-  // Lateral de ligação: fina, sinuosa, atrás do bloco, com ramificações de 2ª
-  // ordem. Sem pelos: eles ficam no terço perto da ponta, já sobre o bloco.
-  function drawLink(ctx, link, surface) {
-    const centers = linkCenters(link, surface);
-    const palette = LINK_ROOT_PALETTE;
-    const mainWidth = link.plant.goal ? 22 : mainHalfWidth(link.plant, surface, link.attachY) * 2;
-    const width = Math.min(link.band * .8, mainWidth * .7, 14);
-    const seed = hash2(Math.round(link.block.x), 83);
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    // Ramificações de 2ª ordem (atrás da lateral), apontando para baixo.
-    ctx.strokeStyle = palette.green[0];
-    for (let b = 0; b < 3; b++) {
-      const t = .22 + b * .22 + pseudo(seed, b) * .08;
-      const i = Math.round(t * (centers.length - 1));
-      const [x, y] = centers[i];
-      const [nx, ny] = centers[Math.min(centers.length - 1, i + 1)];
-      const heading = Math.atan2(ny - y, nx - x);
-      const turn = (b % 2 ? .95 : -.95) * (pseudo(seed, b + 5) > .3 ? 1 : -1);
-      let angle = heading + turn;
-      if (Math.sin(angle) < -.2) angle = heading - turn;
-      const len = 16 + pseudo(seed, b + 9) * 20;
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.quadraticCurveTo(
-        x + Math.cos(angle) * len * .5, y + Math.sin(angle) * len * .5 + 3,
-        x + Math.cos(angle) * len, y + Math.sin(angle) * len + 6,
-      );
-      ctx.stroke();
-    }
-    const stroke = (color, w) => {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = w;
-      ctx.beginPath();
-      ctx.moveTo(centers[0][0], centers[0][1]);
-      for (const [x, y] of centers) ctx.lineTo(x, y);
-      ctx.stroke();
-    };
-    stroke(palette.outline, width + 2);
-    stroke(palette.green[1], width);
-    stroke(palette.blue[0], width * .7);
-    stroke(palette.ochreLarge[1], width * .46);
-    // Paredes celulares: tracinhos ao longo do córtex.
-    ctx.strokeStyle = palette.ochreStroke;
-    ctx.lineWidth = .8;
-    for (let i = 1; i < centers.length - 1; i++) {
-      const [x, y] = centers[i];
-      const [nx, ny] = centers[i + 1];
-      const len = Math.hypot(nx - x, ny - y) || 1;
-      const px = -(ny - y) / len * width * .32;
-      const py = (nx - x) / len * width * .32;
-      ctx.beginPath();
-      ctx.moveTo(x - px, y - py);
-      ctx.lineTo(x + px, y + py);
-      ctx.stroke();
-    }
-    ctx.restore();
   }
 
   function drawPlant(ctx, plant, surface, view) {
@@ -884,21 +750,130 @@ export function createRhizosphereGeometry({ state, painters }) {
     ctx.restore();
 
     if (block.fixedObjective) {
-      // Mesmo tecido, com o brilho do objetivo por cima.
+      const entryX = link.side < 0 ? x : x + w;
+      const exitX = link.side < 0 ? x + w + 30 : x - 30;
+      const glow = ctx.createLinearGradient(entryX, 0, exitX, 0);
+      glow.addColorStop(0, 'rgba(255,213,111,0)');
+      glow.addColorStop(.18, 'rgba(255,213,111,.55)');
+      glow.addColorStop(1, 'rgba(255,213,111,.55)');
       ctx.save();
-      ctx.strokeStyle = 'rgba(255,213,111,.85)';
-      ctx.fillStyle = 'rgba(255,213,111,.12)';
-      ctx.lineWidth = 2.6;
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = '#ffd56f';
-      traceTube(ctx, centers, widths, .45);
-      ctx.fill();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = glow;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = 'rgba(255,213,111,.8)';
+      ctx.shadowBlur = 14;
+      ctx.globalAlpha = .45;
+      ctx.lineWidth = band * 1.1;
+      ctx.beginPath();
+      ctx.moveTo(centers[0][0], centers[0][1]);
+      for (const [px, py] of centers) ctx.lineTo(px, py);
       ctx.stroke();
       ctx.restore();
     }
   }
 
+
+  // ------------------------------------------------ superfície e céu ----
+
+  function drawSky(ctx, view, surface) {
+    // Na cinemática o céu é o da cena final (mesma região, mesmas cores).
+    if (state.level?.finalRootPulse !== undefined) return;
+    if (view.top >= surface) return;
+    const top = view.top - 40;
+    ctx.save();
+    const sky = ctx.createLinearGradient(0, surface - 900, 0, surface);
+    sky.addColorStop(0, '#2572b8');
+    sky.addColorStop(.55, '#4ea1e6');
+    sky.addColorStop(1, '#99e0f8');
+    ctx.fillStyle = sky;
+    ctx.beginPath();
+    ctx.moveTo(view.left - 20, top); ctx.lineTo(view.right + 20, top);
+    ctx.lineTo(view.right + 20, surface + 2); ctx.lineTo(view.left - 20, surface + 2);
+    ctx.fill();
+    // Fileiras distantes de feijão.
+    ctx.fillStyle = 'rgba(62,120,58,.5)';
+    for (let x = Math.floor((view.left - 30) / 22) * 22; x < view.right + 30; x += 22) {
+      const k = pseudo(hash2(Math.round(x / 22), 5), 1);
+      const hh = 7 + k * 9;
+      const xx = x + k * 6;
+      ctx.beginPath();
+      ctx.moveTo(xx - .6, surface); ctx.lineTo(xx + .6, surface); ctx.lineTo(xx + .6, surface - hh); ctx.lineTo(xx - .6, surface - hh);
+      ctx.fill();
+      for (let j = -1; j <= 1; j++) {
+        ctx.beginPath();
+        ctx.ellipse(xx + j * 4, surface - hh - 2 + Math.abs(j) * 2, 3.4, 1.8, j * .7, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // Linha do chão: palhada e tufos, presos ao mundo.
+  function drawGround(ctx, view, surface) {
+    if (surface < view.top - 40 || surface > view.bottom + 10) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    const colors = ['#d9b36a', '#b58d4e', '#e8cf93', '#9c7a40'];
+    for (let x = Math.floor((view.left - 20) / 4) * 4; x < view.right + 20; x += 4) {
+      const k = hash2(x, 17);
+      if (pseudo(k, 1) < .25) continue;
+      const len = 7 + pseudo(k, 2) * 16;
+      const ang = (pseudo(k, 3) - .5) * .7;
+      ctx.strokeStyle = colors[Math.floor(pseudo(k, 4) * colors.length)];
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, surface - pseudo(k, 5) * 3);
+      ctx.lineTo(x + Math.cos(ang) * len, surface - pseudo(k, 5) * 3 + Math.sin(ang) * len * .3 - 1);
+      ctx.stroke();
+      if (pseudo(k, 6) > .86) {
+        ctx.strokeStyle = pseudo(k, 7) > .5 ? '#5f9a3c' : '#77ad48';
+        ctx.lineWidth = 1.2;
+        for (let g = -2; g <= 2; g++) {
+          ctx.beginPath();
+          ctx.moveTo(x + g * 1.5, surface);
+          ctx.quadraticCurveTo(x + g * 2.5, surface - 6, x + g * 3.5, surface - 9 - pseudo(k, 8 + g) * 5);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
   // ------------------------------------------------------------ mundo ----
+
+  let architecture = { key: '', plants: [] };
+
+  function buildArchitecture(layout, platforms, seedOf) {
+    const key = Math.round(layout.surface) + '|' + platforms.map(p => Math.round(p.x) + ',' + Math.round(p.y)).join(';');
+    if (architecture.key === key) return architecture;
+    const plants = layout.plants.map(plant => {
+      const links = [];
+      layout.links.forEach((link, index) => {
+        if (link.plant !== plant) return;
+        const entry = [link.entryX - link.side * 6, link.entryY];
+        links.push({ index, attachY: link.attachY, entry, band: link.band, blockCenters: [entry], blockWidths: [link.band * .72] });
+      });
+      const { roots } = growPlantRoots({
+        plant, surface: layout.surface, tipY: plant.tipY, links, platforms, mainWidth: MAIN_ROOT_WIDTH,
+      });
+      for (const root of roots) {
+        let minX = Infinity; let maxX = -Infinity; let minY = Infinity; let maxY = -Infinity;
+        for (const [px, py] of root.points) {
+          minX = Math.min(minX, px); maxX = Math.max(maxX, px); minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+        }
+        root.box = { minX, maxX, minY, maxY };
+        root.seed = hash2(Math.round(root.points[0][0]), Math.round(root.points[0][1]));
+      }
+      return { plant, roots };
+    });
+    const lateralOf = new Map();
+    for (const { roots } of plants) {
+      for (const root of roots) if (root.linkIndex !== undefined) lateralOf.set(root.linkIndex, root);
+    }
+    architecture = { key, plants, lateralOf };
+    return architecture;
+  }
 
   let lastRenderMs = 0;
 
@@ -909,16 +884,30 @@ export function createRhizosphereGeometry({ state, painters }) {
     const floor = Math.max(Number.isFinite(worldBottom) ? worldBottom : view.bottom, view.bottom) + 40;
     // Folga de 100 px: o barranco alarga a massa para os lados, embaixo.
     const inX = (left, right, margin = 100) => right >= view.left - margin && left <= view.right + margin;
-    const { surface, plants, links } = rootLayout(platforms);
+    const layout = rootLayout(platforms);
+    const { surface, plants, links } = layout;
+    const arch = buildArchitecture(layout, platforms, seedOf);
+    const time = state.time || 0;
 
-    // Fundo: principais e laterais de ligação, apagadas.
-    for (const plant of plants) {
-      if (inX(plant.x - 40, plant.x + 40, 60)) drawMainRoot(ctx, plant, surface, view);
-    }
-    for (const link of links) {
-      if (inX(Math.min(link.plant.x, link.entryX), Math.max(link.plant.x, link.entryX), 60)) drawLink(ctx, link, surface);
+    drawSky(ctx, view, surface);
+    // Arquitetura radicular: principal e laterais livres mais atrás; laterais
+    // que alimentam blocos um pouco mais à frente.
+    // Como no original: ramificações finas atrás, depois a principal, e as
+    // laterais por cima dela, saindo de dentro — brotando da principal.
+    for (const { roots } of arch.plants) {
+      for (const order of [2, 0, 1]) {
+        for (const root of roots) {
+          if (root.order !== order) continue;
+          const { box } = root;
+          if (!inX(box.minX, box.maxX, 20) || box.maxY < view.top - 20 || box.minY > view.bottom + 20) continue;
+          const palette = root.linkIndex !== undefined ? ROOT_PALETTE
+            : root.layer === 'link' ? LINK_ROOT_PALETTE : MUTED_ROOT_PALETTE;
+          drawRootTube(ctx, root, { palette, seed: root.seed, time, fade: root.layer === 'link' ? .2 : .5 });
+        }
+      }
     }
     drawCeiling(ctx, view, platforms, surface);
+    drawGround(ctx, view, surface);
     for (const plant of plants) {
       if (inX(plant.x - 120, plant.x + 120, 60)) drawPlant(ctx, plant, surface, view);
     }
@@ -926,12 +915,12 @@ export function createRhizosphereGeometry({ state, painters }) {
       if (platform.type !== 'soil' || !inX(platform.x, platform.x + platform.w)) continue;
       drawSoilMass(ctx, platform, platforms, view, floor, seedOf(platform));
     }
-    for (const link of links) {
+    links.forEach((link, index) => {
       const { block } = link;
-      if (!inX(block.x, block.x + block.w, 40)) continue;
-      if (block.y > view.bottom || block.y + block.h < view.top) continue;
+      if (!inX(block.x, block.x + block.w, 40)) return;
+      if (block.y > view.bottom || block.y + block.h < view.top) return;
       drawAggregate(ctx, link, seedOf(block));
-    }
+    });
     if (started) lastRenderMs = performance.now() - started;
   }
 

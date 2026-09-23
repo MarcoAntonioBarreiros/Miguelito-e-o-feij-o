@@ -783,7 +783,8 @@ html.tutorial-open, html.tutorial-open body { touch-action: pan-y; }
   gap: 28px;
   align-items: center;
   padding: 28px 32px 26px 28px;
-  height: min(600px, calc(100dvh - 50px));
+  min-height: 340px;
+  max-height: calc(100dvh - 50px);
 }
 .tutorial-scope {
   width: 100%;
@@ -798,39 +799,51 @@ html.tutorial-open, html.tutorial-open body { touch-action: pan-y; }
   background: #050202;
   box-shadow: 0 0 0 7px #7a5334,0 0 0 9px #3a2215,0 0 0 11px #a57a4f,inset 0 0 40px rgba(0,0,0,.8);
 }
-.tutorial-paper-content { display: grid; grid-template-rows: auto minmax(0,1fr) auto; height: 100%; min-height: 0; min-width: 0; overflow: hidden; }
+.tutorial-paper-content { display: grid; grid-template-rows: auto minmax(0,1fr) auto; max-height: calc(100dvh - 106px); min-height: 0; min-width: 0; overflow: hidden; }
 .tutorial-header { padding-right: 14px; }
-.tutorial-heading-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+.tutorial-heading-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
 .tutorial-category, .tutorial-new-badge { color: var(--tutorial-muted); font: 700 10px/1.3 var(--tutorial-body); letter-spacing: .12em; text-transform: uppercase; }
-.tutorial-new-badge { color: var(--tutorial-amber); }
+.tutorial-new-badge { display: none; }
+.tutorial-title--scientific { font-style: italic; }
 .tutorial-title, .tutorial-library-title { font-family: var(--tutorial-display); font-weight: 800; font-size: 2.1rem; line-height: 1; margin: 0 0 .25rem; color: #fff4e2; overflow-wrap: anywhere; }
 .tutorial-subtitle { margin: 0 0 1rem; color: var(--tutorial-amber); font-weight: 700; line-height: 1.35; }
 .tutorial-page { min-height: 0; display: flex; }
-.tutorial-page-scroll { width: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #7a5334 transparent; padding-right: 8px; user-select: text; }
-.tutorial-page-title { font: 700 1.05rem/1.35 var(--tutorial-body); margin: 0 0 .65rem; color: #fff4e2; }
+.tutorial-page-scroll { width: 100%; min-height: 0; max-height: 320px; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #7a5334 transparent; padding-right: 8px; user-select: text; }
+.tutorial-page-title { font: 700 .82rem/1.35 var(--tutorial-body); margin: 0 0 .5rem; color: var(--tutorial-muted); }
 .tutorial-page-body { margin: 0 0 .9rem; line-height: 1.55; color: #f1dcc6; max-width: 62ch; font-size: 1rem; }
-.tutorial-page-points { margin: 0 0 1rem; padding: .7rem .9rem .7rem 1.8rem; border-radius: 12px; background: rgba(108,231,223,.09); border-left: 3px solid var(--tutorial-cyan); color: #dff7f2; line-height: 1.5; }
+.tutorial-callout { margin: .35rem 0 .8rem; padding: .85rem 1rem; border-radius: 12px; background: rgba(108,231,223,.09); border-left: 3px solid var(--tutorial-cyan); color: #dff7f2; line-height: 1.5; }
+.tutorial-callout-title { display: inline; margin: 0; color: var(--tutorial-cyan); font: 700 1rem/1.5 var(--tutorial-body); }
+.tutorial-callout-title::after { content: '. '; }
+.tutorial-callout-body { display: inline; margin: 0; font-size: 1rem; }
+.tutorial-page-points { margin: .5rem 0 0; padding: 0 0 0 1rem; color: #dff7f2; line-height: 1.5; }
 .tutorial-page-points li + li { margin-top: .4rem; }
-.tutorial-cycle-block { margin-top: 1rem; padding-top: .65rem; border-top: 1px solid var(--tutorial-line); }
-.tutorial-cycle-label { display: block; color: var(--tutorial-muted); font-size: .72rem; margin-bottom: .3rem; }
-.tutorial-cycle { display: flex; flex-wrap: wrap; gap: 3px 5px; color: var(--tutorial-muted); font-size: .75rem; line-height: 1.5; }
-.tutorial-cycle-link { display: inline-flex; align-items: baseline; gap: 5px; }
-.tutorial-cycle-step { overflow-wrap: anywhere; }
-.tutorial-cycle-arrow { color: var(--tutorial-amber); }
-.tutorial-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 16px 0 5px; }
+.tutorial-cycle-block { position: relative; margin: 4px 0; height: var(--cycle-height); }
+.tutorial-cycle-label { display: none; }
+.tutorial-cycle { margin: 0; padding: 0; list-style: none; color: #f1dcc6; font-size: .9rem; line-height: 1.4; }
+.tutorial-cycle-path { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.tutorial-cycle-step { position: absolute; top: 0; height: 70px; transform: translateX(-50%); display: flex; justify-content: center; align-items: flex-end; padding: 0 10px 16px; text-align: center; overflow-wrap: anywhere; }
+.tutorial-cycle-step::after { content: ''; position: absolute; width: 5px; height: 5px; border-radius: 50%; left: calc(50% - 2.5px); bottom: -2.5px; background: #c99a62; }
+.tutorial-cycle-step--lower { top: 110px; align-items: flex-start; padding: 16px 10px 0; }
+.tutorial-cycle-step--lower::after { top: -2.5px; bottom: auto; }
+.tutorial-cycle-block--narrow .tutorial-cycle-step { overflow-wrap: normal; }
+.tutorial-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 0 5px; }
 .tutorial-button { color: var(--tutorial-ink); background: transparent; border: 1.5px solid var(--tutorial-line); border-radius: 999px; min-height: 44px; padding: .7rem 1rem; font: 700 .95rem/1.2 var(--tutorial-body); cursor: pointer; touch-action: manipulation; }
-.tutorial-next { background: var(--tutorial-amber); color: #3a1608; border: 0; padding: .8rem 1.35rem; font: 800 1.1rem/1.2 var(--tutorial-display); box-shadow: 0 4px 0 #b3651f,0 12px 24px rgba(0,0,0,.35); transition: transform .08s; }
+.tutorial-next { display: inline-flex; align-items: center; justify-content: center; background: var(--tutorial-amber); color: #3a1608; border: 0; padding: .8rem 1.9rem; font: 800 1.2rem/1.2 var(--tutorial-display); text-align: center; box-shadow: 0 4px 0 #b3651f,0 12px 24px rgba(0,0,0,.35); transition: transform .08s; }
+.tutorial-button-label { display: block; transform: translateY(.09em); }
 .tutorial-next:active { transform: translateY(3px); box-shadow: 0 1px 0 #b3651f; }
 .tutorial-prev { font-size: 1.3rem; padding: .5rem; min-width: 44px; }
 .tutorial-button:disabled { opacity: .3; cursor: default; }
+.tutorial-prev:disabled { visibility: hidden; }
 .tutorial-button:hover:not(:disabled) { filter: brightness(1.12); }
 .tutorial-overlay :focus-visible { outline: 3px solid var(--tutorial-cyan); outline-offset: -3px; }
-.tutorial-pagination { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-right: auto; }
+.tutorial-pagination { display: flex; flex-direction: column; align-items: center; gap: 0; margin-right: auto; }
 .tutorial-page-dots { display: flex; }
 .tutorial-page-dot { width: 24px; height: 26px; border: 0; padding: 0; background: transparent; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; }
 .tutorial-page-dot::after { content: ''; width: 6px; height: 6px; border: 1px solid var(--tutorial-muted); border-radius: 50%; }
 .tutorial-page-dot.active::after { background: var(--tutorial-amber); border-color: var(--tutorial-amber); }
-.tutorial-page-counter { color: var(--tutorial-muted); font-size: .7rem; }
+.tutorial-page-counter { color: var(--tutorial-muted); font-size: .65rem; }
+.tutorial-pagination--many .tutorial-page-dots { display: none; }
+.tutorial-pagination--many .tutorial-page-counter { font-size: .8rem; padding: 0 10px; }
 .tutorial-close { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 0; background: transparent; color: var(--tutorial-muted); font: 24px/1 var(--tutorial-body); cursor: pointer; touch-action: manipulation; z-index: 2; }
 .tutorial-library-view { padding: 28px; max-height: calc(100dvh - 50px); overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; }
 .tutorial-library-header { display: flex; gap: 20px; align-items: start; }
@@ -861,21 +874,30 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
 @media (max-width: 640px) {
   .tutorial-overlay { padding: max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); }
   .tutorial-panel { max-height: calc(100dvh - 32px); }
-  .tutorial-card-view { grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr); padding: 20px; gap: 24px; height: min(820px,calc(100dvh - 34px)); }
-  .tutorial-scope { max-width: min(170px,24dvh); margin: 0 auto; }
+  .tutorial-card-view { --tutorial-scope-size: min(170px,24dvh); grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr); padding: 20px; gap: 24px; min-height: 0; max-height: calc(100dvh - 34px); }
+  .tutorial-paper-content { max-height: calc(100dvh - 98px - var(--tutorial-scope-size)); }
+  .tutorial-scope { max-width: var(--tutorial-scope-size); margin: 0 auto; }
   .tutorial-title { font-size: 1.7rem; }
   .tutorial-subtitle { font-size: .9rem; margin-bottom: .75rem; }
-  .tutorial-next { font-size: 1rem; padding: .8rem 1rem; }
+  .tutorial-next { font-size: 1.1rem; padding: .8rem 1.5rem; }
   .tutorial-page-dot { width: 20px; }
+  .tutorial-page-dots { display: none; }
+  .tutorial-page-counter { font-size: .8rem; padding: 0 10px; }
   .tutorial-footer { gap: 5px; }
+  .tutorial-cycle { font-size: .85rem; line-height: 1.3; }
+  .tutorial-cycle-step { padding-left: 6px; padding-right: 6px; }
   .tutorial-library-grid { grid-template-columns: 1fr; }
   .tutorial-library-header { display: block; }
   .tutorial-library-footer { flex-direction: column-reverse; }
 }
+@media (max-width: 640px) and (max-height: 640px) {
+  .tutorial-card-view { --tutorial-scope-size: min(140px,20dvh); }
+}
 @media (max-height: 560px) and (min-width: 641px) {
   .tutorial-overlay { padding: 12px max(24px,env(safe-area-inset-right)) 12px max(24px,env(safe-area-inset-left)); }
   .tutorial-panel { max-height: calc(100dvh - 24px); }
-  .tutorial-card-view { height: calc(100dvh - 26px); grid-template-columns: minmax(150px,200px) minmax(0,1fr); padding: 20px 28px; }
+  .tutorial-card-view { max-height: calc(100dvh - 26px); min-height: 0; grid-template-columns: minmax(150px,200px) minmax(0,1fr); padding: 20px 28px; }
+  .tutorial-paper-content { max-height: calc(100dvh - 66px); }
   .tutorial-title { font-size: 1.7rem; }
   .tutorial-subtitle { font-size: .9rem; margin-bottom: .6rem; }
   .tutorial-heading-meta { margin-bottom: 4px; }
@@ -931,7 +953,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"93f3496","subject":"Rizobainha, raizes principais e plantas na Fase 1 (so desenho)","builtAt":"2026-09-23 17:42"};
+window.__BEANS_BUILD__ = {"commit":"59b786e","subject":"Rizosfera: superficie com plantas e arquitetura radicular procedural","builtAt":"2026-09-23 22:08"};
 (() => {
 'use strict';
 const __modules = {
@@ -17698,7 +17720,7 @@ Object.assign(__exports, { createRhizobiumNodulation });
 // forma desenhada fica exatamente em `platform.y` — é onde o pé pousa.
 //
 // As texturas (células da raiz, agregados/poros/grãos do solo) são as do
-// autor e chegam prontas por `painters`; este módulo só decide a forma.const { drawBeanPlant } = __require("src/render/bean-plant-visual.js");const { GEOMETRY_ENABLED } = __require("src/render/geometry-preference.js");const { FINAL_ROOT_SCALE, finalRootCollar } = __require("src/render/final-root-visual.js");const { LINK_ROOT_PALETTE, MUTED_ROOT_PALETTE, clamp, paintRootCondition, paintRootTissue, paintRootTissueVertical, pseudo } = __require("src/render/root-tissue.js");
+// autor e chegam prontas por `painters`; este módulo só decide a forma.const { drawBeanPlant } = __require("src/render/bean-plant-visual.js");const { drawRootTube, growPlantRoots, seededRandom } = __require("src/render/root-architecture.js");const { GEOMETRY_ENABLED } = __require("src/render/geometry-preference.js");const { FINAL_ROOT_SCALE, finalRootCollar } = __require("src/render/final-root-visual.js");const { LINK_ROOT_PALETTE, MUTED_ROOT_PALETTE, ROOT_PALETTE, clamp, paintRootCondition, paintRootTissue, pseudo } = __require("src/render/root-tissue.js");
 const TAU = Math.PI * 2;
 
 function hash2(x, y) {
@@ -17801,7 +17823,7 @@ function createRhizosphereGeometry({ state, painters }) {
     // o teto continua na altura da mais próxima: a superfície não fica sem solo.
     if (!Number.isFinite(best) && nearest) best = nearest.y - clearance - 66;
     if (!Number.isFinite(best)) return null;
-    const bump = (pseudo(hash2(Math.floor(x / CEILING_STEP), 7), 3) - .5) * 14;
+    const bump = (pseudo(hash2(Math.floor(x / CEILING_STEP), 7), 3) - .5) * 14 + Math.sin(x * .013) * 9;
     return Math.max(topLimit, best + bump);
   }
 
@@ -18071,7 +18093,8 @@ function createRhizosphereGeometry({ state, painters }) {
   // Distância máxima entre duas plantas vizinhas ao longo da fase.
   const PLANT_SPACING = 720;
   const PLANT_MIN_GAP = 220;
-  const MAIN_ROOT_WIDTH = 26;
+  // Mesma espessura do caule do feijoeiro no colo (40 × escala da planta).
+  const MAIN_ROOT_WIDTH = 14;
 
   function surfaceLine(platforms) {
     const goal = state.level?.goal;
@@ -18192,16 +18215,6 @@ function createRhizosphereGeometry({ state, painters }) {
     return { surface, plants, links };
   }
 
-  function mainHalfWidth(plant, surface, y) {
-    const k = clamp((y - surface) / Math.max(1, plant.tipY - surface), 0, 1);
-    return MAIN_ROOT_WIDTH / 2 * (1 - k * .6) * (k > .92 ? 1 - (k - .92) * 9 : 1);
-  }
-
-  function mainCenterX(plant, surface, y) {
-    const k = clamp((y - surface) / Math.max(1, plant.tipY - surface), 0, 1);
-    return plant.x + Math.sin(y * .011 + plant.seed * .001) * 6 * k;
-  }
-
   // Tubo a partir de uma linha central e das larguras em cada ponto.
   function traceTube(ctx, centers, widths, capBulge = .3) {
     const left = [];
@@ -18234,132 +18247,6 @@ function createRhizosphereGeometry({ state, painters }) {
     for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
     ctx.closePath();
     return { left, right };
-  }
-
-  // Raiz principal: da superfície até a coifa, afinando para baixo. Textura em
-  // faixas verticais com a paleta apagada (menos saturação e contraste).
-  function drawMainRoot(ctx, plant, surface, view) {
-    if (plant.goal) return; // a raiz-objetivo é desenhada pelo goal-system
-    if (plant.tipY < view.top || surface > view.bottom) return;
-    const centers = [];
-    const widths = [];
-    const n = Math.max(6, Math.ceil((plant.tipY - surface) / 16));
-    for (let i = 0; i <= n; i++) {
-      const y = surface + (plant.tipY - surface) * i / n;
-      centers.push([mainCenterX(plant, surface, y), y]);
-      widths.push(Math.max(2, mainHalfWidth(plant, surface, y) * 2));
-    }
-    const palette = MUTED_ROOT_PALETTE;
-    ctx.save();
-    const { left, right } = traceTube(ctx, centers, widths);
-    ctx.fillStyle = palette.innerBase;
-    ctx.fill();
-    ctx.clip();
-    paintRootTissueVertical(ctx, plant.seed, plant.x, surface, plant.tipY + 12, MAIN_ROOT_WIDTH * .62, palette);
-    ctx.restore();
-    ctx.save();
-    traceTube(ctx, centers, widths);
-    ctx.strokeStyle = palette.outline;
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-    // Pelos só no terço perto da ponta.
-    ctx.strokeStyle = palette.radicle;
-    ctx.globalAlpha = .55;
-    ctx.lineWidth = .9;
-    for (let i = Math.floor(n * .67); i < n - 1; i++) {
-      const sway = Math.sin((state.time || 0) * 1.3 + i) * 1.5;
-      ctx.beginPath();
-      ctx.moveTo(left[i][0], left[i][1]);
-      ctx.lineTo(left[i][0] + 8 + sway, left[i][1] + 5);
-      ctx.moveTo(right[i][0], right[i][1]);
-      ctx.lineTo(right[i][0] - 8 - sway, right[i][1] + 5);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  function linkCenters(link, surface) {
-    const { plant, entryX, entryY, attachY, side } = link;
-    const out = entryX >= plant.x ? 1 : -1;
-    const startX = plant.goal ? plant.x : mainCenterX(plant, surface, attachY);
-    const start = [startX + out * 4, attachY];
-    const end = [entryX - side * 10, entryY];
-    const dx = end[0] - start[0];
-    const c1 = [start[0] + dx * .35, start[1] + (end[1] - start[1]) * .15 + 10];
-    const c2 = [end[0] - dx * .35, end[1]];
-    const points = [];
-    const steps = 22;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const u = 1 - t;
-      const x = u * u * u * start[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * end[0];
-      const y = u * u * u * start[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * end[1];
-      // Sinuosa, mas presa nas duas pontas.
-      const wave = Math.sin(t * Math.PI * 2.4 + link.block.x * .01) * 4.5 * Math.sin(t * Math.PI);
-      points.push([x, y + wave]);
-    }
-    return points;
-  }
-
-  // Lateral de ligação: fina, sinuosa, atrás do bloco, com ramificações de 2ª
-  // ordem. Sem pelos: eles ficam no terço perto da ponta, já sobre o bloco.
-  function drawLink(ctx, link, surface) {
-    const centers = linkCenters(link, surface);
-    const palette = LINK_ROOT_PALETTE;
-    const mainWidth = link.plant.goal ? 22 : mainHalfWidth(link.plant, surface, link.attachY) * 2;
-    const width = Math.min(link.band * .8, mainWidth * .7, 14);
-    const seed = hash2(Math.round(link.block.x), 83);
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    // Ramificações de 2ª ordem (atrás da lateral), apontando para baixo.
-    ctx.strokeStyle = palette.green[0];
-    for (let b = 0; b < 3; b++) {
-      const t = .22 + b * .22 + pseudo(seed, b) * .08;
-      const i = Math.round(t * (centers.length - 1));
-      const [x, y] = centers[i];
-      const [nx, ny] = centers[Math.min(centers.length - 1, i + 1)];
-      const heading = Math.atan2(ny - y, nx - x);
-      const turn = (b % 2 ? .95 : -.95) * (pseudo(seed, b + 5) > .3 ? 1 : -1);
-      let angle = heading + turn;
-      if (Math.sin(angle) < -.2) angle = heading - turn;
-      const len = 16 + pseudo(seed, b + 9) * 20;
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.quadraticCurveTo(
-        x + Math.cos(angle) * len * .5, y + Math.sin(angle) * len * .5 + 3,
-        x + Math.cos(angle) * len, y + Math.sin(angle) * len + 6,
-      );
-      ctx.stroke();
-    }
-    const stroke = (color, w) => {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = w;
-      ctx.beginPath();
-      ctx.moveTo(centers[0][0], centers[0][1]);
-      for (const [x, y] of centers) ctx.lineTo(x, y);
-      ctx.stroke();
-    };
-    stroke(palette.outline, width + 2);
-    stroke(palette.green[1], width);
-    stroke(palette.blue[0], width * .7);
-    stroke(palette.ochreLarge[1], width * .46);
-    // Paredes celulares: tracinhos ao longo do córtex.
-    ctx.strokeStyle = palette.ochreStroke;
-    ctx.lineWidth = .8;
-    for (let i = 1; i < centers.length - 1; i++) {
-      const [x, y] = centers[i];
-      const [nx, ny] = centers[i + 1];
-      const len = Math.hypot(nx - x, ny - y) || 1;
-      const px = -(ny - y) / len * width * .32;
-      const py = (nx - x) / len * width * .32;
-      ctx.beginPath();
-      ctx.moveTo(x - px, y - py);
-      ctx.lineTo(x + px, y + py);
-      ctx.stroke();
-    }
-    ctx.restore();
   }
 
   function drawPlant(ctx, plant, surface, view) {
@@ -18555,21 +18442,130 @@ function createRhizosphereGeometry({ state, painters }) {
     ctx.restore();
 
     if (block.fixedObjective) {
-      // Mesmo tecido, com o brilho do objetivo por cima.
+      const entryX = link.side < 0 ? x : x + w;
+      const exitX = link.side < 0 ? x + w + 30 : x - 30;
+      const glow = ctx.createLinearGradient(entryX, 0, exitX, 0);
+      glow.addColorStop(0, 'rgba(255,213,111,0)');
+      glow.addColorStop(.18, 'rgba(255,213,111,.55)');
+      glow.addColorStop(1, 'rgba(255,213,111,.55)');
       ctx.save();
-      ctx.strokeStyle = 'rgba(255,213,111,.85)';
-      ctx.fillStyle = 'rgba(255,213,111,.12)';
-      ctx.lineWidth = 2.6;
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = '#ffd56f';
-      traceTube(ctx, centers, widths, .45);
-      ctx.fill();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = glow;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = 'rgba(255,213,111,.8)';
+      ctx.shadowBlur = 14;
+      ctx.globalAlpha = .45;
+      ctx.lineWidth = band * 1.1;
+      ctx.beginPath();
+      ctx.moveTo(centers[0][0], centers[0][1]);
+      for (const [px, py] of centers) ctx.lineTo(px, py);
       ctx.stroke();
       ctx.restore();
     }
   }
 
+
+  // ------------------------------------------------ superfície e céu ----
+
+  function drawSky(ctx, view, surface) {
+    // Na cinemática o céu é o da cena final (mesma região, mesmas cores).
+    if (state.level?.finalRootPulse !== undefined) return;
+    if (view.top >= surface) return;
+    const top = view.top - 40;
+    ctx.save();
+    const sky = ctx.createLinearGradient(0, surface - 900, 0, surface);
+    sky.addColorStop(0, '#2572b8');
+    sky.addColorStop(.55, '#4ea1e6');
+    sky.addColorStop(1, '#99e0f8');
+    ctx.fillStyle = sky;
+    ctx.beginPath();
+    ctx.moveTo(view.left - 20, top); ctx.lineTo(view.right + 20, top);
+    ctx.lineTo(view.right + 20, surface + 2); ctx.lineTo(view.left - 20, surface + 2);
+    ctx.fill();
+    // Fileiras distantes de feijão.
+    ctx.fillStyle = 'rgba(62,120,58,.5)';
+    for (let x = Math.floor((view.left - 30) / 22) * 22; x < view.right + 30; x += 22) {
+      const k = pseudo(hash2(Math.round(x / 22), 5), 1);
+      const hh = 7 + k * 9;
+      const xx = x + k * 6;
+      ctx.beginPath();
+      ctx.moveTo(xx - .6, surface); ctx.lineTo(xx + .6, surface); ctx.lineTo(xx + .6, surface - hh); ctx.lineTo(xx - .6, surface - hh);
+      ctx.fill();
+      for (let j = -1; j <= 1; j++) {
+        ctx.beginPath();
+        ctx.ellipse(xx + j * 4, surface - hh - 2 + Math.abs(j) * 2, 3.4, 1.8, j * .7, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // Linha do chão: palhada e tufos, presos ao mundo.
+  function drawGround(ctx, view, surface) {
+    if (surface < view.top - 40 || surface > view.bottom + 10) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    const colors = ['#d9b36a', '#b58d4e', '#e8cf93', '#9c7a40'];
+    for (let x = Math.floor((view.left - 20) / 4) * 4; x < view.right + 20; x += 4) {
+      const k = hash2(x, 17);
+      if (pseudo(k, 1) < .25) continue;
+      const len = 7 + pseudo(k, 2) * 16;
+      const ang = (pseudo(k, 3) - .5) * .7;
+      ctx.strokeStyle = colors[Math.floor(pseudo(k, 4) * colors.length)];
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, surface - pseudo(k, 5) * 3);
+      ctx.lineTo(x + Math.cos(ang) * len, surface - pseudo(k, 5) * 3 + Math.sin(ang) * len * .3 - 1);
+      ctx.stroke();
+      if (pseudo(k, 6) > .86) {
+        ctx.strokeStyle = pseudo(k, 7) > .5 ? '#5f9a3c' : '#77ad48';
+        ctx.lineWidth = 1.2;
+        for (let g = -2; g <= 2; g++) {
+          ctx.beginPath();
+          ctx.moveTo(x + g * 1.5, surface);
+          ctx.quadraticCurveTo(x + g * 2.5, surface - 6, x + g * 3.5, surface - 9 - pseudo(k, 8 + g) * 5);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
   // ------------------------------------------------------------ mundo ----
+
+  let architecture = { key: '', plants: [] };
+
+  function buildArchitecture(layout, platforms, seedOf) {
+    const key = Math.round(layout.surface) + '|' + platforms.map(p => Math.round(p.x) + ',' + Math.round(p.y)).join(';');
+    if (architecture.key === key) return architecture;
+    const plants = layout.plants.map(plant => {
+      const links = [];
+      layout.links.forEach((link, index) => {
+        if (link.plant !== plant) return;
+        const entry = [link.entryX - link.side * 6, link.entryY];
+        links.push({ index, attachY: link.attachY, entry, band: link.band, blockCenters: [entry], blockWidths: [link.band * .72] });
+      });
+      const { roots } = growPlantRoots({
+        plant, surface: layout.surface, tipY: plant.tipY, links, platforms, mainWidth: MAIN_ROOT_WIDTH,
+      });
+      for (const root of roots) {
+        let minX = Infinity; let maxX = -Infinity; let minY = Infinity; let maxY = -Infinity;
+        for (const [px, py] of root.points) {
+          minX = Math.min(minX, px); maxX = Math.max(maxX, px); minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+        }
+        root.box = { minX, maxX, minY, maxY };
+        root.seed = hash2(Math.round(root.points[0][0]), Math.round(root.points[0][1]));
+      }
+      return { plant, roots };
+    });
+    const lateralOf = new Map();
+    for (const { roots } of plants) {
+      for (const root of roots) if (root.linkIndex !== undefined) lateralOf.set(root.linkIndex, root);
+    }
+    architecture = { key, plants, lateralOf };
+    return architecture;
+  }
 
   let lastRenderMs = 0;
 
@@ -18580,16 +18576,30 @@ function createRhizosphereGeometry({ state, painters }) {
     const floor = Math.max(Number.isFinite(worldBottom) ? worldBottom : view.bottom, view.bottom) + 40;
     // Folga de 100 px: o barranco alarga a massa para os lados, embaixo.
     const inX = (left, right, margin = 100) => right >= view.left - margin && left <= view.right + margin;
-    const { surface, plants, links } = rootLayout(platforms);
+    const layout = rootLayout(platforms);
+    const { surface, plants, links } = layout;
+    const arch = buildArchitecture(layout, platforms, seedOf);
+    const time = state.time || 0;
 
-    // Fundo: principais e laterais de ligação, apagadas.
-    for (const plant of plants) {
-      if (inX(plant.x - 40, plant.x + 40, 60)) drawMainRoot(ctx, plant, surface, view);
-    }
-    for (const link of links) {
-      if (inX(Math.min(link.plant.x, link.entryX), Math.max(link.plant.x, link.entryX), 60)) drawLink(ctx, link, surface);
+    drawSky(ctx, view, surface);
+    // Arquitetura radicular: principal e laterais livres mais atrás; laterais
+    // que alimentam blocos um pouco mais à frente.
+    // Como no original: ramificações finas atrás, depois a principal, e as
+    // laterais por cima dela, saindo de dentro — brotando da principal.
+    for (const { roots } of arch.plants) {
+      for (const order of [2, 0, 1]) {
+        for (const root of roots) {
+          if (root.order !== order) continue;
+          const { box } = root;
+          if (!inX(box.minX, box.maxX, 20) || box.maxY < view.top - 20 || box.minY > view.bottom + 20) continue;
+          const palette = root.linkIndex !== undefined ? ROOT_PALETTE
+            : root.layer === 'link' ? LINK_ROOT_PALETTE : MUTED_ROOT_PALETTE;
+          drawRootTube(ctx, root, { palette, seed: root.seed, time, fade: root.layer === 'link' ? .2 : .5 });
+        }
+      }
     }
     drawCeiling(ctx, view, platforms, surface);
+    drawGround(ctx, view, surface);
     for (const plant of plants) {
       if (inX(plant.x - 120, plant.x + 120, 60)) drawPlant(ctx, plant, surface, view);
     }
@@ -18597,12 +18607,12 @@ function createRhizosphereGeometry({ state, painters }) {
       if (platform.type !== 'soil' || !inX(platform.x, platform.x + platform.w)) continue;
       drawSoilMass(ctx, platform, platforms, view, floor, seedOf(platform));
     }
-    for (const link of links) {
+    links.forEach((link, index) => {
       const { block } = link;
-      if (!inX(block.x, block.x + block.w, 40)) continue;
-      if (block.y > view.bottom || block.y + block.h < view.top) continue;
+      if (!inX(block.x, block.x + block.w, 40)) return;
+      if (block.y > view.bottom || block.y + block.h < view.top) return;
       drawAggregate(ctx, link, seedOf(block));
-    }
+    });
     if (started) lastRenderMs = performance.now() - started;
   }
 
@@ -18949,6 +18959,590 @@ function drawBeanPlant(ctx, {
 }
 Object.assign(__exports, { BEAN_PLANT_LABEL, BEAN_PLANT_CONFIG, plantStateFromScore, beanPlantConfig, beanPlantHeight, drawBeanPlant });
 },
+"src/render/root-architecture.js": (__exports, __require) => {
+// ARQUITETURA RADICULAR — crescida, não carimbada
+// ===============================================
+//
+// Cada planta tem uma raiz principal que desce do colo. As laterais de 1ª ordem
+// CRESCEM passo a passo (direção + gravitropismo + ruído + atração pelo alvo);
+// as de 2ª ordem brotam delas; pelos só perto das pontas. Nenhum trecho é
+// copiado de outro: tudo sai de uma semente por raiz. Só desenho — nada daqui é
+// lido pela física.
+//
+// Desenho: tubo afunilado (polígono pelas bordas) com a textura de tecido do
+// autor (epiderme verde, camada cinza, córtex ocre) e sombreamento cilíndrico
+// por cima — sombra de um lado, realce e brilho do outro.const { ROOT_PALETTE, clamp, paintRootTissueVertical } = __require("src/render/root-tissue.js");
+const TAU = Math.PI * 2;
+
+function seededRandom(seed) {
+  let s = (Math.abs(Math.floor(seed)) % 2147483646) + 1;
+  return () => {
+    s = (s * 48271) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+// ------------------------------------------------------------ crescimento --
+
+function nearPlatform(x, y, platforms, pad = 12) {
+  for (const p of platforms) {
+    if (x > p.x - pad && x < p.x + p.w + pad && y > p.y - 46 && y < p.y + p.h + 4) return true;
+  }
+  return false;
+}
+
+// Cresce uma raiz a partir de (x, y) com ângulo inicial. `target` opcional
+// atrai a ponta; sem alvo, o gravitropismo puxa para baixo.
+function growPath({ x, y, angle, length, step = 7, random, target = null, gravity = .06, wiggle = .16, avoid = null }) {
+  const points = [[x, y]];
+  let heading = angle;
+  let travelled = 0;
+  let px = x;
+  let py = y;
+  for (let guard = 0; guard < 400 && travelled < length; guard++) {
+    if (target) {
+      const desired = Math.atan2(target[1] - py, target[0] - px);
+      let diff = desired - heading;
+      while (diff > Math.PI) diff -= TAU;
+      while (diff < -Math.PI) diff += TAU;
+      const pull = clamp(travelled / Math.max(40, length) * .5 + .12, .12, .55);
+      heading += clamp(diff, -.3, .3) * pull;
+      if (Math.hypot(target[0] - px, target[1] - py) < step * 1.2) {
+        points.push([target[0], target[1]]);
+        return points;
+      }
+    } else {
+      let diff = Math.PI / 2 - heading;
+      while (diff > Math.PI) diff -= TAU;
+      while (diff < -Math.PI) diff += TAU;
+      heading += diff * gravity;
+    }
+    heading += (random() - .5) * wiggle;
+    px += Math.cos(heading) * step;
+    py += Math.sin(heading) * step;
+    if (avoid && avoid(px, py)) break;
+    points.push([px, py]);
+    travelled += step;
+  }
+  return points;
+}
+
+// Arco da principal até a entrada do bloco: sai para o lado e chega na
+// horizontal. Controles e ondulação sorteados por raiz — nunca dá laço.
+function arcPath(start, end, random) {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  const k1 = .25 + random() * .25;
+  const k2 = .25 + random() * .2;
+  const c1 = [start[0] + dx * k1, start[1] + dy * (.1 + random() * .15) + 8];
+  const c2 = [end[0] - dx * k2, end[1] - random() * 6];
+  const length = Math.hypot(dx, dy);
+  const steps = Math.max(8, Math.ceil(length / 6));
+  const phaseA = random() * TAU;
+  const phaseB = random() * TAU;
+  const ampA = 2 + random() * 4;
+  const ampB = 1 + random() * 2;
+  const points = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const u = 1 - t;
+    const x = u * u * u * start[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * end[0];
+    const y = u * u * u * start[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * end[1];
+    const envelope = Math.sin(t * Math.PI);
+    const wobble = (Math.sin(t * 7 + phaseA) * ampA + Math.sin(t * 17 + phaseB) * ampB) * envelope;
+    points.push([x, y + wobble]);
+  }
+  return points;
+}
+
+function taper(points, from, to, curve = 1) {
+  const n = points.length - 1 || 1;
+  return points.map((_, i) => from + (to - from) * Math.pow(i / n, curve));
+}
+
+function sideBranches(parent, random, platforms, { count, order, maxLen, widthScale }) {
+  const out = [];
+  const pts = parent.points;
+  if (pts.length < 6) return out;
+  for (let b = 0; b < count; b++) {
+    const t = .18 + random() * .68;
+    const i = Math.floor(t * (pts.length - 2)) + 1;
+    const [x, y] = pts[i];
+    const [nx, ny] = pts[i + 1];
+    const heading = Math.atan2(ny - y, nx - x);
+    const side = random() < .5 ? -1 : 1;
+    let angle = heading + side * (.65 + random() * .6);
+    if (Math.sin(angle) < -.15) angle = heading - side * (.65 + random() * .6);
+    const length = maxLen * (.35 + random() * .65);
+    const points = growPath({
+      x, y, angle, length, step: 5, random, gravity: .05, wiggle: .22,
+      avoid: (px, py) => nearPlatform(px, py, platforms, 4),
+    });
+    if (points.length < 3) continue;
+    const w0 = Math.max(1.2, parent.widths[i] * widthScale);
+    out.push({ points, widths: taper(points, w0, .8, .8), order, hairs: true, layer: parent.layer });
+  }
+  return out;
+}
+
+/**
+ * Monta todas as raízes de uma planta.
+ * `links`: laterais que precisam chegar a blocos ({ attachY, entry:[x,y], side, band }).
+ */
+function growPlantRoots({ plant, surface, tipY, links, platforms, mainWidth }) {
+  const random = seededRandom(plant.seed * 7 + 13);
+  const roots = [];
+  // Principal: desce sinuosa, com gravitropismo forte.
+  const mainPoints = growPath({
+    x: plant.x, y: surface, angle: Math.PI / 2, length: tipY - surface, step: 9,
+    random, gravity: .22, wiggle: .1,
+  });
+  const main = {
+    points: mainPoints,
+    widths: taper(mainPoints, mainWidth, 3, 1.1),
+    order: 0, hairs: true, layer: 'back', main: true,
+  };
+  if (!plant.goal) roots.push(main);
+  const mainXAt = y => {
+    let best = mainPoints[0];
+    for (const p of mainPoints) if (Math.abs(p[1] - y) < Math.abs(best[1] - y)) best = p;
+    return best;
+  };
+  const mainWidthAt = y => {
+    const idx = mainPoints.findIndex(p => p[1] >= y);
+    return main.widths[Math.max(0, idx)] || 4;
+  };
+
+  // Laterais que alimentam blocos.
+  for (const link of links) {
+    const start = plant.goal ? [plant.x, link.attachY] : mainXAt(link.attachY);
+    const out = link.entry[0] >= start[0] ? 1 : -1;
+    // Nasce de dentro da principal, um pouco para o lado de onde vai.
+    const arc = arcPath([start[0] + out * mainWidthAt(start[1]) * .15, start[1]], link.blockCenters[0], random);
+    // Sempre mais fina que a principal no ponto de onde sai: a principal
+    // cobre a junta.
+    const w0 = mainWidthAt(start[1]) * .6;
+    const arcWidths = taper(arc, w0, w0 * .85, 1);
+    const points = arc.slice(0, -1).concat(link.blockCenters);
+    const widths = arcWidths.slice(0, -1).concat(link.blockWidths);
+    const lateral = { points, widths, order: 1, hairs: false, noCap: true, layer: 'link', linkIndex: link.index };
+    roots.push(lateral);
+    const arcOnly = { points: arc, widths: arcWidths, layer: 'link' };
+    roots.push(...sideBranches(arcOnly, random, platforms, { count: Math.floor(arc.length / 14), order: 2, maxLen: 34, widthScale: .35 }));
+  }
+
+  // Laterais livres ao longo da principal: dão a arquitetura da planta.
+  if (!plant.goal) {
+    const free = Math.floor((tipY - surface) / 62);
+    let side = random() < .5 ? -1 : 1;
+    for (let k = 0; k < free; k++) {
+      const t = .12 + (k + random() * .7) / Math.max(1, free) * .8;
+      const i = Math.floor(t * (mainPoints.length - 1));
+      const [x, y] = mainPoints[i];
+      side = random() < .72 ? -side : side;
+      const angle = side > 0 ? .45 + random() * .6 : Math.PI - .45 - random() * .6;
+      const length = 55 + random() * 150 * (1 - t * .5);
+      const points = growPath({
+        x: x + side * main.widths[i] * .3, y, angle, length, step: 6, random,
+        gravity: .045 + random() * .05, wiggle: .2,
+        avoid: (px, py) => nearPlatform(px, py, platforms),
+      });
+      if (points.length < 4) continue;
+      const w0 = Math.max(1.6, main.widths[i] * (.3 + random() * .12));
+      const lateral = { points, widths: taper(points, w0, 1, .9), order: 1, hairs: true, layer: 'back' };
+      roots.push(lateral);
+      roots.push(...sideBranches(lateral, random, platforms, { count: Math.floor(points.length / 9), order: 2, maxLen: 30, widthScale: .4 }));
+    }
+  }
+  return { roots, main };
+}
+
+// ---------------------------------------------------------------- desenho --
+
+function outline(points, widths) {
+  const left = [];
+  const right = [];
+  for (let i = 0; i < points.length; i++) {
+    const prev = points[Math.max(0, i - 1)];
+    const next = points[Math.min(points.length - 1, i + 1)];
+    const tx = next[0] - prev[0];
+    const ty = next[1] - prev[1];
+    const len = Math.hypot(tx, ty) || 1;
+    const nx = -ty / len;
+    const ny = tx / len;
+    const h = widths[i] / 2;
+    left.push([points[i][0] + nx * h, points[i][1] + ny * h, nx, ny]);
+    right.push([points[i][0] - nx * h, points[i][1] - ny * h, -nx, -ny]);
+  }
+  return { left, right };
+}
+
+function traceShape(ctx, left, right, tipRound = true) {
+  ctx.beginPath();
+  ctx.moveTo(left[0][0], left[0][1]);
+  for (let i = 1; i < left.length; i++) ctx.lineTo(left[i][0], left[i][1]);
+  const l = left[left.length - 1];
+  const r = right[right.length - 1];
+  if (tipRound) {
+    const tx = (l[0] + r[0]) / 2 - (l[2] - r[2]) * 0;
+    const n = left.length - 1;
+    const a = left[Math.max(0, n - 1)];
+    const dx = (l[0] + r[0]) / 2 - (a[0] + right[Math.max(0, n - 1)][0]) / 2;
+    const dy = (l[1] + r[1]) / 2 - (a[1] + right[Math.max(0, n - 1)][1]) / 2;
+    const d = Math.hypot(dx, dy) || 1;
+    const w = Math.hypot(l[0] - r[0], l[1] - r[1]);
+    ctx.quadraticCurveTo(tx + dx / d * w * 1.1, (l[1] + r[1]) / 2 + dy / d * w * 1.1, r[0], r[1]);
+  } else {
+    ctx.lineTo(r[0], r[1]);
+  }
+  for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
+  ctx.closePath();
+}
+
+/**
+ * Desenha uma raiz com a textura do autor, CONTÍNUA (sem fatias):
+ * - principal: as camadas de células em faixas verticais numa passada só,
+ *   recortadas pelo contorno afunilado;
+ * - laterais e ramificações: as mesmas camadas em miniatura (epiderme verde,
+ *   faixa cinza, córtex ocre) com as paredes celulares em tracinhos.
+ * `palette` define o quanto ela recua (paleta apagada para o fundo).
+ */
+function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time = 0, fade = 0 } = {}) {
+  const { points, widths } = root;
+  if (points.length < 2) return;
+  const maxW = Math.max(...widths);
+
+  ctx.save();
+  if (root.main && maxW >= 8) {
+    const { left, right } = outline(points, widths);
+    let minY = Infinity; let maxY = -Infinity; let sumX = 0;
+    for (const [x, y] of points) { minY = Math.min(minY, y); maxY = Math.max(maxY, y); sumX += x; }
+    traceShape(ctx, left, right);
+    ctx.fillStyle = palette.innerBase;
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    paintRootTissueVertical(ctx, seed, sumX / points.length, minY - 4, maxY + 12, maxW * .62 + 8, palette);
+    ctx.restore();
+    traceShape(ctx, left, right);
+    ctx.strokeStyle = palette.outline;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+  } else {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const stroke = (color, factor, extra = 0) => {
+      ctx.strokeStyle = color;
+      for (let i = 0; i < points.length - 1; i++) {
+        ctx.lineWidth = Math.max(.5, widths[i] * factor + extra);
+        ctx.beginPath(); ctx.moveTo(points[i][0], points[i][1]); ctx.lineTo(points[i + 1][0], points[i + 1][1]); ctx.stroke();
+      }
+    };
+    stroke(palette.outline, 1, 1.6);
+    stroke(palette.green[1], 1);
+    if (maxW >= 3) {
+      stroke(palette.blue[0], .7);
+      stroke(palette.ochreLarge[1], .46);
+      // Paredes celulares ao longo do córtex (divisão celular).
+      ctx.strokeStyle = palette.ochreStroke;
+      ctx.lineWidth = .7;
+      for (let i = 1; i < points.length - 1; i++) {
+        if (widths[i] < 3) continue;
+        const [x, y] = points[i];
+        const [nx, ny] = points[i + 1];
+        const len = Math.hypot(nx - x, ny - y) || 1;
+        const px = -(ny - y) / len * widths[i] * .3;
+        const py = (nx - x) / len * widths[i] * .3;
+        ctx.beginPath(); ctx.moveTo(x - px, y - py); ctx.lineTo(x + px, y + py); ctx.stroke();
+      }
+    }
+  }
+  // Coifa translúcida na ponta.
+  const tip = points[points.length - 1];
+  const tipW = widths[widths.length - 1];
+  if (tipW > 1.2 && !root.noCap) {
+    const r = tipW * 1.8 + 2;
+    const cap = ctx.createRadialGradient(tip[0], tip[1], .5, tip[0], tip[1], r);
+    cap.addColorStop(0, `rgba(255,244,218,${.4 - fade * .25})`);
+    cap.addColorStop(1, 'rgba(255,244,218,0)');
+    ctx.fillStyle = cap;
+    ctx.beginPath(); ctx.arc(tip[0], tip[1], r, 0, TAU); ctx.fill();
+  }
+  // Pelos radiculares na zona de maturação (terço perto da ponta): finos,
+  // esparsos, cada um com comprimento e curva próprios.
+  if (root.hairs && maxW >= 1.5) {
+    const random = seededRandom(seed * 3 + 1);
+    const start = Math.floor(points.length * .66);
+    ctx.lineCap = 'round';
+    ctx.lineWidth = .55;
+    for (let i = start; i < points.length - 2; i++) {
+      if (random() > .38) continue;
+      const [x, y] = points[i];
+      const [nx, ny] = points[i + 1];
+      const len = Math.hypot(nx - x, ny - y) || 1;
+      const s = random() < .5 ? -1 : 1;
+      const px = -(ny - y) / len * s;
+      const py = (nx - x) / len * s;
+      const h = widths[i] / 2;
+      const l = 4 + random() * (5 + widths[i] * 1.4);
+      const bend = (random() - .5) * l * .8 + Math.sin(time * 1.2 + i) * .6;
+      ctx.strokeStyle = `rgba(240,230,200,${(.22 + random() * .22) * (1 - fade * .5)})`;
+      ctx.beginPath();
+      ctx.moveTo(x + px * h, y + py * h);
+      ctx.quadraticCurveTo(
+        x + px * (h + l * .55) + (nx - x) / len * bend, y + py * (h + l * .55) + (ny - y) / len * bend,
+        x + px * (h + l), y + py * (h + l) + l * .2,
+      );
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+Object.assign(__exports, { seededRandom, growPlantRoots, drawRootTube });
+},
+"src/render/root-tissue.js": (__exports, __require) => {
+// TECIDO DA RAIZ — textura celular do autor, compartilhada
+// ========================================================
+//
+// Camadas de células (epiderme verde, faixa cinza-azulada, córtex ocre) usadas
+// pelo bloco de raiz antigo, pela raiz visível dos agregados de rizobainha, pelas
+// raízes principais e pela raiz-objetivo. Só desenho.
+
+const TAU = Math.PI * 2;
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function pseudo(seed, index) {
+  const value = Math.sin(seed * .000013 + index * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function stateInfo(platform) {
+  const health = clamp(platform.rootHealth ?? 1, 0, 1);
+  const name = platform.rootState || (health >= .75 ? 'healthy' : health >= .5 ? 'stressed' : health >= .25 ? 'compromised' : 'collapse');
+  if (name === 'healthy') return { label: 'saudável', color: '#9bea8f', overlay: 'rgba(99,208,127,.08)' };
+  if (name === 'stressed') return { label: 'estressada', color: '#ffd36f', overlay: 'rgba(244,177,70,.12)' };
+  if (name === 'compromised') return { label: 'comprometida', color: '#ff9c70', overlay: 'rgba(214,84,67,.18)' };
+  return { label: 'em colapso', color: '#ff657f', overlay: 'rgba(79,25,38,.36)' };
+}
+
+const ROOT_PALETTE = Object.freeze({
+  outline: '#3f2d1d',
+  innerBase: '#4b361f',
+  green: ['#63753a', '#6d8140', '#596b33'],
+  greenStroke: '#394622',
+  blue: ['#70807a', '#7c8d86', '#66756f'],
+  blueStroke: '#4c5a56',
+  ochreSmall: ['#6d532d', '#785b31', '#624a27'],
+  ochreLarge: ['#6f5027', '#78562a', '#654821'],
+  ochreStroke: '#4a3720',
+  radicle: '#8c9256',
+});
+
+// Versão "de fundo" da mesma paleta: menos saturação e menos contraste, puxada
+// para o tom do subsolo. Separa raízes principais e laterais de ligação do que
+// se pisa sem um véu escuro uniforme — as camadas continuam legíveis.
+function hexToRgb(hex) {
+  const value = parseInt(hex.slice(1), 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
+
+function rgbToHex([r, g, b]) {
+  return `#${[r, g, b].map(v => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0')).join('')}`;
+}
+
+function muteColor(hex, { saturation = .55, contrast = .6, pivot = '#2c302a' } = {}) {
+  const rgb = hexToRgb(hex);
+  const grey = rgb[0] * .3 + rgb[1] * .59 + rgb[2] * .11;
+  const pv = hexToRgb(pivot);
+  return rgbToHex(rgb.map((v, i) => {
+    const desaturated = grey + (v - grey) * saturation;
+    return pv[i] + (desaturated - pv[i]) * contrast;
+  }));
+}
+
+function mutePalette(palette, options) {
+  const out = {};
+  for (const [key, value] of Object.entries(palette)) {
+    out[key] = Array.isArray(value) ? value.map(color => muteColor(color, options)) : muteColor(value, options);
+  }
+  return Object.freeze(out);
+}
+
+const MUTED_ROOT_PALETTE = mutePalette(ROOT_PALETTE);
+// Laterais de ligação: um pouco mais vivas que a principal, ainda atrás do bloco.
+const LINK_ROOT_PALETTE = mutePalette(ROOT_PALETTE, { saturation: .6, contrast: .68 });
+
+
+function drawTissueLayerCanvas(ctx, seed, options) {
+  const { startX, endX, startY, endY, cellW, cellH, fillColors, strokeColor, strokeWidth } = options;
+  const width = endX - startX;
+  const height = endY - startY;
+  const cols = Math.max(1, Math.round(width / cellW));
+  const rows = Math.max(1, Math.round(height / cellH));
+  const dx = width / cols;
+  const dy = height / rows;
+
+  for (let i = 0; i < rows; i++) {
+    const rowY = startY + i * dy;
+    const isOffset = (i % 2 === 1);
+    const currentCols = isOffset ? cols + 1 : cols;
+
+    for (let j = 0; j < currentCols; j++) {
+      const idx = i * 31 + j * 7;
+      const cellX = startX + j * dx - (isOffset ? dx * 0.5 : 0);
+      const jx = (pseudo(seed, idx + 1) - 0.5) * dx * 0.2;
+      const jy = (pseudo(seed, idx + 2) - 0.5) * dy * 0.2;
+      const w = dx * (0.95 + pseudo(seed, idx + 3) * 0.13);
+      const h = dy * (0.95 + pseudo(seed, idx + 4) * 0.13);
+      const rx = Math.min(w, h) * (0.25 + pseudo(seed, idx + 5) * 0.2);
+      const fill = fillColors[Math.floor(pseudo(seed, idx + 6) * fillColors.length)];
+
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth;
+      ctx.beginPath();
+      ctx.roundRect(cellX + jx, rowY + jy, w, h, rx);
+      ctx.fill();
+      ctx.stroke();
+
+      // Nucleus
+      const nucW = w * (0.12 + pseudo(seed, idx + 7) * 0.1);
+      const nucH = h * (0.12 + pseudo(seed, idx + 8) * 0.1);
+      const maxOffX = Math.max(0, (w / 2) - nucW - strokeWidth);
+      const maxOffY = Math.max(0, (h / 2) - nucH - strokeWidth);
+      let offX = (pseudo(seed, idx + 9) - 0.5) * 2 * maxOffX;
+      let offY = (pseudo(seed, idx + 10) - 0.5) * 2 * maxOffY;
+      if (pseudo(seed, idx + 11) > 0.5) offX *= 1.3;
+      if (pseudo(seed, idx + 12) > 0.5) offY *= 1.3;
+      offX = clamp(offX, -maxOffX, maxOffX);
+      offY = clamp(offY, -maxOffY, maxOffY);
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.ellipse(cellX + jx + w / 2 + offX, rowY + jy + h / 2 + offY, Math.max(1, nucW), Math.max(1, nucH), 0, 0, TAU);
+      ctx.fill();
+    }
+  }
+}
+
+// Tecido da raiz em camadas (epiderme verde, faixa azulada, córtex ocre) no
+// retângulo dado. Usado pelo bloco antigo e pela raiz lateral/vertical do
+// visual de geometria — a textura é a mesma nos dois.
+function paintRootTissue(ctx, seed, x, y, width, height, palette = ROOT_PALETTE) {
+  const padX = width * 0.05;
+  const gX = x - padX;
+  const gEndX = x + width + padX;
+
+  const greenBand = height * 0.20;
+  const blueBand = height * 0.14;
+  const smallOchreBand = height * 0.10;
+
+  // Camada 1: Verde (Topo)
+  drawTissueLayerCanvas(ctx, seed, {
+    startX: gX, endX: gEndX, startY: y - 5, endY: y + greenBand,
+    cellW: clamp(height * 0.24, 15, 36), cellH: Math.max(4, greenBand * 0.5),
+    fillColors: palette.green, strokeColor: palette.greenStroke,
+    strokeWidth: clamp(height * 0.010, 0.75, 1.2),
+  });
+
+  // Camada 2: Azul
+  drawTissueLayerCanvas(ctx, seed, {
+    startX: gX, endX: gEndX, startY: y + greenBand, endY: y + greenBand + blueBand,
+    cellW: clamp(height * 0.12, 10, 20), cellH: Math.max(3, blueBand * 0.5),
+    fillColors: palette.blue, strokeColor: palette.blueStroke,
+    strokeWidth: clamp(height * 0.008, 0.65, 1),
+  });
+
+  // Camada 3: Ocre Pequena
+  drawTissueLayerCanvas(ctx, seed, {
+    startX: gX, endX: gEndX, startY: y + greenBand + blueBand, endY: y + greenBand + blueBand + smallOchreBand,
+    cellW: clamp(height * 0.15, 12, 22), cellH: Math.max(3, smallOchreBand * 0.5),
+    fillColors: palette.ochreSmall, strokeColor: palette.ochreStroke,
+    strokeWidth: clamp(height * 0.009, 0.7, 1.05),
+  });
+
+  // Camada 4: Ocre Grande (Córtex inferior)
+  drawTissueLayerCanvas(ctx, seed, {
+    startX: gX, endX: gEndX, startY: y + greenBand + blueBand + smallOchreBand, endY: y + height + 10,
+    cellW: clamp(height * 0.26, 17, 34), cellH: clamp(height * 0.13, 10, 18),
+    fillColors: palette.ochreLarge, strokeColor: palette.ochreStroke,
+    strokeWidth: clamp(height * 0.010, 0.75, 1.15),
+  });
+}
+
+// A mesma textura de tecido, para uma raiz VERTICAL: as camadas viram faixas
+// verticais (epiderme verde nas duas bordas, córtex ocre no meio) e as células
+// se alongam ao longo do eixo da raiz. Tudo em coordenadas de mundo.
+function paintRootTissueVertical(ctx, seed, centerX, top, bottom, halfWidth, palette = ROOT_PALETTE) {
+  const height = bottom - top;
+  // Estreito demais para as camadas: só córtex (evita célula de largura negativa).
+  if (halfWidth < 12 || height <= 0) {
+    if (halfWidth <= 0 || height <= 0) return;
+    drawTissueLayerCanvas(ctx, seed + 911, {
+      startX: centerX - halfWidth, endX: centerX + halfWidth, startY: top, endY: bottom,
+      cellW: Math.max(2, halfWidth), cellH: 10,
+      fillColors: palette.ochreLarge, strokeColor: palette.ochreStroke, strokeWidth: 0.7,
+    });
+    return;
+  }
+  const bands = [
+    { share: 0.20, colors: palette.green, stroke: palette.greenStroke, cellH: 16 },
+    { share: 0.14, colors: palette.blue, stroke: palette.blueStroke, cellH: 11 },
+    { share: 0.10, colors: palette.ochreSmall, stroke: palette.ochreStroke, cellH: 12 },
+  ];
+  let inner = halfWidth;
+  bands.forEach((band, index) => {
+    const width = Math.max(3, halfWidth * band.share);
+    for (const side of [-1, 1]) {
+      const outer = centerX + side * inner;
+      const next = centerX + side * (inner - width);
+      drawTissueLayerCanvas(ctx, seed + index * 101 + (side > 0 ? 37 : 0), {
+        startX: Math.min(outer, next), endX: Math.max(outer, next), startY: top, endY: top + height,
+        cellW: width, cellH: band.cellH,
+        fillColors: band.colors, strokeColor: band.stroke, strokeWidth: 0.8,
+      });
+    }
+    inner -= width;
+  });
+  drawTissueLayerCanvas(ctx, seed + 911, {
+    startX: centerX - inner, endX: centerX + inner, startY: top, endY: top + height,
+    cellW: clamp(inner * .5, 7, 11), cellH: 16,
+    fillColors: palette.ochreLarge, strokeColor: palette.ochreStroke, strokeWidth: 0.9,
+  });
+}
+
+// Saúde, cicatriz permanente e estresse da raiz, sobre o retângulo dela.
+function paintRootCondition(ctx, platform) {
+  const permanentDamage = clamp(platform.permanentDamage || 0, 0, .7);
+  const stateStyle = stateInfo(platform);
+
+  // Overlay de estado de saúde
+  ctx.fillStyle = stateStyle.overlay;
+  ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+
+  if (permanentDamage > .01) {
+    const scarWidth = platform.w * permanentDamage;
+    const scarX = platform.x + platform.w - scarWidth;
+    const scar = ctx.createLinearGradient(scarX, platform.y, platform.x + platform.w, platform.y + platform.h);
+    scar.addColorStop(0, 'rgba(80,42,47,.04)');
+    scar.addColorStop(.45, `rgba(72,33,43,${.2 + permanentDamage * .55})`);
+    scar.addColorStop(1, `rgba(37,20,31,${.28 + permanentDamage * .5})`);
+    ctx.fillStyle = scar;
+    ctx.fillRect(scarX, platform.y, scarWidth, platform.h);
+  }
+
+  const rootDamage = clamp(platform.rootDamage || 0, 0, 1);
+  if (rootDamage > .025) {
+    const stress = ctx.createLinearGradient(platform.x, platform.y, platform.x + platform.w, platform.y + platform.h);
+    stress.addColorStop(0, `rgba(255,116,105,${rootDamage * .16})`);
+    stress.addColorStop(.55, `rgba(128,42,54,${rootDamage * .24})`);
+    stress.addColorStop(1, `rgba(72,22,40,${rootDamage * .12})`);
+    ctx.fillStyle = stress;
+    ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+  }
+}
+Object.assign(__exports, { clamp, pseudo, stateInfo, ROOT_PALETTE, muteColor, MUTED_ROOT_PALETTE, LINK_ROOT_PALETTE, drawTissueLayerCanvas, paintRootTissue, paintRootTissueVertical, paintRootCondition });
+},
 "src/render/geometry-preference.js": (__exports, __require) => {
 // `?geo=0` volta ao visual antigo (blocos), para comparação. Lido uma vez, ao
 // carregar: é preferência de desenho, não estado de jogo.
@@ -19271,239 +19865,6 @@ function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, time = 
   return true;
 }
 Object.assign(__exports, { FINAL_ROOT_COLLAR_OFFSET, FINAL_ROOT_SCALE, FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_BRANCHES_LOCAL, finalRootCollar, finalRootBounds, drawFinalRoot });
-},
-"src/render/root-tissue.js": (__exports, __require) => {
-// TECIDO DA RAIZ — textura celular do autor, compartilhada
-// ========================================================
-//
-// Camadas de células (epiderme verde, faixa cinza-azulada, córtex ocre) usadas
-// pelo bloco de raiz antigo, pela raiz visível dos agregados de rizobainha, pelas
-// raízes principais e pela raiz-objetivo. Só desenho.
-
-const TAU = Math.PI * 2;
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-
-function pseudo(seed, index) {
-  const value = Math.sin(seed * .000013 + index * 12.9898) * 43758.5453;
-  return value - Math.floor(value);
-}
-
-function stateInfo(platform) {
-  const health = clamp(platform.rootHealth ?? 1, 0, 1);
-  const name = platform.rootState || (health >= .75 ? 'healthy' : health >= .5 ? 'stressed' : health >= .25 ? 'compromised' : 'collapse');
-  if (name === 'healthy') return { label: 'saudável', color: '#9bea8f', overlay: 'rgba(99,208,127,.08)' };
-  if (name === 'stressed') return { label: 'estressada', color: '#ffd36f', overlay: 'rgba(244,177,70,.12)' };
-  if (name === 'compromised') return { label: 'comprometida', color: '#ff9c70', overlay: 'rgba(214,84,67,.18)' };
-  return { label: 'em colapso', color: '#ff657f', overlay: 'rgba(79,25,38,.36)' };
-}
-
-const ROOT_PALETTE = Object.freeze({
-  outline: '#3f2d1d',
-  innerBase: '#4b361f',
-  green: ['#63753a', '#6d8140', '#596b33'],
-  greenStroke: '#394622',
-  blue: ['#70807a', '#7c8d86', '#66756f'],
-  blueStroke: '#4c5a56',
-  ochreSmall: ['#6d532d', '#785b31', '#624a27'],
-  ochreLarge: ['#6f5027', '#78562a', '#654821'],
-  ochreStroke: '#4a3720',
-  radicle: '#8c9256',
-});
-
-// Versão "de fundo" da mesma paleta: menos saturação e menos contraste, puxada
-// para o tom do subsolo. Separa raízes principais e laterais de ligação do que
-// se pisa sem um véu escuro uniforme — as camadas continuam legíveis.
-function hexToRgb(hex) {
-  const value = parseInt(hex.slice(1), 16);
-  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-}
-
-function rgbToHex([r, g, b]) {
-  return `#${[r, g, b].map(v => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0')).join('')}`;
-}
-
-function muteColor(hex, { saturation = .55, contrast = .6, pivot = '#2c302a' } = {}) {
-  const rgb = hexToRgb(hex);
-  const grey = rgb[0] * .3 + rgb[1] * .59 + rgb[2] * .11;
-  const pv = hexToRgb(pivot);
-  return rgbToHex(rgb.map((v, i) => {
-    const desaturated = grey + (v - grey) * saturation;
-    return pv[i] + (desaturated - pv[i]) * contrast;
-  }));
-}
-
-function mutePalette(palette, options) {
-  const out = {};
-  for (const [key, value] of Object.entries(palette)) {
-    out[key] = Array.isArray(value) ? value.map(color => muteColor(color, options)) : muteColor(value, options);
-  }
-  return Object.freeze(out);
-}
-
-const MUTED_ROOT_PALETTE = mutePalette(ROOT_PALETTE);
-// Laterais de ligação: um pouco mais vivas que a principal, ainda atrás do bloco.
-const LINK_ROOT_PALETTE = mutePalette(ROOT_PALETTE, { saturation: .6, contrast: .68 });
-
-
-function drawTissueLayerCanvas(ctx, seed, options) {
-  const { startX, endX, startY, endY, cellW, cellH, fillColors, strokeColor, strokeWidth } = options;
-  const width = endX - startX;
-  const height = endY - startY;
-  const cols = Math.max(1, Math.round(width / cellW));
-  const rows = Math.max(1, Math.round(height / cellH));
-  const dx = width / cols;
-  const dy = height / rows;
-
-  for (let i = 0; i < rows; i++) {
-    const rowY = startY + i * dy;
-    const isOffset = (i % 2 === 1);
-    const currentCols = isOffset ? cols + 1 : cols;
-
-    for (let j = 0; j < currentCols; j++) {
-      const idx = i * 31 + j * 7;
-      const cellX = startX + j * dx - (isOffset ? dx * 0.5 : 0);
-      const jx = (pseudo(seed, idx + 1) - 0.5) * dx * 0.2;
-      const jy = (pseudo(seed, idx + 2) - 0.5) * dy * 0.2;
-      const w = dx * (0.95 + pseudo(seed, idx + 3) * 0.13);
-      const h = dy * (0.95 + pseudo(seed, idx + 4) * 0.13);
-      const rx = Math.min(w, h) * (0.25 + pseudo(seed, idx + 5) * 0.2);
-      const fill = fillColors[Math.floor(pseudo(seed, idx + 6) * fillColors.length)];
-
-      ctx.fillStyle = fill;
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = strokeWidth;
-      ctx.beginPath();
-      ctx.roundRect(cellX + jx, rowY + jy, w, h, rx);
-      ctx.fill();
-      ctx.stroke();
-
-      // Nucleus
-      const nucW = w * (0.12 + pseudo(seed, idx + 7) * 0.1);
-      const nucH = h * (0.12 + pseudo(seed, idx + 8) * 0.1);
-      const maxOffX = Math.max(0, (w / 2) - nucW - strokeWidth);
-      const maxOffY = Math.max(0, (h / 2) - nucH - strokeWidth);
-      let offX = (pseudo(seed, idx + 9) - 0.5) * 2 * maxOffX;
-      let offY = (pseudo(seed, idx + 10) - 0.5) * 2 * maxOffY;
-      if (pseudo(seed, idx + 11) > 0.5) offX *= 1.3;
-      if (pseudo(seed, idx + 12) > 0.5) offY *= 1.3;
-      offX = clamp(offX, -maxOffX, maxOffX);
-      offY = clamp(offY, -maxOffY, maxOffY);
-
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.beginPath();
-      ctx.ellipse(cellX + jx + w / 2 + offX, rowY + jy + h / 2 + offY, Math.max(1, nucW), Math.max(1, nucH), 0, 0, TAU);
-      ctx.fill();
-    }
-  }
-}
-
-// Tecido da raiz em camadas (epiderme verde, faixa azulada, córtex ocre) no
-// retângulo dado. Usado pelo bloco antigo e pela raiz lateral/vertical do
-// visual de geometria — a textura é a mesma nos dois.
-function paintRootTissue(ctx, seed, x, y, width, height, palette = ROOT_PALETTE) {
-  const padX = width * 0.05;
-  const gX = x - padX;
-  const gEndX = x + width + padX;
-
-  const greenBand = height * 0.20;
-  const blueBand = height * 0.14;
-  const smallOchreBand = height * 0.10;
-
-  // Camada 1: Verde (Topo)
-  drawTissueLayerCanvas(ctx, seed, {
-    startX: gX, endX: gEndX, startY: y - 5, endY: y + greenBand,
-    cellW: clamp(height * 0.24, 15, 36), cellH: Math.max(4, greenBand * 0.5),
-    fillColors: palette.green, strokeColor: palette.greenStroke,
-    strokeWidth: clamp(height * 0.010, 0.75, 1.2),
-  });
-
-  // Camada 2: Azul
-  drawTissueLayerCanvas(ctx, seed, {
-    startX: gX, endX: gEndX, startY: y + greenBand, endY: y + greenBand + blueBand,
-    cellW: clamp(height * 0.12, 10, 20), cellH: Math.max(3, blueBand * 0.5),
-    fillColors: palette.blue, strokeColor: palette.blueStroke,
-    strokeWidth: clamp(height * 0.008, 0.65, 1),
-  });
-
-  // Camada 3: Ocre Pequena
-  drawTissueLayerCanvas(ctx, seed, {
-    startX: gX, endX: gEndX, startY: y + greenBand + blueBand, endY: y + greenBand + blueBand + smallOchreBand,
-    cellW: clamp(height * 0.15, 12, 22), cellH: Math.max(3, smallOchreBand * 0.5),
-    fillColors: palette.ochreSmall, strokeColor: palette.ochreStroke,
-    strokeWidth: clamp(height * 0.009, 0.7, 1.05),
-  });
-
-  // Camada 4: Ocre Grande (Córtex inferior)
-  drawTissueLayerCanvas(ctx, seed, {
-    startX: gX, endX: gEndX, startY: y + greenBand + blueBand + smallOchreBand, endY: y + height + 10,
-    cellW: clamp(height * 0.26, 17, 34), cellH: clamp(height * 0.13, 10, 18),
-    fillColors: palette.ochreLarge, strokeColor: palette.ochreStroke,
-    strokeWidth: clamp(height * 0.010, 0.75, 1.15),
-  });
-}
-
-// A mesma textura de tecido, para uma raiz VERTICAL: as camadas viram faixas
-// verticais (epiderme verde nas duas bordas, córtex ocre no meio) e as células
-// se alongam ao longo do eixo da raiz. Tudo em coordenadas de mundo.
-function paintRootTissueVertical(ctx, seed, centerX, top, bottom, halfWidth, palette = ROOT_PALETTE) {
-  const height = bottom - top;
-  const bands = [
-    { share: 0.20, colors: palette.green, stroke: palette.greenStroke, cellH: 16 },
-    { share: 0.14, colors: palette.blue, stroke: palette.blueStroke, cellH: 11 },
-    { share: 0.10, colors: palette.ochreSmall, stroke: palette.ochreStroke, cellH: 12 },
-  ];
-  let inner = halfWidth;
-  bands.forEach((band, index) => {
-    const width = Math.max(3, halfWidth * band.share);
-    for (const side of [-1, 1]) {
-      const outer = centerX + side * inner;
-      const next = centerX + side * (inner - width);
-      drawTissueLayerCanvas(ctx, seed + index * 101 + (side > 0 ? 37 : 0), {
-        startX: Math.min(outer, next), endX: Math.max(outer, next), startY: top, endY: top + height,
-        cellW: width, cellH: band.cellH,
-        fillColors: band.colors, strokeColor: band.stroke, strokeWidth: 0.8,
-      });
-    }
-    inner -= width;
-  });
-  drawTissueLayerCanvas(ctx, seed + 911, {
-    startX: centerX - inner, endX: centerX + inner, startY: top, endY: top + height,
-    cellW: clamp(inner * .5, 7, 11), cellH: 16,
-    fillColors: palette.ochreLarge, strokeColor: palette.ochreStroke, strokeWidth: 0.9,
-  });
-}
-
-// Saúde, cicatriz permanente e estresse da raiz, sobre o retângulo dela.
-function paintRootCondition(ctx, platform) {
-  const permanentDamage = clamp(platform.permanentDamage || 0, 0, .7);
-  const stateStyle = stateInfo(platform);
-
-  // Overlay de estado de saúde
-  ctx.fillStyle = stateStyle.overlay;
-  ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-
-  if (permanentDamage > .01) {
-    const scarWidth = platform.w * permanentDamage;
-    const scarX = platform.x + platform.w - scarWidth;
-    const scar = ctx.createLinearGradient(scarX, platform.y, platform.x + platform.w, platform.y + platform.h);
-    scar.addColorStop(0, 'rgba(80,42,47,.04)');
-    scar.addColorStop(.45, `rgba(72,33,43,${.2 + permanentDamage * .55})`);
-    scar.addColorStop(1, `rgba(37,20,31,${.28 + permanentDamage * .5})`);
-    ctx.fillStyle = scar;
-    ctx.fillRect(scarX, platform.y, scarWidth, platform.h);
-  }
-
-  const rootDamage = clamp(platform.rootDamage || 0, 0, 1);
-  if (rootDamage > .025) {
-    const stress = ctx.createLinearGradient(platform.x, platform.y, platform.x + platform.w, platform.y + platform.h);
-    stress.addColorStop(0, `rgba(255,116,105,${rootDamage * .16})`);
-    stress.addColorStop(.55, `rgba(128,42,54,${rootDamage * .24})`);
-    stress.addColorStop(1, `rgba(72,22,40,${rootDamage * .12})`);
-    ctx.fillStyle = stress;
-    ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-  }
-}
-Object.assign(__exports, { clamp, pseudo, stateInfo, ROOT_PALETTE, muteColor, MUTED_ROOT_PALETTE, LINK_ROOT_PALETTE, drawTissueLayerCanvas, paintRootTissue, paintRootTissueVertical, paintRootCondition });
 },
 "src/procgen/nitrogen-root.js": (__exports, __require) => {
 const { canTakeRole } = __require("src/procgen/platform-occupancy.js");const { W } = __require("src/core/constants.js");const { fxLanded } = __require("src/game-audio.js");const { createRandom } = __require("src/procgen/random.js");const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");const { drawWorldLabel } = __require("src/procgen/world-label.js");const { drawRootVisual } = __require("src/procgen/platform-visuals.js");
@@ -49710,7 +50071,7 @@ function ensureTutorialInterface() {
   if (!document.querySelector('[data-tutorial-styles]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = './src/procgen/tutorial-overlay.css?v=20260923-prototype-microscope';
+    link.href = './src/procgen/tutorial-overlay.css?v=20260923-didactic-callout-3';
     link.dataset.tutorialStyles = 'true';
     document.head.appendChild(link);
   }
@@ -49751,7 +50112,7 @@ function ensureTutorialInterface() {
 Object.assign(__exports, { ensureTutorialInterface });
 },
 "src/procgen/tutorial-manager.js": (__exports, __require) => {
-const { createTutorialMicroscope } = __require("src/procgen/tutorial-microscope.js");const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");const { createAutomaticTutorialSafetyGate, createPendingTutorialQueue, platformHasActiveTutorialCollision, stabilizePlayerForAutomaticTutorial } = __require("src/procgen/tutorial-presentation.js");
+const { tutorialDisplayPages, isTutorialGamePage } = __require("src/procgen/tutorial-card-pages.js");const { createTutorialMicroscope } = __require("src/procgen/tutorial-microscope.js");const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");const { createAutomaticTutorialSafetyGate, createPendingTutorialQueue, platformHasActiveTutorialCollision, stabilizePlayerForAutomaticTutorial } = __require("src/procgen/tutorial-presentation.js");
 const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
   unlocked: 'miguelito:tutorial:unlocked:v3',
@@ -49863,10 +50224,15 @@ function createTutorialManager({ state }) {
               <div class="tutorial-page-scroll" tabindex="0" role="region" aria-label="Conteúdo do cartão">
                 <h2 class="tutorial-page-title"></h2>
                 <p class="tutorial-page-body"></p>
-                <ul class="tutorial-page-points"></ul>
+                <aside class="tutorial-callout" aria-labelledby="tutorial-callout-title" hidden>
+                  <h2 id="tutorial-callout-title" class="tutorial-callout-title"></h2>
+                  <p class="tutorial-callout-body"></p>
+                  <ul class="tutorial-page-points"></ul>
+                </aside>
                 <div class="tutorial-cycle-block">
                   <span class="tutorial-cycle-label"></span>
-                  <div class="tutorial-cycle"></div>
+                  <svg class="tutorial-cycle-path" aria-hidden="true"></svg>
+                  <ol class="tutorial-cycle"></ol>
                 </div>
               </div>
             </main>
@@ -49876,7 +50242,7 @@ function createTutorialManager({ state }) {
                 <div class="tutorial-page-dots" aria-label="Páginas do cartão"></div>
                 <span class="tutorial-page-counter" aria-live="polite" aria-atomic="true"></span>
               </div>
-              <button class="tutorial-button tutorial-next" type="button" aria-label="Próxima página">Próximo →</button>
+              <button class="tutorial-button tutorial-next" type="button" aria-label="Próxima página"><span class="tutorial-button-label">Continuar</span></button>
             </footer>
           </div>
         </div>
@@ -49919,6 +50285,9 @@ function createTutorialManager({ state }) {
   const pageTitle = mount.querySelector('.tutorial-page-title');
   const pageBody = mount.querySelector('.tutorial-page-body');
   const pagePoints = mount.querySelector('.tutorial-page-points');
+  const callout = mount.querySelector('.tutorial-callout');
+  const calloutTitle = mount.querySelector('.tutorial-callout-title');
+  const calloutBody = mount.querySelector('.tutorial-callout-body');
   const pageDots = mount.querySelector('.tutorial-page-dots');
   const pageScroll = mount.querySelector('.tutorial-page-scroll');
   const previousButton = mount.querySelector('.tutorial-prev');
@@ -50018,43 +50387,83 @@ function createTutorialManager({ state }) {
     const steps = card.cycle || [];
     if (cycleBlock) {
       cycleBlock.hidden = steps.length === 0;
-      cycleBlock.classList.remove('tutorial-cycle-enter');
-      void cycleBlock.offsetWidth;
-      if (steps.length > 0) cycleBlock.classList.add('tutorial-cycle-enter');
     }
     cycle.replaceChildren();
     if (steps.length === 0) return;
     setText(cycleLabel, card.cycleLabel || 'Ciclo ou etapas');
     cycle.classList.toggle('tutorial-cycle--long', steps.length > 5);
 
-    for (const [index, step] of steps.entries()) {
-      if (index === 0) {
-        const firstChip = document.createElement('span');
-        firstChip.className = 'tutorial-cycle-step';
-        firstChip.textContent = step;
-        cycle.appendChild(firstChip);
-      } else {
-        const link = document.createElement('span');
-        link.className = 'tutorial-cycle-link';
-
-        const arrow = document.createElement('span');
-        arrow.className = 'tutorial-cycle-arrow';
-        arrow.textContent = '→';
-
-        const chip = document.createElement('span');
-        chip.className = 'tutorial-cycle-step';
-        chip.textContent = step;
-
-        link.appendChild(arrow);
-        link.appendChild(chip);
-        cycle.appendChild(link);
+    const topCount = steps.length <= 3 ? steps.length : Math.ceil(steps.length / 2);
+    const bottomCount = steps.length - topCount;
+    const narrow = window.matchMedia('(max-width: 400px)').matches;
+    const height = narrow ? Math.ceil(steps.length / 2) * 90 : bottomCount ? 180 : 90;
+    cycleBlock.classList.toggle('tutorial-cycle-block--narrow', narrow);
+    cycleBlock.style.setProperty('--cycle-height', height + 'px');
+    const path = mount.querySelector('.tutorial-cycle-path');
+    path.setAttribute('viewBox', '0 0 420 ' + height);
+    path.setAttribute('preserveAspectRatio', 'none');
+    path.replaceChildren();
+    const svgElement = (name, attributes) => {
+      const element = document.createElementNS('http://www.w3.org/2000/svg', name);
+      for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+      return element;
+    };
+    const defs = svgElement('defs', {});
+    const marker = svgElement('marker', { id: 'tutorial-cycle-arrow', markerWidth: 7, markerHeight: 7,
+      refX: 5, refY: 3, orient: 'auto', markerUnits: 'userSpaceOnUse' });
+    marker.appendChild(svgElement('path', { d: 'M1 1 L4 3 L1 5', fill: 'none', stroke: '#c99a62', 'stroke-width': 1 }));
+    defs.appendChild(marker); path.appendChild(defs);
+    const positions = steps.map((_, index) => {
+      if (narrow) {
+        const band = Math.floor(index / 2);
+        const column = band % 2 ? 1 - index % 2 : index % 2;
+        return { x: (column + .5) * 210, y: band * 90 + 70, lower: false, count: 2 };
       }
+      const lower = index >= topCount;
+      const count = lower ? bottomCount : topCount;
+      const column = lower ? bottomCount - 1 - (index - topCount) : index;
+      return { x: (column + .5) / count * 420, y: lower ? 110 : 70, lower, count };
+    });
+    for (const [index, step] of steps.entries()) {
+      const position = positions[index];
+      const row = document.createElement('li');
+      row.className = 'tutorial-cycle-step' + (position.lower ? ' tutorial-cycle-step--lower' : '');
+      row.style.left = (position.x / 420 * 100) + '%';
+      row.style.width = (100 / position.count) + '%';
+      if (narrow) row.style.top = (position.y - 70) + 'px';
+      row.textContent = step;
+      cycle.appendChild(row);
+      const next = positions[index + 1];
+      if (!next) continue;
+      let d;
+      if (position.y === next.y) {
+        const direction = next.x > position.x ? 1 : -1;
+        d = 'M' + (position.x + direction * 10) + ' ' + position.y + ' H' + (next.x - direction * 12);
+      } else if (narrow) {
+        const right = position.x > 210;
+        const edge = right ? 406 : 14;
+        const bend = right ? 388 : 32;
+        const direction = right ? 1 : -1;
+        d = `M${position.x + direction * 10} ${position.y} H${bend} Q${edge} ${position.y} ${edge} ${position.y + 18} V${next.y - 18} Q${edge} ${next.y} ${bend} ${next.y} H${next.x + direction * 12}`;
+      } else {
+        d = 'M' + (position.x + 10) + ' 70 H388 Q406 70 406 88 V92 Q406 110 388 110 H' + (next.x + 12);
+      }
+      path.appendChild(svgElement('path', { d, fill: 'none', stroke: 'rgba(201,154,98,.5)',
+        'stroke-width': 1, 'marker-end': 'url(#tutorial-cycle-arrow)' }));
     }
+  }
+
+  window.matchMedia('(max-width: 400px)').addEventListener('change', () => {
+    if (mode === 'card' && displayPages()[pageIndex]?.kind === 'cycle') renderCycle(getTutorialCard(activeId));
+  });
+
+  function displayPages() {
+    return tutorialDisplayPages(getTutorialCard(activeId), flow.pagesFor(activeId));
   }
 
   function renderDots(card) {
     pageDots.replaceChildren();
-    for (const index of flow.pagesFor(activeId)) {
+    for (const [index] of displayPages().entries()) {
       const dot = document.createElement('button');
       dot.type = 'button';
       dot.className = `tutorial-page-dot${index === pageIndex ? ' active' : ''}`;
@@ -50071,31 +50480,46 @@ function createTutorialManager({ state }) {
   function renderCard() {
     const card = getTutorialCard(activeId);
     if (!card) return;
-    const availablePages = flow.pagesFor(activeId);
+    const availablePages = displayPages();
     if (!availablePages.length) return;
-    if (!availablePages.includes(pageIndex)) pageIndex = availablePages[0];
-    const currentPage = card.pages[pageIndex] || card.pages[0];
-    const pagePosition = availablePages.indexOf(pageIndex);
+    pageIndex = Math.min(pageIndex, availablePages.length - 1);
+    const currentPage = availablePages[pageIndex];
+    const pagePosition = pageIndex;
+    cardView.dataset.pageKind = currentPage.kind;
+    const gamePage = currentPage.kind !== 'cycle' && isTutorialGamePage(currentPage);
+    cardView.dataset.pageTone = gamePage ? 'game' : 'science';
+    title.classList.toggle('tutorial-title--scientific', /^organism-(rhizobium|azospirillum|bacillus|pseudomonas|trichoderma|rhizoctonia|ralstonia|meloidogyne)/.test(card.id));
 
     panel.style.setProperty('--tutorial-accent', card.accent || '#70e5d6');
     setText(category, card.category);
     setText(title, card.title);
-    setText(subtitle, card.subtitle);
+    setText(subtitle, pageIndex === 0 || gamePage ? card.subtitle : currentPage.title);
     microscope.show(card.id);
     setText(pageCounter, `${pagePosition + 1} / ${availablePages.length}`);
     setText(pageTitle, currentPage.title);
+    pageTitle.hidden = pageIndex > 0 || gamePage || Boolean(currentPage.callout);
     setText(pageBody, currentPage.body);
     if (newBadge) newBadge.hidden = !activeFirstSeen;
 
+    const highlighted = currentPage.callout || (gamePage ? currentPage : null);
+    const highlightedPoints = highlighted?.points || currentPage.points || [];
+    callout.hidden = !highlighted && !highlightedPoints.length;
+    setText(calloutTitle, highlighted?.title || (currentPage.body ? 'Em destaque' : currentPage.title));
+    setText(calloutBody, highlighted?.body);
+    calloutBody.hidden = !highlighted?.body;
     pagePoints.replaceChildren();
-    for (const point of currentPage.points || []) {
+    for (const point of highlightedPoints) {
       const item = document.createElement('li');
       item.textContent = point;
       pagePoints.appendChild(item);
     }
-    pagePoints.hidden = !(currentPage.points || []).length;
+    pagePoints.hidden = !highlightedPoints.length;
 
-    renderCycle(card);
+    renderCycle(currentPage.kind === 'cycle' ? card : { cycle: [] });
+    pageBody.hidden = !currentPage.body || gamePage;
+    pageDots.parentElement.hidden = availablePages.length <= 1;
+    pageDots.parentElement.classList.toggle('tutorial-pagination--many', availablePages.length > 6);
+    previousButton.hidden = availablePages.length <= 1;
     renderDots(card);
 
     // A pagina nova comeca do comeco. Sem isto a rolagem da pagina anterior
@@ -50110,7 +50534,7 @@ function createTutorialManager({ state }) {
 
     nextButton.setAttribute('aria-label', nextActionLabel);
     nextButton.title = nextActionLabel;
-    nextButton.textContent = finalPage ? nextActionLabel : 'Próximo →';
+    setText(nextButton.querySelector('.tutorial-button-label'), finalPage ? nextActionLabel : 'Continuar');
     nextButton.dataset.action = finalPage ? 'finish' : 'next';
 
     previousButton.disabled = pagePosition === 0;
@@ -50139,7 +50563,7 @@ function createTutorialManager({ state }) {
     panel.classList.remove('tutorial-panel--library');
     mode = 'card';
     activeId = id;
-    pageIndex = availablePages[0];
+    pageIndex = 0;
     returnToLibrary = fromLibrary;
     activeFirstSeen = firstSeen;
     cardView.hidden = false;
@@ -50165,10 +50589,9 @@ function createTutorialManager({ state }) {
   function nextPage() {
     const card = getTutorialCard(activeId);
     if (!card) return;
-    const availablePages = flow.pagesFor(activeId);
-    const pagePosition = availablePages.indexOf(pageIndex);
-    if (pagePosition >= 0 && pagePosition < availablePages.length - 1) {
-      pageIndex = availablePages[pagePosition + 1];
+    const availablePages = displayPages();
+    if (pageIndex < availablePages.length - 1) {
+      pageIndex++;
       renderCard();
       return;
     }
@@ -50176,10 +50599,8 @@ function createTutorialManager({ state }) {
   }
 
   function previousPage() {
-    const availablePages = flow.pagesFor(activeId);
-    const pagePosition = availablePages.indexOf(pageIndex);
-    if (pagePosition <= 0) return;
-    pageIndex = availablePages[pagePosition - 1];
+    if (pageIndex <= 0) return;
+    pageIndex--;
     renderCard();
   }
 
@@ -50439,128 +50860,318 @@ function createTutorialManager({ state }) {
 }
 Object.assign(__exports, { TUTORIAL_STORAGE_KEYS, isHardReloadShortcut, isTutorialAdvanceShortcut, createTutorialManager });
 },
+"src/procgen/tutorial-card-pages.js": (__exports, __require) => {
+// Paginação exclusivamente visual. Índices persistidos e desbloqueios do catálogo
+// continuam pertencendo ao tutorial-flow, sem remapear o progresso da campanha.
+function isTutorialGamePage(page) {
+  return /no jogo|como usar|poder inimigo|novo movimento|missão do jogador/i.test(page.title);
+}
+
+function tutorialDisplayPages(card, unlockedIndexes) {
+  if (!card) return [];
+  const pages = [];
+  for (const sourceIndex of unlockedIndexes) {
+    const page = card.pages[sourceIndex];
+    if (!page) continue;
+    const points = page.points || [];
+    const separatePoints = points.length > 2
+      || page.body.length + points.join('').length > 280;
+    pages.push({ ...page, sourceIndex, kind: 'content', points: separatePoints ? [] : points });
+    if (separatePoints) {
+      for (let index = 0; index < points.length; index += 2) {
+        pages.push({ sourceIndex, kind: 'details', title: page.title, body: '', points: points.slice(index, index + 2) });
+      }
+    }
+  }
+  // A apresentação aproxima conceito e aplicação, como no cartão de referência.
+  // Só usa uma instrução que já foi desbloqueada; não duplica seu conteúdo.
+  const introduction = pages[0];
+  const gameIndex = pages.findIndex(page => page.body && isTutorialGamePage(page));
+  if (introduction?.sourceIndex === 0 && gameIndex > 0 && !isTutorialGamePage(introduction)) {
+    const game = pages.splice(gameIndex, 1)[0];
+    introduction.callout = game;
+    if (introduction.body.length + game.body.length > 320 || introduction.points.length) {
+      const sentence = introduction.body.match(/^.*?[.!?](?:\s+|$)/u)?.[0];
+      const lead = sentence && sentence.length < introduction.body.length ? sentence : introduction.body;
+      const remainder = introduction.body.slice(lead.length);
+      if (remainder || introduction.points.length) {
+        pages.splice(1, 0, { sourceIndex: introduction.sourceIndex, kind: 'content',
+          title: introduction.title, body: remainder, points: introduction.points });
+        introduction.body = lead;
+        introduction.points = [];
+      }
+    }
+  }
+  if (pages.length && card.cycle?.length) {
+    pages.push({ kind: 'cycle', title: card.cycleLabel || 'Ciclo ou etapas', body: '', points: [], cycle: card.cycle });
+  }
+  return pages;
+}
+Object.assign(__exports, { isTutorialGamePage, tutorialDisplayPages });
+},
 "src/procgen/tutorial-microscope.js": (__exports, __require) => {
-// Adaptado diretamente de miguelito-fase1 (1).html: renderScope, glow e desenhos.
+const { organismSprites } = __require("src/render/organism-sprites.js");const { drawRoamingBacillusSprite, drawInoculatedBacillusSprite } = __require("src/render/bacillus-sprite.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");
 const TAU = Math.PI * 2;
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const STAGES = ['recognition', 'root-hair-curl', 'infection-thread', 'primordium', 'young-nodule', 'mature-nodule'];
+const stageIndex = stage => Math.max(0, STAGES.indexOf(stage));
 
-function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
-
-function mk(w, h) { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; }
-
-const glowCache = new Map();
-function glow(color) {
-  if (glowCache.has(color)) return glowCache.get(color);
-  const c = mk(128, 128), g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  gr.addColorStop(0, hexA(color, 1)); gr.addColorStop(.25, hexA(color, .45)); gr.addColorStop(.6, hexA(color, .12)); gr.addColorStop(1, hexA(color, 0));
-  g.fillStyle = gr; g.fillRect(0, 0, 128, 128); glowCache.set(color, c); return c;
-}
-
-function drawRhizobium(c, x, y, ang, t, s = 1, alpha = 1) {
-  c.save(); c.translate(x, y); c.rotate(ang); c.scale(s, s); c.globalAlpha *= alpha;
-  c.strokeStyle = 'rgba(214,246,160,.55)'; c.lineWidth = .9;
-  for (let k = -1; k <= 1; k += 2) { c.beginPath(); for (let i = 0; i <= 12; i++) { const px = -8 - i * 1.6, py = k * 1.5 + Math.sin(t * 16 - i * .8 + k) * (1 + i * .12) + k * i * .25; i ? c.lineTo(px, py) : c.moveTo(px, py); } c.stroke(); }
-  const g = c.createLinearGradient(0, -3.5, 0, 3.5); g.addColorStop(0, '#effcc8'); g.addColorStop(.5, '#c8f08a'); g.addColorStop(1, '#86b848');
-  c.beginPath(); c.roundRect(-8, -3.4, 16, 6.8, 3.4); c.fillStyle = g; c.fill(); c.strokeStyle = '#4f7a24'; c.lineWidth = .8; c.stroke();
-  c.fillStyle = 'rgba(255,255,255,.85)'; c.beginPath(); c.arc(-3, 0, 1.1, 0, TAU); c.arc(3, .4, .9, 0, TAU); c.fill();
-  c.restore();
-}
-function drawAzo(c, x, y, ang, t, s = 1) {
-  c.save(); c.translate(x, y); c.rotate(ang); c.scale(s, s);
-  c.strokeStyle = 'rgba(170,220,255,.6)'; c.lineWidth = .9; c.beginPath();
-  for (let i = 0; i <= 18; i++) { const px = 9 + i * 1.7, py = -3 + Math.sin(t * 12 - i * .7) * (1.2 + i * .15); i ? c.lineTo(px, py) : c.moveTo(px, py); } c.stroke();
-  c.lineCap = 'round'; c.beginPath(); c.arc(0, 8, 11, -Math.PI * .82, -Math.PI * .18); c.strokeStyle = '#3d86b8'; c.lineWidth = 8.5; c.stroke();
-  c.beginPath(); c.arc(0, 8, 11, -Math.PI * .82, -Math.PI * .18); c.strokeStyle = '#8fd4ff'; c.lineWidth = 6.5; c.stroke();
-  c.beginPath(); c.arc(0, 8, 12, -Math.PI * .72, -Math.PI * .38); c.strokeStyle = 'rgba(235,250,255,.8)'; c.lineWidth = 1.6; c.stroke();
-  c.restore();
-}
-function drawBacillusColony(c, x, y, t, on, s = 1) {
-  c.save(); c.translate(x, y); c.scale(s, s);
-  const k = on ? 1 : .55, rad = 34 * (on ? 1 : .8);
-  const m = c.createRadialGradient(0, 0, 4, 0, 0, rad); m.addColorStop(0, hexA('#fff1b0', .5 * k)); m.addColorStop(.7, hexA('#e7c95a', .3 * k)); m.addColorStop(1, hexA('#e7c95a', 0));
-  c.beginPath(); c.ellipse(0, 0, rad * 1.25, rad, 0, Math.PI, 0); c.closePath(); c.fillStyle = m; c.fill();
-  const r = rng(77);
-  for (let i = 0; i < 16; i++) {
-    const a = Math.PI + r() * Math.PI, d = r() * rad * .85, bx = Math.cos(a) * d * 1.2, by = Math.sin(a) * d * .9, ang = r() * TAU + Math.sin(t + i) * .05;
-    c.save(); c.translate(bx, by); c.rotate(ang); c.beginPath(); c.roundRect(-5, -2, 10, 4, 2); c.fillStyle = on ? '#f0d77a' : '#9c8a52'; c.fill();
-    if (i % 3 === 0) { c.beginPath(); c.ellipse(2, 0, 2, 1.3, 0, 0, TAU); c.fillStyle = on ? `rgba(255,255,240,${.7 + Math.sin(t * 3 + i) * .3})` : '#cfc3a0'; c.fill(); }
-    c.restore();
+// As rotinas privadas abaixo são transpostas do jogo sem importar sistemas de
+// física/atualização: rhizobium-nodulation, meloidogyne-lifecycle e
+// pseudomonas-siderophores. O relógio é local; nenhum estado da fase é alterado.
+function drawNodule(c, time) {
+function drawRootHair(ctx, site) {
+    const stage = stageIndex(site.stage);
+    if (stage < 1) return;
+    const curl = clamp(stage === 1 ? site.progress : 1, 0, 1);
+    const y = site.surfaceY - 4;
+    ctx.strokeStyle = `rgba(235,221,198,${.35 + curl * .55})`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(site.x - 28, y + 2);
+    ctx.bezierCurveTo(
+      site.x - 18, y - 24 * curl,
+      site.x + 22, y - 25 * curl,
+      site.x + 11, y - 4,
+    );
+    if (curl > .56) {
+      ctx.bezierCurveTo(site.x + 2, y + 7, site.x - 7, y - 3, site.x + 1, y - 10);
+    }
+    ctx.stroke();
   }
-  c.restore();
-}
-function drawFungusMesh(c, x, y, w, t, intensity = 1) {
-  const r = rng(Math.floor(x));
-  c.save(); c.lineCap = 'round';
-  for (let i = 0; i < 9; i++) {
-    let px = x + r() * w, py = y + r() * 8; c.beginPath(); c.moveTo(px, py);
-    for (let k = 0; k < 5; k++) { px += (r() - .5) * 22; py -= 3 + r() * 7 + Math.sin(t * 2 + i + k) * 1.2; c.lineTo(px, py); }
-    c.strokeStyle = `rgba(190,140,230,${.55 * intensity})`; c.lineWidth = 1.2; c.stroke();
-    c.beginPath(); c.arc(px, py, 2.2, 0, TAU); c.fillStyle = `rgba(220,185,245,${.8 * intensity})`; c.fill();
+
+  function drawInfectionThread(ctx, site) {
+    const index = stageIndex(site.stage);
+    if (index < 2) return;
+    const progress = index === 2 ? site.progress : 1;
+    const startY = site.surfaceY - 7;
+    const endY = site.surfaceY + site.depth * progress;
+    ctx.strokeStyle = `rgba(224,190,255,${.42 + progress * .5})`;
+    ctx.lineWidth = 2.1;
+    ctx.shadowBlur = 7;
+    ctx.shadowColor = '#c7a5ff';
+    ctx.beginPath();
+    ctx.moveTo(site.x + 1, startY);
+    ctx.bezierCurveTo(
+      site.x + 12, lerp(startY, endY, .34),
+      site.x - 10, lerp(startY, endY, .7),
+      site.x + 2, endY,
+    );
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    const cellCount = 2 + Math.floor(progress * 5);
+    for (let i = 0; i < cellCount; i++) {
+      const t = (i + .5) / cellCount * progress;
+      const yy = lerp(startY, site.surfaceY + site.depth, t);
+      const xx = site.x + Math.sin(t * Math.PI * 3 + site.phase) * 5;
+      ctx.fillStyle = '#ead8ff';
+      ctx.beginPath();
+      ctx.ellipse(xx, yy, 2.8, 1.4, t * 2, 0, TAU);
+      ctx.fill();
+    }
   }
-  c.restore();
-}
-function drawExudate(c, x, y, t) {
-  c.save(); c.translate(x, y); const s = 1 + Math.sin(t * 5) * .06; c.scale(s, 1 / s);
-  c.beginPath(); c.moveTo(0, -8); c.bezierCurveTo(6, -3, 7, 4, 0, 7); c.bezierCurveTo(-7, 4, -6, -3, 0, -8);
-  const g = c.createRadialGradient(-2, -2, 1, 0, 0, 9); g.addColorStop(0, '#fff3c8'); g.addColorStop(.5, '#ffc35a'); g.addColorStop(1, '#d9801e');
-  c.fillStyle = g; c.fill(); c.fillStyle = 'rgba(255,255,255,.8)'; c.beginPath(); c.ellipse(-2, -2, 1.4, 2.2, -.4, 0, TAU); c.fill();
-  c.restore();
-}
 
-function renderScope(c, scopeKind, t) {
-  if (!scopeKind) return; const w = 440;
-  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#060202'; c.fillRect(0, 0, w, w);
-  const bg = c.createRadialGradient(w / 2, w / 2, 10, w / 2, w / 2, w / 2); bg.addColorStop(0, '#1d0e0a'); bg.addColorStop(1, '#040101'); c.fillStyle = bg; c.fillRect(0, 0, w, w);
-  c.save(); c.translate(w / 2, w / 2);
-  // Matéria fora do plano focal, usando o mesmo glow radial do protótipo.
-  c.globalAlpha = .06;
-  for (let i = 0; i < 8; i++) c.drawImage(glow('#e6c49c'), Math.sin(i * 7.1 + t * .1) * 170 - 18, Math.cos(i * 3.3 + t * .08) * 170 - 18, 36, 36);
-  c.globalAlpha = 1;
-  c.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 26; i++) { c.fillStyle = `rgba(255,230,200,${.04 + (i % 5) * .01})`; c.beginPath(); c.arc(Math.sin(i * 7.1 + t * .1) * 170, Math.cos(i * 3.3 + t * .08) * 170, 1 + (i % 3), 0, TAU); c.fill(); }
-  c.globalCompositeOperation = 'source-over';
-  if (scopeKind === 'rhizobium') { for (let i = 0; i < 7; i++) { const a = i * .9 + t * .25; drawRhizobium(c, Math.cos(a) * (60 + i * 12), Math.sin(a * 1.3) * (50 + i * 8), a + Math.PI / 2, t + i, 4.2); } }
-  else if (scopeKind === 'azospirillum') { drawAzo(c, -20, 20, Math.sin(t) * .2, t, 6); drawAzo(c, 90, -80, 2 + Math.sin(t * .7) * .2, t + 1, 3.5); drawAzo(c, -110, -90, 4, t + 2, 3); }
-  else if (scopeKind === 'bacillus') { drawBacillusColony(c, 0, 70, t, true, 4); }
-  else if (scopeKind === 'fungo') { c.scale(3, 3); drawFungusMesh(c, -40, 30, 80, t, 1); drawFungusMesh(c, -30, 55, 60, t + 1, .8); }
+  function drawPrimordium(ctx, site) {
+    const index = stageIndex(site.stage);
+    if (index < 3) return;
+    const development = index === 3 ? site.progress * .48 : index === 4 ? .48 + site.progress * .42 : 1;
+    const radius = lerp(3, 15 + site.lobes * 1.7, development);
+    const centerY = site.surfaceY + site.depth;
 
-  else if (scopeKind === 'nodulo') {
-    c.fillStyle = '#e8d3ad'; c.fillRect(-220, -150, 440, 60);
-    const g = c.createRadialGradient(-20, -40, 10, 0, 0, 110); g.addColorStop(0, '#ffd3de'); g.addColorStop(.6, '#ff8fa8'); g.addColorStop(1, '#a23e62');
-    c.beginPath(); c.arc(0, 0, 105, 0, TAU); c.fillStyle = g; c.fill();
-    for (let i = 0; i < 60; i++) { const a = i * 2.4, d = Math.sqrt(i / 60) * 85; c.save(); c.translate(Math.cos(a) * d, Math.sin(a) * d); c.rotate(a + t * .2); c.beginPath(); c.roundRect(-7, -2.5, 14, 5, 2.5); c.fillStyle = 'rgba(255,245,235,.55)'; c.fill(); c.restore(); }
-    c.fillStyle = '#fff'; c.font = '800 26px Grandstander, sans-serif'; c.textAlign = 'center'; c.fillText('N₂ → NH₃', 0, 160);
+    ctx.save();
+    ctx.translate(site.x, centerY);
+    ctx.scale(1, .76);
+    const gradient = ctx.createRadialGradient(-radius * .2, -radius * .25, 1, 0, 0, radius * 1.2);
+    gradient.addColorStop(0, index >= 5 ? '#ffd0da' : '#f6dfc8');
+    gradient.addColorStop(.62, index >= 5 ? '#df6688' : '#dba98f');
+    gradient.addColorStop(1, 'rgba(94,38,50,.82)');
+    ctx.fillStyle = gradient;
+    ctx.strokeStyle = index >= 5 ? '#ffb2c5' : '#f1c7ac';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < 18; i++) {
+      const angle = i / 18 * TAU;
+      const lobe = 1 + Math.sin(angle * site.lobes + site.phase) * .12 * development;
+      const x = Math.cos(angle) * radius * lobe;
+      const y = Math.sin(angle) * radius * lobe;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    if (index >= 4) {
+      const count = 5 + site.colony.sourceCount * 3;
+      for (let i = 0; i < count; i++) {
+        const angle = i / count * TAU + site.phase;
+        const rr = radius * (.2 + (i % 4) * .15);
+        ctx.fillStyle = index >= 5 ? '#7b254a' : '#a2697d';
+        ctx.globalAlpha = .52 + (i % 3) * .15;
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(angle) * rr, Math.sin(angle) * rr, 3.2, 1.25, angle, 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
   }
-  else drawAdditionalField(c, scopeKind, t);
+
+  function drawFixationFlux(ctx, site) {
+    if (!site.mature || site.activity <= .08) return;
+    const centerY = site.surfaceY + site.depth;
+    const intensity = clamp(site.activity, 0, 1);
+    for (let i = 0; i < 5; i++) {
+      const t = (time * (.18 + i * .012) + i * .21 + site.phase) % 1;
+      const angle = site.phase + i * 1.37;
+      const startX = site.x + Math.cos(angle) * (36 + i * 3);
+      const startY = centerY - 30 - i * 3;
+      const x = lerp(startX, site.x, t);
+      const y = lerp(startY, centerY, t) + Math.sin(t * Math.PI) * 8;
+      ctx.globalAlpha = (.25 + intensity * .6) * (1 - Math.abs(t - .5) * .7);
+      ctx.fillStyle = '#8db8ff';
+      ctx.beginPath();
+      ctx.arc(x, y, 2.2, 0, TAU);
+      ctx.fill();
+    }
+
+    for (let i = 0; i < 4; i++) {
+      const t = (time * .22 + i * .27 + site.phase * .2) % 1;
+      const x = site.x + (i - 1.5) * 5 + Math.sin(t * TAU + i) * 2;
+      const y = lerp(centerY, site.surfaceY + 5, t);
+      ctx.globalAlpha = .25 + intensity * .65;
+      ctx.fillStyle = '#ffd783';
+      ctx.beginPath();
+      ctx.arc(x, y, 2.1, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.font = '700 8px Inter,system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(180,208,255,.82)';
+    ctx.fillText('N₂', site.x - 27, centerY - 24);
+    ctx.fillStyle = 'rgba(255,220,139,.9)';
+    ctx.fillText('NH₄⁺', site.x + 26, site.surfaceY + 4);
+  }
+  const site = { x: 0, surfaceY: -20, depth: 28, stage: 'mature-nodule',
+    progress: 1, lobes: 3, phase: .7, colony: { sourceCount: 3 }, mature: true, activity: .9 };
+  c.save(); c.scale(3.6, 3.6);
+  drawRootHair(c, site); drawInfectionThread(c, site);
+  drawPrimordium(c, site); drawFixationFlux(c, site);
   c.restore();
-  const vg = c.createRadialGradient(w / 2, w / 2, w * .3, w / 2, w / 2, w / 2); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.85)'); c.fillStyle = vg; c.fillRect(0, 0, w, w);
 }
 
-// IDs visuais ficam aqui; o catálogo científico e suas páginas não são alterados.
-const fieldKinds = Object.freeze({
+function drawAdultFemale(ctx, g, p) {
+    if (p < .72) return;
+    const maturity = clamp((p - .72) / .28 + g.femaleMaturity * .25, 0, 1.2);
+    const bodyW = 9 + maturity * 12;
+    const bodyH = 12 + maturity * 19;
+    ctx.save();
+    ctx.translate(0, 5 + Math.min(8, g.platform.h * .12));
+    const gradient = ctx.createRadialGradient(-bodyW * .25, -bodyH * .2, 2, 0, 0, bodyH);
+    gradient.addColorStop(0, '#fff8e8');
+    gradient.addColorStop(.5, '#f4d7c4');
+    gradient.addColorStop(1, '#c77d73');
+    ctx.fillStyle = gradient;
+    ctx.strokeStyle = '#fff1de';
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    ctx.moveTo(0, -bodyH * .58);
+    ctx.bezierCurveTo(bodyW * .75, -bodyH * .45, bodyW, bodyH * .22, bodyW * .28, bodyH * .62);
+    ctx.bezierCurveTo(0, bodyH * .78, -bodyW * .72, bodyH * .56, -bodyW * .82, 0);
+    ctx.bezierCurveTo(-bodyW * .72, -bodyH * .38, -bodyW * .3, -bodyH * .55, 0, -bodyH * .58);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#8f4f55'; ctx.beginPath(); ctx.arc(0, -bodyH * .54, 2.3, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(177,94,91,.42)'; ctx.lineWidth = .8;
+    for (let i = 0; i < 4; i++) {
+      const yy = -bodyH * .25 + i * bodyH * .19;
+      ctx.beginPath(); ctx.moveTo(-bodyW * .45, yy); ctx.quadraticCurveTo(0, yy + 3, bodyW * .5, yy - 1); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+function drawEgg(ctx, m) {
+    const ratio = m.eggs / Math.max(1, m.maxEggs), empty = m.eggs <= 0;
+    const neutralized = Boolean(m.neutralized);
+    ctx.save(); ctx.translate(m.x, m.y); ctx.globalAlpha = empty ? clamp(1 - m.emptyAge / 11, 0, .55) : 1;
+    ctx.fillStyle = neutralized ? 'rgba(94,181,116,.24)' : empty ? 'rgba(180,132,105,.22)' : 'rgba(255,213,155,.28)';
+    ctx.strokeStyle = neutralized ? 'rgba(141,240,168,.82)' : empty ? 'rgba(199,157,128,.25)' : 'rgba(255,235,196,.82)';
+    ctx.beginPath(); ctx.ellipse(0, -2, 16 + ratio * 6, 9 + ratio * 4, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    for (let i = 0; i < Math.max(2, m.eggs); i++) {
+      const a = i / Math.max(2, m.eggs) * TAU + m.phase, r = 3 + i % 3 * 3;
+      ctx.fillStyle = neutralized ? '#9dd7a8' : i % 2 ? '#fff0cf' : '#ffd7a0'; ctx.beginPath(); ctx.ellipse(Math.cos(a) * r, -2 + Math.sin(a) * r * .48, 2.7, 1.9, a, 0, TAU); ctx.fill();
+    }
+    ctx.font = '700 8px Inter,system-ui'; ctx.textAlign = 'center';
+    // "massa neutralizada" e confirmacao de uma acao que o jogador acabou de
+    // fazer, e fica. A CONTAGEM de ovos e numero de infestacao, e o desenho da
+    // massa ja mostra quantos ovos restam pelo tamanho e pela quantidade de
+    // pontos — o numero por cima disso e a mesma informacao duas vezes.
+    if (neutralized) { ctx.fillStyle = '#baffc7'; ctx.fillText('massa neutralizada', 0, -17); }
+    else if (!empty && false) {
+      ctx.fillStyle = '#fff0cf'; ctx.fillText(`ovos ${m.eggs}`, 0, -17);
+    }
+    ctx.restore();
+  }
+
+function drawIron(c, time) {
+function drawSiderophore(ctx, particle) {
+    const loaded = particle.state === 'loaded';
+    const color = loaded ? '#ffb15c' : '#d5ff6d';
+    ctx.save();
+    ctx.translate(particle.x, particle.y);
+    ctx.shadowBlur = loaded ? 15 : 11;
+    ctx.shadowColor = color;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = loaded ? '#ffcf83' : '#efffb8';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = i * TAU / 6 + particle.phase + time * .45;
+      const x = Math.cos(angle) * 5.8;
+      const y = Math.sin(angle) * 5.8;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, loaded ? 3.2 : 1.8, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = i * TAU / 5 + time * .15;
+    c.save(); c.translate(Math.cos(a) * 100, Math.sin(a) * 100); c.scale(2.2, 2.2);
+    drawSiderophore(c, {x:0, y:0, state:i % 2 ? 'loaded':'search', phase:i}); c.restore();
+  }
+}
+
+const kinds = Object.freeze({
   'organism-rhizobium': 'rhizobium',
   'organism-azospirillum': 'azospirillum',
   'organism-bacillus': 'bacillus',
   'organism-phosphate-solubilizer': 'bacillus',
   'organism-pseudomonas': 'pseudomonas',
   'organism-trichoderma': 'trichoderma',
-  'organism-rhizoctonia': 'fungo',
-  'organism-opportunistic-fungus': 'fungo',
+  'organism-rhizoctonia': 'rhizoctonia',
+  'organism-opportunistic-fungus': 'oportunista',
   'organism-ralstonia': 'ralstonia',
-  'organism-mycorrhiza': 'mycorrhiza',
-  'organism-meloidogyne-j2': 'nematode',
+  'organism-mycorrhiza': 'micorriza',
+  'organism-meloidogyne-j2': 'nematoide',
   'organism-meloidogyne-female': 'female',
   'action-exudate': 'exudate',
-  'structure-nodule': 'nodulo',
-  'process-fbn': 'nodulo',
-  'structure-biofilm': 'bacillus',
+  'structure-nodule': 'nodule',
+  'process-fbn': 'nodule',
+  'structure-biofilm': 'biofilm',
   'process-siderophore': 'iron',
   'process-iron-competition': 'iron',
-  'structure-arbuscule': 'mycorrhiza',
-  'structure-mycorrhiza-path': 'mycorrhiza',
-  'structure-lateral-root': 'root',
+  'structure-arbuscule': 'arbuscule',
+  'structure-mycorrhiza-path': 'arbuscule',
+  'structure-lateral-root': 'azospirillum',
   'structure-egg-mass': 'eggs',
-  'structure-gall': 'gall',
+  'structure-gall': 'female',
   'process-mycoparasitism': 'trichoderma',
   'process-ralstonia-entry': 'ralstonia',
   'process-vascular-obstruction': 'ralstonia',
@@ -50568,106 +51179,90 @@ const fieldKinds = Object.freeze({
   'process-ralstonia-spread': 'ralstonia',
 });
 
-function drawBacteria(c, t, color) {
-  for (let i = 0; i < 9; i++) {
-    const a = i * 2.4 + t * .12;
-    c.save();
-    c.translate(Math.cos(a) * (45 + i * 13), Math.sin(a * 1.3) * (40 + i * 10));
-    c.rotate(a);
-    c.strokeStyle = hexA(color, .5); c.lineWidth = 2;
-    c.beginPath(); c.moveTo(-20, 0);
-    for (let j = 0; j < 16; j++) c.lineTo(-20 - j * 3, Math.sin(t * 3 - j * .6 + i) * (3 + j * .5));
-    c.stroke();
-    const g = c.createLinearGradient(0, -9, 0, 9);
-    g.addColorStop(0, '#f1f7cf'); g.addColorStop(.4, color); g.addColorStop(1, hexA(color, .4));
-    c.fillStyle = g; c.beginPath(); c.roundRect(-22, -9, 44, 18, 9); c.fill();
+function drawPopulation(c, kind, time) {
+  // Mesmos PNGs, recortes e cadências da fase. A profundidade vem do tamanho,
+  // foco e movimento discreto; o espécime principal mantém sua leitura intacta.
+  const draw = (x, y, height, phase, alpha, rotation = 0) => {
+    c.save(); c.translate(x, y); c.rotate(rotation);
+    if (kind === 'bacillus' || kind === 'biofilm') {
+      const render = kind === 'biofilm' ? drawInoculatedBacillusSprite : drawRoamingBacillusSprite;
+      if (kind === 'biofilm') render(c, 0, 0, height * .6, null, time, phase, alpha);
+      else render(c, 0, 0, height * .6, time, phase, alpha);
+    } else {
+      organismSprites.draw(c, kind, {height, time, phase, alpha, flipX: phase === 2});
+    }
+    c.restore();
+  };
+  c.filter = 'blur(1.2px)';
+  draw(-108 + Math.sin(time * .18) * 8, -72, 135, 2, .4, -.28);
+  draw(113, 66 + Math.cos(time * .21) * 7, 125, 3, .35, .23);
+  c.filter = 'none';
+  draw(8 + Math.sin(time * .35) * 5, 2 + Math.cos(time * .4) * 7, kind === 'nematoide' ? 290 : 310, 0, 1, Math.sin(time * .2) * .025);
+}
+
+function drawExudates(c, time) {
+  // Mesmos núcleos verde-lima, halo e pulsação usados por renderer.js.
+  for (let i = 0; i < 7; i++) {
+    const angle = i * 2.4, radius = 30 + i * 20;
+    c.save(); c.translate(Math.cos(angle) * radius, Math.sin(angle) * radius + Math.sin(time * 2 + i) * 7);
+    c.scale(i === 0 ? 2.2 : 1.3, i === 0 ? 2.2 : 1.3);
+    c.shadowBlur = 18; c.shadowColor = '#b7f36b'; c.fillStyle = '#cfff88';
+    c.beginPath(); c.arc(0, 0, 8, 0, TAU); c.fill(); c.shadowBlur = 0;
+    c.strokeStyle = 'rgba(183,243,107,.5)'; c.beginPath(); c.arc(0, 0, 14 + Math.sin(time * 3 + i) * 2, 0, TAU); c.stroke();
     c.restore();
   }
 }
 
-function drawHypha(c, x, y, angle, length, depth, t, color) {
-  c.save(); c.translate(x, y); c.rotate(angle + Math.sin(t * .4 + depth) * .025);
-  c.strokeStyle = color; c.lineWidth = depth + .6; c.lineCap = 'round';
-  c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(length * .45, -6, length, 0); c.stroke();
-  if (depth > 0) {
-    drawHypha(c, length, 0, -.55, length * .69, depth - 1, t, color);
-    drawHypha(c, length, 0, .65, length * .65, depth - 1, t + .3, color);
-  } else {
-    c.globalAlpha = .55 + Math.sin(t + x) * .15;
-    c.beginPath(); c.arc(length, 0, 4, 0, TAU); c.fillStyle = color; c.fill();
-  }
-  c.restore();
+function drawField(c, kind, time) {
+  if (kind === 'nodule') drawNodule(c, time);
+  else if (kind === 'exudate') drawExudates(c, time);
+  else if (kind === 'iron') {
+    organismSprites.draw(c, 'pseudomonas', {height: 165, time});
+    drawIron(c, time);
+  } else if (kind === 'arbuscule') {
+    c.save(); c.translate(25, 100); c.scale(6, 6);
+    drawArbuscule(c, {x: 0, y: 0, seed: 3, life: 1}, time, '#d6afff');
+    c.restore();
+  } else if (kind === 'female') {
+    c.save(); c.scale(4.5, 4.5);
+    drawAdultFemale(c, {femaleMaturity: .9, platform: {h: 30}}, .98);
+    c.restore();
+  } else if (kind === 'eggs') {
+    c.save(); c.scale(6, 6);
+    drawEgg(c, {x: 0, y: 0, eggs: 14, maxEggs: 14, phase: time * .015});
+    c.restore();
+  } else if (kind === 'community') {
+    organismSprites.draw(c, 'rhizobium', {x: -60, y: -40, height: 170, time, rotation: -.15});
+    drawRoamingBacillusSprite(c, 65, 45, 85, time, 2);
+    organismSprites.draw(c, 'micorriza', {x: -60, y: 95, height: 110, time, alpha: .75});
+  } else drawPopulation(c, kind, time);
 }
 
-function drawTissue(c, t, altered = false) {
-  c.save(); c.rotate(-.2);
-  for (let row = -2; row <= 2; row++) for (let col = -3; col <= 3; col++) {
-    const x = col * 58 + (row % 2) * 25, y = row * 45;
-    c.fillStyle = altered ? '#805042' : '#92734d'; c.strokeStyle = '#d6b087'; c.lineWidth = 2;
-    c.beginPath(); c.roundRect(x - 27, y - 20, 54, 40, 12); c.fill(); c.stroke();
-    c.fillStyle = '#ddbe8b'; c.beginPath(); c.arc(x + Math.sin(t * .2 + col) * 5, y, 4, 0, TAU); c.fill();
+// O campo óptico preserva renderScope(t) do protótipo: fundo radial, matéria
+// suspensa e vinheta. Dentro dele, a arte é a mesma vista no jogo atual.
+function renderScope(c, kind, time) {
+  const w = c.canvas.width;
+  c.setTransform(w / 440, 0, 0, w / 440, 0, 0);
+  const bg = c.createRadialGradient(220, 220, 10, 220, 220, 220);
+  bg.addColorStop(0, '#1d0e0a'); bg.addColorStop(1, '#040101');
+  c.fillStyle = bg; c.fillRect(0, 0, 440, 440);
+  c.save(); c.translate(220, 220);
+  c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 26; i++) {
+    c.fillStyle = `rgba(255,230,200,${.04 + (i % 5) * .01})`;
+    c.beginPath(); c.arc(Math.sin(i * 7.1 + time * .1) * 170, Math.cos(i * 3.3 + time * .08) * 170, 1 + i % 3, 0, TAU); c.fill();
   }
+  c.globalCompositeOperation = 'source-over';
+  drawField(c, kind, time);
   c.restore();
-}
-
-function drawAdditionalField(c, kind, t) {
-  if (kind === 'pseudomonas' || kind === 'ralstonia') {
-    drawBacteria(c, t, kind === 'pseudomonas' ? '#a6d864' : '#d4ac77');
-  } else if (kind === 'trichoderma' || kind === 'mycorrhiza') {
-    if (kind === 'mycorrhiza') { c.globalAlpha = .25; drawTissue(c, t); c.globalAlpha = 1; }
-    drawHypha(c, -110, 125, -1.1, 85, 4, t, kind === 'trichoderma' ? '#8df0a8' : '#d6afff');
-  } else if (kind === 'exudate') {
-    for (let i = 0; i < 7; i++) {
-      const a = i * 2.4 + t * .12;
-      c.save(); c.translate(Math.cos(a) * (35 + i * 19), Math.sin(a) * (35 + i * 15)); c.scale(2.5, 2.5);
-      drawExudate(c, 0, 0, t * .5 + i); c.restore();
-    }
-  } else if (kind === 'iron') {
-    drawBacteria(c, t * .4, '#a6d864');
-    c.fillStyle = '#ffc35a'; c.font = '700 30px sans-serif'; c.textAlign = 'center'; c.fillText('Fe³⁺', 0, 10);
-    for (let i = 0; i < 3; i++) {
-      const a = i * TAU / 3 + t * .25;
-      c.strokeStyle = '#b9f36f'; c.lineWidth = 4; c.beginPath();
-      c.arc(Math.cos(a) * 65, Math.sin(a) * 65, 16, a + .6, a + TAU - .6); c.stroke();
-    }
-  } else if (kind === 'nematode') {
-    for (let i = 0; i < 3; i++) {
-      c.save(); c.translate(-90 + i * 85, -80 + i * 50); c.rotate(i - .8);
-      c.lineCap = 'round'; c.strokeStyle = '#f4e5c7'; c.lineWidth = 9; c.beginPath();
-      for (let j = 0; j <= 45; j++) {
-        const x = j * 5 - 110, y = Math.sin(j * .15 - t * 1.2 + i) * 25;
-        if (j) c.lineTo(x, y); else c.moveTo(x, y);
-      }
-      c.stroke(); c.restore();
-    }
-  } else if (['female', 'gall', 'eggs'].includes(kind)) {
-    if (kind !== 'eggs') drawTissue(c, t, true);
-    c.fillStyle = '#e3b5a0'; c.beginPath();
-    c.ellipse(0, 0, 72, 90, .2, 0, TAU); c.fill();
-    if (kind === 'female' || kind === 'gall') {
-      c.fillStyle = '#fff0cf'; c.beginPath(); c.ellipse(0, 5, 35, 55, -.3, 0, TAU); c.fill();
-    } else {
-      for (let i = 0; i < 28; i++) {
-        const a = i * 2.4, r = Math.sqrt(i / 28) * 60;
-        c.fillStyle = '#ffe0a6'; c.strokeStyle = '#a27650'; c.beginPath();
-        c.ellipse(Math.cos(a) * r, Math.sin(a) * r, 8, 13, a + Math.sin(t * .3 + i) * .05, 0, TAU); c.fill(); c.stroke();
-      }
-    }
-  } else {
-    // Cartões de ações/poderes: tecido vivo, sem atribuir organismos inexistentes.
-    drawTissue(c, t);
-    c.globalCompositeOperation = 'lighter'; c.globalAlpha = .18;
-    for (let i = 0; i < 4; i++) c.drawImage(glow('#ffc35a'), Math.sin(t * .3 + i) * 130 - 35, i * 35 - 90, 70, 70);
-    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
-  }
+  const vg = c.createRadialGradient(220, 220, 132, 220, 220, 220);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.85)');
+  c.fillStyle = vg; c.fillRect(0, 0, 440, 440);
 }
 
 function createTutorialMicroscope(canvas) {
   const context = canvas.getContext('2d');
-  let frame = null;
-  let kind = null;
-  let elapsed = 0;
-  let previousTime = null;
+  let frame = null, kind = null, elapsed = 0, previousTime = null;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   function tick(now) {
     frame = null;
@@ -50681,7 +51276,7 @@ function createTutorialMicroscope(canvas) {
   }
   return {
     show(cardId) {
-      kind = fieldKinds[cardId] || 'root';
+      kind = kinds[cardId] || 'community';
       canvas.dataset.microscopeKind = kind;
       if (context && frame === null) { previousTime = null; frame = requestAnimationFrame(tick); }
     },

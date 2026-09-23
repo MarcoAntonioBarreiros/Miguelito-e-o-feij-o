@@ -172,6 +172,16 @@ export function paintRootTissue(ctx, seed, x, y, width, height, palette = ROOT_P
 // se alongam ao longo do eixo da raiz. Tudo em coordenadas de mundo.
 export function paintRootTissueVertical(ctx, seed, centerX, top, bottom, halfWidth, palette = ROOT_PALETTE) {
   const height = bottom - top;
+  // Estreito demais para as camadas: só córtex (evita célula de largura negativa).
+  if (halfWidth < 12 || height <= 0) {
+    if (halfWidth <= 0 || height <= 0) return;
+    drawTissueLayerCanvas(ctx, seed + 911, {
+      startX: centerX - halfWidth, endX: centerX + halfWidth, startY: top, endY: bottom,
+      cellW: Math.max(2, halfWidth), cellH: 10,
+      fillColors: palette.ochreLarge, strokeColor: palette.ochreStroke, strokeWidth: 0.7,
+    });
+    return;
+  }
   const bands = [
     { share: 0.20, colors: palette.green, stroke: palette.greenStroke, cellH: 16 },
     { share: 0.14, colors: palette.blue, stroke: palette.blueStroke, cellH: 11 },
