@@ -87,7 +87,7 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
   function glowSprite(color) {
     let c = glowCache.get(color);
     if (!c) {
-      c = radialSprite(color, [[0, 1], [.35, .45], [1, 0]]);
+      c = radialSprite(color, [[0, 1], [.25, .45], [.60, .12], [1, 0]]);
       glowCache.set(color, c);
     }
     return c;
@@ -219,37 +219,6 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     };
   }
 
-  function collectGroundLightSources() {
-    const p = state.player;
-    if (!p) return [];
-    return [{
-      x: p.x + (p.w || 32) / 2,
-      y: p.y + (p.h || 48) * .92,
-      r: 108,
-      a: .96,
-      color: '#ffd89a',
-      kind: 'player',
-    }];
-  }
-
-  function findPlatformForGroundLight(source) {
-    const platforms = state.level?.platforms || [];
-    let best = null;
-    for (const p of platforms) {
-      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.w) || !Number.isFinite(p.h)) continue;
-      if (p.recovery && state.recoveryPlatformsDisabled) continue;
-      if (p.mycorrhizaStructure || p.azospirillumStructure) continue;
-
-      const insideX = source.x >= p.x - 12 && source.x <= p.x + p.w + 12;
-      if (!insideX) continue;
-
-      const dy = Math.abs(source.y - p.y);
-      if (dy > 46) continue;
-      if (!best || dy < best.dy) best = { platform: p, dy };
-    }
-    return best?.platform || null;
-  }
-
   function roundedScreenRect(ctx, x, y, w, h, radius) {
     const r = Math.max(0, Math.min(radius, w / 2, h / 2));
     ctx.beginPath();
@@ -274,61 +243,105 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     const t = state.time || 0;
     const lights = [];
     const p = state.player;
+
     if (p) {
       const x = p.x + (p.w || 32) / 2;
       const y = p.y + (p.h || 48) * .45;
-      // Miguelito: intensidade original restaurada; apenas a matiz fica mais amarela.
-      lights.push({ x, y, r: 230, a: .72, color: '#ffc247', glow: .11, kind: 'player' });
-      lights.push({ x, y, r: 110, a: .96, color: '#ffe18a', glow: .20, kind: 'player' });
+
+      // Mesmo princípio do protótipo: recorte amplo da escuridão + núcleo menor.
+      // A cor amarela pertence SOMENTE ao glow aditivo curto.
+      lights.push({
+        x, y,
+        maskR: 300, maskA: 1,
+        glowR: 0, glowA: 0,
+        color: '#ffb83e',
+        kind: 'player-ambient',
+      });
+      lights.push({
+        x, y,
+        maskR: 140, maskA: .85,
+        glowR: 40, glowA: .42,
+        color: '#ffb83e',
+        kind: 'player',
+      });
     }
+
     for (const e of level.exudates || []) {
       if (e.taken) continue;
       lights.push({
         x: e.x,
         y: e.y,
-        r: 72,
-        a: .34,
+        maskR: 70, maskA: .70,
+        glowR: 26, glowA: .62 + Math.sin(t * 3 + e.x) * .05,
         color: '#d8f05a',
-        glow: .72 + Math.sin(t * 3 + e.x) * .08,
         kind: 'exudate',
       });
     }
+
     for (const iron of level.ironDeposits || []) {
       if (!Number.isFinite(iron.x) || !Number.isFinite(iron.y)) continue;
       if (Number.isFinite(iron.stock) && iron.stock <= .05) continue;
       lights.push({
         x: iron.x,
         y: iron.y,
-        r: 62,
-        a: .30,
+        maskR: 58, maskA: .46,
+        glowR: 22, glowA: .52,
         color: '#d9a34a',
-        glow: .66,
         kind: 'iron',
       });
     }
+
     for (const c of level.checkpoints || []) {
-      lights.push({ x: c.x, y: c.y, r: c.active ? 155 : 105, a: c.active ? .66 : .42, color: '#f3dc86', glow: c.active ? .22 : .09 });
-    }
-    for (const b of level.biofilms || []) {
-      if (Number.isFinite(b.x)) lights.push({ x: b.x, y: b.y, r: 135, a: .48, color: '#f3dc86', glow: .16 });
-    }
-    if (level.goal && Number.isFinite(level.goal.x)) {
-      lights.push({ x: level.goal.x, y: level.goal.y, r: 300, a: .78, color: '#ffe7a8', glow: .24 + Math.sin(t * 1.6) * .04 });
+      lights.push({
+        x: c.x,
+        y: c.y,
+        maskR: c.active ? 200 : 110,
+        maskA: c.active ? .95 : .60,
+        glowR: c.active ? 70 : 34,
+        glowA: c.active ? .45 : .20,
+        color: '#f0d77a',
+        kind: 'checkpoint',
+      });
     }
 
-    // Microrganismos recebem luz curta na própria cor. A abertura na escuridão
-    // permanece pequena para recuperar a leitura sem lavar a fase inteira.
+    for (const b of level.biofilms || []) {
+      if (!Number.isFinite(b.x)) continue;
+      lights.push({
+        x: b.x,
+        y: b.y,
+        maskR: 90, maskA: .50,
+        glowR: 30, glowA: .36,
+        color: '#7fd8ff',
+        kind: 'biofilm',
+      });
+    }
+
+    if (level.goal && Number.isFinite(level.goal.x)) {
+      lights.push({
+        x: level.goal.x,
+        y: level.goal.y,
+        maskR: 330, maskA: .90,
+        glowR: 75, glowA: .40 + Math.sin(t * 1.6) * .04,
+        color: '#ffe7a8',
+        kind: 'goal',
+      });
+    }
+
+    // Microrganismos: abertura curta da máscara e glow ainda menor.
+    // Grupos somam luz naturalmente, sem precisar pintar a plataforma.
     const biologicalLights = {
-      bacillus:     { color: '#68d8ff', r: 52, a: .36, glow: .78 },
-      rhizobium:    { color: '#62ded5', r: 50, a: .34, glow: .72 },
-      azospirillum: { color: '#72e7c8', r: 50, a: .34, glow: .72 },
-      pseudomonas:  { color: '#a8ef68', r: 50, a: .34, glow: .74 },
-      trichoderma:  { color: '#86e99d', r: 50, a: .30, glow: .66 },
+      bacillus:     { color: '#68d8ff', maskR: 55, maskA: .50, glowR: 22, glowA: .60 },
+      rhizobium:    { color: '#62ded5', maskR: 55, maskA: .50, glowR: 20, glowA: .52 },
+      azospirillum: { color: '#72e7c8', maskR: 60, maskA: .52, glowR: 22, glowA: .54 },
+      pseudomonas:  { color: '#a8ef68', maskR: 55, maskA: .48, glowR: 21, glowA: .54 },
+      trichoderma:  { color: '#86e99d', maskR: 55, maskA: .45, glowR: 21, glowA: .48 },
     };
+
     const agents = typeof getAgents === 'function' ? (getAgents() || []) : [];
     const viewLeft = Number(state.cameraX) || 0;
     const viewWidth = Number(state.visibleWorldWidth) || Number(state.viewportWidth) || 1280;
     const viewRight = viewLeft + viewWidth;
+
     for (const agent of agents) {
       const spec = biologicalLights[agent.type];
       if (!spec || !Number.isFinite(agent.x) || !Number.isFinite(agent.y)) continue;
@@ -336,13 +349,11 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       lights.push({
         x: agent.x,
         y: agent.y,
-        r: spec.r,
-        a: spec.a,
-        color: spec.color,
-        glow: spec.glow,
+        ...spec,
         kind: agent.type,
       });
     }
+
     return lights;
   }
 
@@ -422,127 +433,6 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     ctx.restore();
   }
 
-  function drawSoilIllumination(ctx, m, zoom, W, H, shaftImpacts) {
-    ctx.save();
-    for (const item of shaftImpacts.items) {
-      const s = item.shaft;
-      const impact = item.impact;
-      if (!impact) continue;
-      const p = impact.platform;
-
-      const a = project(m, p.x, p.y);
-      const b = project(m, p.x + p.w, p.y + p.h);
-      const left = Math.min(a[0], b[0]);
-      const top = Math.min(a[1], b[1]);
-      const width = Math.abs(b[0] - a[0]);
-      const height = Math.abs(b[1] - a[1]);
-      if (left + width < 0 || left > W || top + height < 0 || top > H) continue;
-
-      const q0 = project(m, impact.left, impact.y);
-      const q1 = project(m, impact.right, impact.y);
-      const qc = project(m, impact.center, impact.y);
-      const lo = Math.min(q0[0], q1[0]);
-      const hi = Math.max(q0[0], q1[0]);
-      const icx = qc[0], icy = qc[1];
-      const footprint = Math.max(22 * zoom, hi - lo);
-      const radius = Math.max(70 * zoom, footprint * .72);
-      const penetration = Math.min(height * .78, Math.max(65 * zoom, footprint * .82));
-
-      // A textura ja desenhada e clareada dentro da propria plataforma.
-      ctx.save();
-      roundedScreenRect(ctx, left, top, width, height, Math.min(22 * zoom, height * .16));
-      ctx.clip();
-      ctx.globalCompositeOperation = 'screen';
-      ctx.translate(icx, icy);
-      ctx.scale(1, Math.max(.70, penetration / radius));
-      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-      const power = (.18 + s.strength * .18) * fade;
-      glow.addColorStop(0, 'rgba(255,224,157,' + (power * 1.35) + ')');
-      glow.addColorStop(.26, 'rgba(255,218,145,' + power + ')');
-      glow.addColorStop(.62, 'rgba(245,196,120,' + (power * .42) + ')');
-      glow.addColorStop(1, 'rgba(235,174,95,0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(-radius, 0, radius * 2, radius);
-      ctx.restore();
-
-      // Reflexo forte apenas na borda superior atingida.
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const edge = ctx.createLinearGradient(lo, 0, hi, 0);
-      edge.addColorStop(0, 'rgba(255,226,166,0)');
-      edge.addColorStop(.22, 'rgba(255,231,177,' + (.30 * fade) + ')');
-      edge.addColorStop(.5, 'rgba(255,246,214,' + (.62 * fade) + ')');
-      edge.addColorStop(.78, 'rgba(255,231,177,' + (.30 * fade) + ')');
-      edge.addColorStop(1, 'rgba(255,226,166,0)');
-      ctx.strokeStyle = edge;
-      ctx.lineWidth = Math.max(1.5, 2.2 * zoom);
-      ctx.beginPath();
-      ctx.moveTo(lo, icy + .5);
-      ctx.lineTo(hi, icy + .5);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // A luz do Miguelito tambem incide no material do solo. Isso e separado do
-    // halo de tela: a plataforma recebe luz de verdade e a propria textura e
-    // clareada localmente, somando naturalmente com os feixes vindos de cima.
-    for (const source of collectGroundLightSources()) {
-      const p = findPlatformForGroundLight(source);
-      if (!p) continue;
-
-      const a = project(m, p.x, p.y);
-      const b = project(m, p.x + p.w, p.y + p.h);
-      const left = Math.min(a[0], b[0]);
-      const top = Math.min(a[1], b[1]);
-      const width = Math.abs(b[0] - a[0]);
-      const height = Math.abs(b[1] - a[1]);
-      if (left + width < 0 || left > W || top + height < 0 || top > H) continue;
-
-      const center = project(m, source.x, p.y);
-      const icx = center[0];
-      const icy = center[1];
-      const radius = Math.max(68 * zoom, source.r * zoom * .70);
-      const penetration = Math.min(height * .76, Math.max(46 * zoom, radius * .56));
-
-      ctx.save();
-      roundedScreenRect(ctx, left, top, width, height, Math.min(22 * zoom, height * .16));
-      ctx.clip();
-      ctx.globalCompositeOperation = 'screen';
-      ctx.translate(icx, icy);
-      ctx.scale(1, Math.max(.50, penetration / radius));
-      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-      const power = source.a * .42 * fade;
-      glow.addColorStop(0, 'rgba(255,239,198,' + (power * 1.45) + ')');
-      glow.addColorStop(.20, 'rgba(255,222,154,' + (power * 1.08) + ')');
-      glow.addColorStop(.48, 'rgba(248,197,116,' + (power * .55) + ')');
-      glow.addColorStop(.78, 'rgba(239,177,93,' + (power * .18) + ')');
-      glow.addColorStop(1, 'rgba(235,174,95,0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(-radius, -4 * zoom, radius * 2, radius);
-      ctx.restore();
-
-      // Reflexo curto e intenso no topo: cria o efeito de penumbra no bloco.
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const edgeHalf = Math.min(width * .34, 52 * zoom);
-      const edge = ctx.createLinearGradient(icx - edgeHalf, 0, icx + edgeHalf, 0);
-      edge.addColorStop(0, 'rgba(255,229,170,0)');
-      edge.addColorStop(.28, 'rgba(255,232,178,' + (.34 * fade) + ')');
-      edge.addColorStop(.5, 'rgba(255,249,225,' + (.84 * fade) + ')');
-      edge.addColorStop(.72, 'rgba(255,232,178,' + (.34 * fade) + ')');
-      edge.addColorStop(1, 'rgba(255,229,170,0)');
-      ctx.strokeStyle = edge;
-      ctx.lineWidth = Math.max(1.8, 2.8 * zoom);
-      ctx.beginPath();
-      ctx.moveTo(icx - edgeHalf, icy + .5);
-      ctx.lineTo(icx + edgeHalf, icy + .5);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    ctx.restore();
-  }
-
   // ---------- 3. escuridão ----------
   function drawDarkness(ctx, m, zoom, W, H, lights, t, shaftImpacts) {
     if (!dctx) return;
@@ -579,8 +469,9 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       dctx.drawImage(stampSprite, x - rr, y - rr, rr * 2, rr * 2);
     };
     for (const l of lights) {
+      if (!l.maskR || !l.maskA) continue;
       const p = project(m, l.x, l.y);
-      stamp(p[0], p[1], l.r * zoom, l.a);
+      stamp(p[0], p[1], l.maskR * zoom, l.maskA);
     }
     dctx.globalAlpha = 1;
 
@@ -622,19 +513,16 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (const l of lights) {
-      if (!l.glow) continue;
+      if (!l.glowR || !l.glowA) continue;
       const [sx, sy] = project(m, l.x, l.y);
-      let glowScale = .72;
-      if (l.kind === 'player') glowScale = .44;
-      else if (l.kind === 'exudate') glowScale = .78;
-      else if (l.kind === 'iron') glowScale = .72;
-      const r = l.r * glowScale * zoom;
+      const r = l.glowR * zoom;
       if (sx + r < 0 || sx - r > W || sy + r < 0 || sy - r > H) continue;
       const sprite = glowSprite(l.color);
       if (!sprite) continue;
-      ctx.globalAlpha = Math.max(0, Math.min(1, l.glow * fade));
+      ctx.globalAlpha = Math.max(0, Math.min(1, l.glowA * fade));
       ctx.drawImage(sprite, sx - r, sy - r, r * 2, r * 2);
     }
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
@@ -723,7 +611,6 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     drawDarkness(ctx, m, zoom, W, H, lights, t, shaftImpacts);
     drawShafts(ctx, m, zoom, W, H, t, shaftImpacts);
-    drawSoilIllumination(ctx, m, zoom, W, H, shaftImpacts);
     drawGlows(ctx, m, zoom, W, H, lights);
     drawForeground(ctx, zoom, W, H, t);
     ctx.restore();
