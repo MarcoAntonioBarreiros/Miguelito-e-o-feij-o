@@ -16,14 +16,15 @@ O protótipo usa Canvas 2D com uma rizosfera fantástica, colorida e orgânica. 
 
 ## Geometria da rizosfera
 
-Camada em `src/render/rhizosphere-geometry.js`, chamada por `platformVisuals.drawWorld`. Só desenho: o colisor continua sendo o retângulo da plataforma, e o topo de toda forma desenhada fica exatamente em `platform.y`. Referência: `miguelito-fase1 (1).html` (drawSolids, buildSolidSprite, drawVerticalRoot, drawHorizontalRoot).
+Camada em `src/render/rhizosphere-geometry.js`, chamada por `platformVisuals.drawWorld`. Só desenho: o colisor continua sendo o retângulo da plataforma, os tipos `soil`/`root` não mudam, e o topo de toda forma desenhada fica exatamente em `platform.y`. Referência: `miguelito-fase1 (1).html`.
 
-- Solo: cada plataforma é o topo de uma massa contínua que desce até o fundo da tela. Paredes irregulares, no prumo do colisor na altura dos pulos e alargando para baixo (até 45% do vão), então os vãos viram barrancos em V que nunca fecham — a zona letal continua visível. Se houver outra plataforma embaixo, a massa para 170 px acima dela.
-- Raiz: raiz lateral com topo reto, afunilando da base até a coifa translúcida, com pelos radiculares na zona de maturação; nasce, com colar de ramificação, de uma raiz vertical escurecida que desce do teto.
-- Teto: faixa de solo acompanhando o terreno, 230 px acima da plataforma mais alta ao alcance (+140 com pulo duplo). Some na cinemática final e em fases com propulsão.
-- Texturas do autor mantidas: células em camadas das raízes (também em faixas verticais no tronco) e agregados/poros/grãos do solo, em ladrilhos presos ao mundo para não deslizar com a câmera.
-- `?geo=0` volta aos blocos antigos, para comparação. `window.miguelitoGeometry.lastRenderMs` mede o custo do quadro.
-- Elementos de progresso usam brilho e partículas, não ícones explicativos.
+- Solo (`soil`): topo de uma massa contínua que desce até o fundo da tela, com paredes irregulares. Os vãos viram barrancos em V que nunca fecham, então a zona letal continua visível.
+- Raiz (`root`): agregado de rizobainha, isto é, solo preso à raiz com a textura de pedras e grãos, contorno irregular, base desfeita em grãos soltos e pelos radiculares saindo por baixo. A raiz lateral visível (14–20 px, textura celular, contraste pleno) entra pelo lado da raiz principal, corre pela borda de cima parcialmente enterrada e sai na outra ponta com a coifa curvada para baixo. Os pelos ficam no terço perto da ponta.
+- Efeitos sobre a raiz: nódulos, fluxo e bloqueio da Ralstonia, J2 interno e estado de saúde são desenhados na raiz visível por `visibleRootRect(platform)` / `rootEffectY(platform, y)`. As galhas e o fungo já nasciam na borda de cima. Os sistemas continuam lendo a plataforma inteira.
+- Raízes principais: descem da superfície, que é a linha do colo de `finalRootCollar` (a mesma da cinemática final), e afinam para baixo. Usam a textura em faixas verticais com a paleta apagada `MUTED_ROOT_PALETTE` (menos saturação e contraste, sem véu). Cada bloco `root` se liga à principal mais próxima por uma lateral fina e sinuosa (`LINK_ROOT_PALETTE`), com ramificações de 2ª ordem. As plantas ficam nos vãos, uma a cada no máximo 720 px, e cada bloco tem uma principal a até 380 px. No colo de cada principal há um feijoeiro menor (`drawBeanPlant`), sem brilho.
+- Raiz-objetivo (`drawFinalRoot`): mesma textura celular, com a aura dourada e o filamento por cima.
+- Teto: faixa de solo entre a superfície e a caverna, 230 px acima da plataforma mais alta ao alcance. Na cinemática final ela fica sob o céu.
+- Texturas compartilhadas em `src/render/root-tissue.js`. `?geo=0` volta aos blocos antigos (lido em `src/render/geometry-preference.js`).
 
 ## Luz e atmosfera
 

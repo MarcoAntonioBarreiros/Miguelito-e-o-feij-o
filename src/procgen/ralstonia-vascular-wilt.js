@@ -25,6 +25,7 @@
 
 import { W } from '../core/constants.js';
 import { organismSprites } from '../render/organism-sprites.js';
+import { visibleRootRect } from '../render/rhizosphere-geometry.js';
 import { RALSTONIA_DEFAULTS, getPhaseManifest } from './campaign-manifest.js';
 import { createRandom } from './random.js';
 import { publishControlSignal } from './biological-audio-signals.js';
@@ -1922,10 +1923,14 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
         drawPendingMarker(ctx, focus);
         continue;
       }
-      drawVascularBlockage(ctx, focus);
-      drawVascularMotion(ctx, focus);
-      drawBacteria(ctx, focus);
-      drawStatus(ctx, focus);
+      // Bloqueio, fluxo e bactéria caem na raiz visível do agregado, não na
+      // terra em volta (só desenho; o foco continua ligado à plataforma).
+      const shown = Object.create(focus);
+      shown.root = visibleRootRect(focus.root);
+      drawVascularBlockage(ctx, shown);
+      drawVascularMotion(ctx, shown);
+      drawBacteria(ctx, shown);
+      drawStatus(ctx, shown);
       drawRoleBadge(ctx, focus);
     }
     ctx.restore();

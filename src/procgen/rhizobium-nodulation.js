@@ -1,4 +1,5 @@
 import { W } from '../core/constants.js';
+import { visibleRootRect } from '../render/rhizosphere-geometry.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -447,10 +448,15 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
         drawIncompatible(ctx, site);
         continue;
       }
-      drawRootHair(ctx, site);
-      drawInfectionThread(ctx, site);
-      drawPrimordium(ctx, site);
-      drawFixationFlux(ctx, site);
+      // O nódulo nasce na raiz visível do agregado, colado à borda de baixo
+      // dela (só desenho; o sítio continua com a profundidade da plataforma).
+      const root = site.platform ? visibleRootRect(site.platform) : null;
+      const shown = root && root !== site.platform ? Object.create(site) : site;
+      if (shown !== site) shown.depth = Math.min(site.depth, root.h * .9);
+      drawRootHair(ctx, shown);
+      drawInfectionThread(ctx, shown);
+      drawPrimordium(ctx, shown);
+      drawFixationFlux(ctx, shown);
     }
     ctx.restore();
   }

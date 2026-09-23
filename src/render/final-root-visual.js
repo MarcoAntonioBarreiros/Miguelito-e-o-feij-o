@@ -21,6 +21,9 @@
 // protótipo, preservada. A escala aproxima a raiz do tamanho que ela já tinha na
 // fase, para a troca de desenho não alterar o enquadramento do gameplay.
 
+import { GEOMETRY_ENABLED } from './geometry-preference.js';
+import { ROOT_PALETTE, paintRootTissueVertical } from './root-tissue.js';
+
 const TAU = Math.PI * 2;
 
 // Colo em relação a `goal.y`. O valor vem do desenho anterior, cujo topo ficava
@@ -134,6 +137,132 @@ function drawRootPath(ctx, points, baseWidth, pulse) {
   ctx.restore();
 }
 
+// Amostra a mesma spline de `splinePath` (quadráticas pelos pontos médios).
+function sampleSpline(points, perSegment = 6) {
+  const out = [{ x: points[0].x, y: points[0].y }];
+  let from = points[0];
+  for (let index = 1; index < points.length - 1; index++) {
+    const control = points[index];
+    const to = index < points.length - 2
+      ? { x: (points[index].x + points[index + 1].x) / 2, y: (points[index].y + points[index + 1].y) / 2 }
+      : points[points.length - 1];
+    for (let step = 1; step <= perSegment; step++) {
+      const t = step / perSegment;
+      const u = 1 - t;
+      out.push({
+        x: u * u * from.x + 2 * u * t * control.x + t * t * to.x,
+        y: u * u * from.y + 2 * u * t * control.y + t * t * to.y,
+      });
+    }
+    from = to;
+  }
+  return out;
+}
+
+function traceTube(ctx, samples, widthAt) {
+  const left = [];
+  const right = [];
+  samples.forEach((point, index) => {
+    const prev = samples[Math.max(0, index - 1)];
+    const next = samples[Math.min(samples.length - 1, index + 1)];
+    const len = Math.hypot(next.x - prev.x, next.y - prev.y) || 1;
+    const nx = -(next.y - prev.y) / len;
+    const ny = (next.x - prev.x) / len;
+    const half = widthAt(index / (samples.length - 1)) / 2;
+    left.push([point.x + nx * half, point.y + ny * half]);
+    right.push([point.x - nx * half, point.y - ny * half]);
+  });
+  const tip = samples[samples.length - 1];
+  ctx.beginPath();
+  ctx.moveTo(left[0][0], left[0][1]);
+  for (const point of left) ctx.lineTo(point[0], point[1]);
+  ctx.quadraticCurveTo(tip.x, tip.y + widthAt(1) * 1.2, right[right.length - 1][0], right[right.length - 1][1]);
+  for (let index = right.length - 1; index >= 0; index--) ctx.lineTo(right[index][0], right[index][1]);
+  ctx.closePath();
+}
+
+// A raiz-objetivo com a MESMA textura celular das outras raízes (faixas do
+// autor: epiderme verde, camada cinza, córtex) e o brilho por cima.
+function drawTexturedMain(ctx, points, baseWidth) {
+  const samples = sampleSpline(points);
+  const widthAt = t => baseWidth * (1 - t * .62);
+  ctx.save();
+  traceTube(ctx, samples, widthAt);
+  ctx.fillStyle = ROOT_PALETTE.innerBase;
+  ctx.fill();
+  ctx.clip();
+  // Em fatias, para as faixas acompanharem a raiz quando ela entorta.
+  const slice = 4;
+  for (let index = 0; index < samples.length - 1; index += slice) {
+    const top = samples[index];
+    const bottom = samples[Math.min(samples.length - 1, index + slice)];
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-600, top.y - .5, 1200, bottom.y - top.y + 1);
+    ctx.clip();
+    paintRootTissueVertical(
+      ctx, 7919 + index, (top.x + bottom.x) / 2, top.y - 4, bottom.y + 4,
+      widthAt(index / (samples.length - 1)) * .62,
+    );
+    ctx.restore();
+  }
+  ctx.restore();
+  ctx.save();
+  traceTube(ctx, samples, widthAt);
+  ctx.strokeStyle = ROOT_PALETTE.outline;
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTexturedBranch(ctx, points, baseWidth) {
+  const samples = sampleSpline(points, 8);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const stroke = (color, width) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath(); splinePath(ctx, points); ctx.stroke();
+  };
+  stroke(ROOT_PALETTE.outline, baseWidth + 4);
+  stroke(ROOT_PALETTE.green[1], baseWidth);
+  stroke(ROOT_PALETTE.blue[0], baseWidth * .7);
+  stroke(ROOT_PALETTE.ochreLarge[1], baseWidth * .46);
+  ctx.strokeStyle = ROOT_PALETTE.ochreStroke;
+  ctx.lineWidth = 2;
+  for (let index = 1; index < samples.length - 1; index++) {
+    const a = samples[index];
+    const b = samples[index + 1];
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const px = -(b.y - a.y) / len * baseWidth * .3;
+    const py = (b.x - a.x) / len * baseWidth * .3;
+    ctx.beginPath(); ctx.moveTo(a.x - px, a.y - py); ctx.lineTo(a.x + px, a.y + py); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Brilho do objetivo aplicado POR CIMA do tecido: aura dourada translúcida e um
+// filamento claro no eixo. O pulso de conclusão só acende mais.
+function drawObjectiveGlow(ctx, points, baseWidth, pulse) {
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath(); splinePath(ctx, points);
+  // Aura só nas bordas (traço largo e fraco): o tecido continua legível.
+  ctx.strokeStyle = `rgba(255, 222, 140, ${.1 + pulse * .3})`;
+  ctx.lineWidth = baseWidth * (1.3 + pulse);
+  ctx.shadowColor = 'rgba(255, 225, 140, .8)';
+  ctx.shadowBlur = 18 + pulse * 40;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.beginPath(); splinePath(ctx, points);
+  ctx.strokeStyle = `rgba(255, 246, 215, ${.32 + pulse * .45})`;
+  ctx.lineWidth = Math.max(2.5, baseWidth * .09);
+  ctx.stroke();
+  ctx.restore();
+}
+
 /**
  * Desenha a raiz final em coordenadas de MUNDO, com o colo em `goal`.
  *
@@ -149,10 +278,19 @@ export function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, 
   ctx.translate(collar.x, collar.y);
   ctx.scale(scale, scale);
 
-  FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => {
-    drawRootPath(ctx, branch, branchWidthLocal(index), glow * 0.4);
-  });
-  drawRootPath(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL, glow * 0.6);
+  if (GEOMETRY_ENABLED) {
+    FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => drawTexturedBranch(ctx, branch, branchWidthLocal(index)));
+    drawTexturedMain(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL);
+    FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => (
+      drawObjectiveGlow(ctx, branch, branchWidthLocal(index), glow * .4)
+    ));
+    drawObjectiveGlow(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL, glow * .6);
+  } else {
+    FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => {
+      drawRootPath(ctx, branch, branchWidthLocal(index), glow * 0.4);
+    });
+    drawRootPath(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL, glow * 0.6);
+  }
 
   // O halo do córtex luminoso, que é o alvo do jogador durante a fase.
   const breath = 1 + Math.sin(time * 2.1) * 0.05;
