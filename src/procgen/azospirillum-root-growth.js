@@ -6,6 +6,8 @@ import { getPrimaryTraversalPlatforms } from './traversal-route.js';
 import { getNitrogenAvailability } from './nitrogen-availability.js';
 import { synchronizeWorldBounds } from './world-bounds.js';
 import { fxLanded } from '../game-audio.js';
+import { drawRootTube } from '../render/root-architecture.js';
+import { MUTED_ROOT_PALETTE, paintRootTissue } from '../render/root-tissue.js';
 
 export const AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE = 'azospirillum-root-ladder';
 
@@ -1240,24 +1242,42 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     // detecta a raiz superior e cresce do bloco inferior até ela. Aqui o
     // traço é radicular, não hifal.
     if (visibleSegments > 0) {
-      ctx.strokeStyle = ladder.developed ? '#a7784f' : '#c3a172';
-      ctx.lineWidth = 5 + ladder.visibleProgress * 2;
-      ctx.shadowColor = '#72e8dd';
-      ctx.shadowBlur = ladder.developed ? 3 : 8;
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
+      // Mesma curva de antes, amostrada, desenhada como raiz lateral.
+      const stem = [[points[0].x, points[0].y]];
       for (let index = 1; index <= visibleSegments; index++) {
         const previous = points[index - 1];
         const point = points[index];
-        ctx.quadraticCurveTo(
-          lerp(previous.x, point.x, .55) + Math.sin(index * 1.8 + ladder.phase) * 5,
-          lerp(previous.y, point.y, .5),
-          point.x,
-          point.y,
-        );
+        const cx = lerp(previous.x, point.x, .55) + Math.sin(index * 1.8 + ladder.phase) * 5;
+        const cy = lerp(previous.y, point.y, .5);
+        for (let k = 1; k <= 10; k++) {
+          const t = k / 10;
+          const u = 1 - t;
+          stem.push([
+            u * u * previous.x + 2 * u * t * cx + t * t * point.x,
+            u * u * previous.y + 2 * u * t * cy + t * t * point.y,
+          ]);
+        }
       }
-      ctx.stroke();
-      ctx.shadowBlur = 0;
+      const width = 5 + ladder.visibleProgress * 2;
+      if (!ladder.developed) {
+        // Enquanto cresce, um halo leve de atividade do Azospirillum.
+        ctx.save();
+        ctx.strokeStyle = 'rgba(114,232,221,.25)';
+        ctx.lineWidth = width + 6;
+        ctx.shadowColor = '#72e8dd';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.moveTo(stem[0][0], stem[0][1]);
+        for (const [x, y] of stem) ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.restore();
+      }
+      drawRootTube(ctx, {
+        points: stem,
+        widths: stem.map(() => width),
+        hairs: false,
+        noCap: true,
+      }, { palette: MUTED_ROOT_PALETTE, seed: Math.round(ladder.startX * 7 + ladder.startY), time: state.time || 0 });
     }
 
     const shouldShowInstruction = ladder.showInstruction === true
@@ -1281,20 +1301,58 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     for (const step of ladder.steps) {
       if (step.progress <= 0) continue;
       const half = step.currentWidth / 2;
-      ctx.strokeStyle = step.mature ? '#d6b67d' : '#d8c69d';
-      ctx.lineWidth = step.currentHeight;
-      ctx.shadowColor = step.mature ? '#9bea8f' : '#72e8dd';
-      ctx.shadowBlur = step.mature ? 5 : 11;
-      ctx.beginPath();
-      ctx.moveTo(step.centerX - half, step.y + step.currentHeight / 2);
-      ctx.quadraticCurveTo(
-        step.centerX,
-        step.y - 3,
-        step.centerX + half,
-        step.y + step.currentHeight / 2,
-      );
-      ctx.stroke();
-      ctx.shadowBlur = 0;
+      const rung = [];
+      const ax = step.centerX - half;
+      const ay = step.y + step.currentHeight / 2;
+      const bx = step.centerX + half;
+      for (let k = 0; k <= 16; k++) {
+        const t = k / 16;
+        const u = 1 - t;
+        rung.push([
+          u * u * ax + 2 * u * t * step.centerX + t * t * bx,
+          u * u * ay + 2 * u * t * (step.y - 3) + t * t * ay,
+        ]);
+      }
+      if (!step.mature) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(114,232,221,.22)';
+        ctx.lineWidth = step.currentHeight + 5;
+        ctx.shadowColor = '#72e8dd';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.moveTo(rung[0][0], rung[0][1]);
+        for (const [x, y] of rung) ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.restore();
+      }
+      {
+        // Textura celular do autor, na cor apagada da raiz principal (menos
+        // poluição visual que a raiz lateral de contraste pleno).
+        const h = step.currentHeight;
+        const traceRung = () => {
+          ctx.beginPath();
+          ctx.moveTo(rung[0][0], rung[0][1] - h / 2);
+          for (const [x, y] of rung) ctx.lineTo(x, y - h / 2);
+          const end = rung[rung.length - 1];
+          ctx.arc(end[0], end[1], h / 2, -Math.PI / 2, Math.PI / 2);
+          for (let k = rung.length - 1; k >= 0; k--) ctx.lineTo(rung[k][0], rung[k][1] + h / 2);
+          ctx.arc(rung[0][0], rung[0][1], h / 2, Math.PI / 2, Math.PI * 1.5);
+          ctx.closePath();
+        };
+        ctx.save();
+        traceRung();
+        ctx.fillStyle = MUTED_ROOT_PALETTE.innerBase;
+        ctx.fill();
+        ctx.clip();
+        paintRootTissue(ctx, Math.round(step.centerX * 3 + step.y), ax - h, step.y - 4, bx - ax + h * 2, h + 6, MUTED_ROOT_PALETTE);
+        ctx.restore();
+        ctx.save();
+        traceRung();
+        ctx.strokeStyle = MUTED_ROOT_PALETTE.outline;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.restore();
+      }
 
       const hairCount = Math.floor(step.progress * 5);
       ctx.strokeStyle = 'rgba(238,220,185,.64)';

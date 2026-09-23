@@ -490,9 +490,12 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     const topPoint = project(m, 0, bounds.top - 120);
     const bottomPoint = project(m, 0, bounds.bottom + 80);
     const g = dctx.createLinearGradient(0, topPoint[1] / DARK_SCALE, 0, bottomPoint[1] / DARK_SCALE);
-    g.addColorStop(0, 'rgba(2,9,14,.24)');
-    g.addColorStop(.55, 'rgba(2,8,13,.48)');
-    g.addColorStop(1, 'rgba(1,4,8,.76)');
+    // Mesma força de escuridão do protótipo (40% → 70% → 90% com a
+    // profundidade), no tom azulado da rizosfera: é o contraste que faz a luz
+    // do Miguelito e dos organismos ler como luz, não como halo.
+    g.addColorStop(0, 'rgba(2,9,14,.40)');
+    g.addColorStop(.55, 'rgba(2,8,13,.70)');
+    g.addColorStop(1, 'rgba(1,4,8,.90)');
     dctx.fillStyle = g;
     dctx.fillRect(0, 0, dw, dh);
 
