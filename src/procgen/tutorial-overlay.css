@@ -40,7 +40,8 @@ html.tutorial-open, html.tutorial-open body { touch-action: pan-y; }
   gap: 28px;
   align-items: center;
   padding: 28px 32px 26px 28px;
-  height: min(600px, calc(100dvh - 50px));
+  min-height: 340px;
+  max-height: calc(100dvh - 50px);
 }
 .tutorial-scope {
   width: 100%;
@@ -55,39 +56,50 @@ html.tutorial-open, html.tutorial-open body { touch-action: pan-y; }
   background: #050202;
   box-shadow: 0 0 0 7px #7a5334,0 0 0 9px #3a2215,0 0 0 11px #a57a4f,inset 0 0 40px rgba(0,0,0,.8);
 }
-.tutorial-paper-content { display: grid; grid-template-rows: auto minmax(0,1fr) auto; height: 100%; min-height: 0; min-width: 0; overflow: hidden; }
+.tutorial-paper-content { display: grid; grid-template-rows: auto minmax(0,1fr) auto; max-height: calc(100dvh - 106px); min-height: 0; min-width: 0; overflow: hidden; }
 .tutorial-header { padding-right: 14px; }
-.tutorial-heading-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+.tutorial-heading-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
 .tutorial-category, .tutorial-new-badge { color: var(--tutorial-muted); font: 700 10px/1.3 var(--tutorial-body); letter-spacing: .12em; text-transform: uppercase; }
-.tutorial-new-badge { color: var(--tutorial-amber); }
+.tutorial-new-badge { display: none; }
+.tutorial-title--scientific { font-style: italic; }
 .tutorial-title, .tutorial-library-title { font-family: var(--tutorial-display); font-weight: 800; font-size: 2.1rem; line-height: 1; margin: 0 0 .25rem; color: #fff4e2; overflow-wrap: anywhere; }
 .tutorial-subtitle { margin: 0 0 1rem; color: var(--tutorial-amber); font-weight: 700; line-height: 1.35; }
 .tutorial-page { min-height: 0; display: flex; }
-.tutorial-page-scroll { width: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #7a5334 transparent; padding-right: 8px; user-select: text; }
-.tutorial-page-title { font: 700 1.05rem/1.35 var(--tutorial-body); margin: 0 0 .65rem; color: #fff4e2; }
+.tutorial-page-scroll { width: 100%; min-height: 0; max-height: 250px; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #7a5334 transparent; padding-right: 8px; user-select: text; }
+.tutorial-page-title { font: 700 .82rem/1.35 var(--tutorial-body); margin: 0 0 .5rem; color: var(--tutorial-muted); }
 .tutorial-page-body { margin: 0 0 .9rem; line-height: 1.55; color: #f1dcc6; max-width: 62ch; font-size: 1rem; }
 .tutorial-page-points { margin: 0 0 1rem; padding: .7rem .9rem .7rem 1.8rem; border-radius: 12px; background: rgba(108,231,223,.09); border-left: 3px solid var(--tutorial-cyan); color: #dff7f2; line-height: 1.5; }
 .tutorial-page-points li + li { margin-top: .4rem; }
-.tutorial-cycle-block { margin-top: 1rem; padding-top: .65rem; border-top: 1px solid var(--tutorial-line); }
-.tutorial-cycle-label { display: block; color: var(--tutorial-muted); font-size: .72rem; margin-bottom: .3rem; }
-.tutorial-cycle { display: flex; flex-wrap: wrap; gap: 3px 5px; color: var(--tutorial-muted); font-size: .75rem; line-height: 1.5; }
-.tutorial-cycle-link { display: inline-flex; align-items: baseline; gap: 5px; }
-.tutorial-cycle-step { overflow-wrap: anywhere; }
-.tutorial-cycle-arrow { color: var(--tutorial-amber); }
-.tutorial-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 16px 0 5px; }
+.tutorial-card-view[data-page-tone="game"] .tutorial-page-scroll { padding: .7rem .9rem; border-left: 3px solid var(--tutorial-cyan); border-radius: 12px; background: rgba(108,231,223,.09); }
+.tutorial-card-view[data-page-tone="game"] .tutorial-page-body { color: #dff7f2; margin-bottom: 0; }
+.tutorial-card-view[data-page-tone="game"] .tutorial-page-points { border: 0; background: transparent; padding: 0 0 0 1rem; margin: .6rem 0 0; }
+.tutorial-cycle-block { position: relative; margin: 4px 0; height: var(--cycle-height); }
+.tutorial-cycle-label { display: none; }
+.tutorial-cycle { margin: 0; padding: 0; list-style: none; color: #f1dcc6; font-size: .9rem; line-height: 1.4; }
+.tutorial-cycle-path { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.tutorial-cycle-step { position: absolute; top: 0; height: 70px; transform: translateX(-50%); display: flex; justify-content: center; align-items: flex-end; padding: 0 10px 16px; text-align: center; overflow-wrap: anywhere; }
+.tutorial-cycle-step::after { content: ''; position: absolute; width: 5px; height: 5px; border-radius: 50%; left: calc(50% - 2.5px); bottom: -2.5px; background: #c99a62; }
+.tutorial-cycle-step--lower { top: 110px; align-items: flex-start; padding: 16px 10px 0; }
+.tutorial-cycle-step--lower::after { top: -2.5px; bottom: auto; }
+.tutorial-cycle-block--narrow .tutorial-cycle-step { overflow-wrap: normal; }
+.tutorial-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 0 5px; }
 .tutorial-button { color: var(--tutorial-ink); background: transparent; border: 1.5px solid var(--tutorial-line); border-radius: 999px; min-height: 44px; padding: .7rem 1rem; font: 700 .95rem/1.2 var(--tutorial-body); cursor: pointer; touch-action: manipulation; }
-.tutorial-next { background: var(--tutorial-amber); color: #3a1608; border: 0; padding: .8rem 1.35rem; font: 800 1.1rem/1.2 var(--tutorial-display); box-shadow: 0 4px 0 #b3651f,0 12px 24px rgba(0,0,0,.35); transition: transform .08s; }
+.tutorial-next { display: inline-flex; align-items: center; justify-content: center; background: var(--tutorial-amber); color: #3a1608; border: 0; padding: .8rem 1.9rem; font: 800 1.2rem/1.2 var(--tutorial-display); text-align: center; box-shadow: 0 4px 0 #b3651f,0 12px 24px rgba(0,0,0,.35); transition: transform .08s; }
+.tutorial-button-label { display: block; transform: translateY(.09em); }
 .tutorial-next:active { transform: translateY(3px); box-shadow: 0 1px 0 #b3651f; }
 .tutorial-prev { font-size: 1.3rem; padding: .5rem; min-width: 44px; }
 .tutorial-button:disabled { opacity: .3; cursor: default; }
+.tutorial-prev:disabled { visibility: hidden; }
 .tutorial-button:hover:not(:disabled) { filter: brightness(1.12); }
 .tutorial-overlay :focus-visible { outline: 3px solid var(--tutorial-cyan); outline-offset: -3px; }
-.tutorial-pagination { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-right: auto; }
+.tutorial-pagination { display: flex; flex-direction: column; align-items: center; gap: 0; margin-right: auto; }
 .tutorial-page-dots { display: flex; }
 .tutorial-page-dot { width: 24px; height: 26px; border: 0; padding: 0; background: transparent; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; }
 .tutorial-page-dot::after { content: ''; width: 6px; height: 6px; border: 1px solid var(--tutorial-muted); border-radius: 50%; }
 .tutorial-page-dot.active::after { background: var(--tutorial-amber); border-color: var(--tutorial-amber); }
-.tutorial-page-counter { color: var(--tutorial-muted); font-size: .7rem; }
+.tutorial-page-counter { color: var(--tutorial-muted); font-size: .65rem; }
+.tutorial-pagination--many .tutorial-page-dots { display: none; }
+.tutorial-pagination--many .tutorial-page-counter { font-size: .8rem; padding: 0 10px; }
 .tutorial-close { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 0; background: transparent; color: var(--tutorial-muted); font: 24px/1 var(--tutorial-body); cursor: pointer; touch-action: manipulation; z-index: 2; }
 .tutorial-library-view { padding: 28px; max-height: calc(100dvh - 50px); overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; }
 .tutorial-library-header { display: flex; gap: 20px; align-items: start; }
@@ -118,21 +130,30 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
 @media (max-width: 640px) {
   .tutorial-overlay { padding: max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); }
   .tutorial-panel { max-height: calc(100dvh - 32px); }
-  .tutorial-card-view { grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr); padding: 20px; gap: 24px; height: min(820px,calc(100dvh - 34px)); }
-  .tutorial-scope { max-width: min(170px,24dvh); margin: 0 auto; }
+  .tutorial-card-view { --tutorial-scope-size: min(170px,24dvh); grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr); padding: 20px; gap: 24px; min-height: 0; max-height: calc(100dvh - 34px); }
+  .tutorial-paper-content { max-height: calc(100dvh - 98px - var(--tutorial-scope-size)); }
+  .tutorial-scope { max-width: var(--tutorial-scope-size); margin: 0 auto; }
   .tutorial-title { font-size: 1.7rem; }
   .tutorial-subtitle { font-size: .9rem; margin-bottom: .75rem; }
-  .tutorial-next { font-size: 1rem; padding: .8rem 1rem; }
+  .tutorial-next { font-size: 1.1rem; padding: .8rem 1.5rem; }
   .tutorial-page-dot { width: 20px; }
+  .tutorial-page-dots { display: none; }
+  .tutorial-page-counter { font-size: .8rem; padding: 0 10px; }
   .tutorial-footer { gap: 5px; }
+  .tutorial-cycle { font-size: .85rem; line-height: 1.3; }
+  .tutorial-cycle-step { padding-left: 6px; padding-right: 6px; }
   .tutorial-library-grid { grid-template-columns: 1fr; }
   .tutorial-library-header { display: block; }
   .tutorial-library-footer { flex-direction: column-reverse; }
 }
+@media (max-width: 640px) and (max-height: 640px) {
+  .tutorial-card-view { --tutorial-scope-size: min(140px,20dvh); }
+}
 @media (max-height: 560px) and (min-width: 641px) {
   .tutorial-overlay { padding: 12px max(24px,env(safe-area-inset-right)) 12px max(24px,env(safe-area-inset-left)); }
   .tutorial-panel { max-height: calc(100dvh - 24px); }
-  .tutorial-card-view { height: calc(100dvh - 26px); grid-template-columns: minmax(150px,200px) minmax(0,1fr); padding: 20px 28px; }
+  .tutorial-card-view { max-height: calc(100dvh - 26px); min-height: 0; grid-template-columns: minmax(150px,200px) minmax(0,1fr); padding: 20px 28px; }
+  .tutorial-paper-content { max-height: calc(100dvh - 66px); }
   .tutorial-title { font-size: 1.7rem; }
   .tutorial-subtitle { font-size: .9rem; margin-bottom: .6rem; }
   .tutorial-heading-meta { margin-bottom: 4px; }

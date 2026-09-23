@@ -1,3 +1,4 @@
+import { tutorialDisplayPages } from './tutorial-card-pages.js';
 import { createTutorialMicroscope } from './tutorial-microscope.js';
 import { getTutorialCard, tutorialCardIds, tutorialCards } from './tutorial-registry.js';
 import { tutorialPacing } from './campaign-manifest.js';
@@ -124,7 +125,8 @@ export function createTutorialManager({ state }) {
                 <ul class="tutorial-page-points"></ul>
                 <div class="tutorial-cycle-block">
                   <span class="tutorial-cycle-label"></span>
-                  <div class="tutorial-cycle"></div>
+                  <svg class="tutorial-cycle-path" aria-hidden="true"></svg>
+                  <ol class="tutorial-cycle"></ol>
                 </div>
               </div>
             </main>
@@ -134,7 +136,7 @@ export function createTutorialManager({ state }) {
                 <div class="tutorial-page-dots" aria-label="Páginas do cartão"></div>
                 <span class="tutorial-page-counter" aria-live="polite" aria-atomic="true"></span>
               </div>
-              <button class="tutorial-button tutorial-next" type="button" aria-label="Próxima página">Próximo →</button>
+              <button class="tutorial-button tutorial-next" type="button" aria-label="Próxima página"><span class="tutorial-button-label">Continuar</span></button>
             </footer>
           </div>
         </div>
@@ -276,43 +278,83 @@ export function createTutorialManager({ state }) {
     const steps = card.cycle || [];
     if (cycleBlock) {
       cycleBlock.hidden = steps.length === 0;
-      cycleBlock.classList.remove('tutorial-cycle-enter');
-      void cycleBlock.offsetWidth;
-      if (steps.length > 0) cycleBlock.classList.add('tutorial-cycle-enter');
     }
     cycle.replaceChildren();
     if (steps.length === 0) return;
     setText(cycleLabel, card.cycleLabel || 'Ciclo ou etapas');
     cycle.classList.toggle('tutorial-cycle--long', steps.length > 5);
 
-    for (const [index, step] of steps.entries()) {
-      if (index === 0) {
-        const firstChip = document.createElement('span');
-        firstChip.className = 'tutorial-cycle-step';
-        firstChip.textContent = step;
-        cycle.appendChild(firstChip);
-      } else {
-        const link = document.createElement('span');
-        link.className = 'tutorial-cycle-link';
-
-        const arrow = document.createElement('span');
-        arrow.className = 'tutorial-cycle-arrow';
-        arrow.textContent = '→';
-
-        const chip = document.createElement('span');
-        chip.className = 'tutorial-cycle-step';
-        chip.textContent = step;
-
-        link.appendChild(arrow);
-        link.appendChild(chip);
-        cycle.appendChild(link);
+    const topCount = steps.length <= 3 ? steps.length : Math.ceil(steps.length / 2);
+    const bottomCount = steps.length - topCount;
+    const narrow = window.matchMedia('(max-width: 400px)').matches;
+    const height = narrow ? Math.ceil(steps.length / 2) * 90 : bottomCount ? 180 : 90;
+    cycleBlock.classList.toggle('tutorial-cycle-block--narrow', narrow);
+    cycleBlock.style.setProperty('--cycle-height', height + 'px');
+    const path = mount.querySelector('.tutorial-cycle-path');
+    path.setAttribute('viewBox', '0 0 420 ' + height);
+    path.setAttribute('preserveAspectRatio', 'none');
+    path.replaceChildren();
+    const svgElement = (name, attributes) => {
+      const element = document.createElementNS('http://www.w3.org/2000/svg', name);
+      for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+      return element;
+    };
+    const defs = svgElement('defs', {});
+    const marker = svgElement('marker', { id: 'tutorial-cycle-arrow', markerWidth: 7, markerHeight: 7,
+      refX: 5, refY: 3, orient: 'auto', markerUnits: 'userSpaceOnUse' });
+    marker.appendChild(svgElement('path', { d: 'M1 1 L4 3 L1 5', fill: 'none', stroke: '#c99a62', 'stroke-width': 1 }));
+    defs.appendChild(marker); path.appendChild(defs);
+    const positions = steps.map((_, index) => {
+      if (narrow) {
+        const band = Math.floor(index / 2);
+        const column = band % 2 ? 1 - index % 2 : index % 2;
+        return { x: (column + .5) * 210, y: band * 90 + 70, lower: false, count: 2 };
       }
+      const lower = index >= topCount;
+      const count = lower ? bottomCount : topCount;
+      const column = lower ? bottomCount - 1 - (index - topCount) : index;
+      return { x: (column + .5) / count * 420, y: lower ? 110 : 70, lower, count };
+    });
+    for (const [index, step] of steps.entries()) {
+      const position = positions[index];
+      const row = document.createElement('li');
+      row.className = 'tutorial-cycle-step' + (position.lower ? ' tutorial-cycle-step--lower' : '');
+      row.style.left = (position.x / 420 * 100) + '%';
+      row.style.width = (100 / position.count) + '%';
+      if (narrow) row.style.top = (position.y - 70) + 'px';
+      row.textContent = step;
+      cycle.appendChild(row);
+      const next = positions[index + 1];
+      if (!next) continue;
+      let d;
+      if (position.y === next.y) {
+        const direction = next.x > position.x ? 1 : -1;
+        d = 'M' + (position.x + direction * 10) + ' ' + position.y + ' H' + (next.x - direction * 12);
+      } else if (narrow) {
+        const right = position.x > 210;
+        const edge = right ? 406 : 14;
+        const bend = right ? 388 : 32;
+        const direction = right ? 1 : -1;
+        d = `M${position.x + direction * 10} ${position.y} H${bend} Q${edge} ${position.y} ${edge} ${position.y + 18} V${next.y - 18} Q${edge} ${next.y} ${bend} ${next.y} H${next.x + direction * 12}`;
+      } else {
+        d = 'M' + (position.x + 10) + ' 70 H388 Q406 70 406 88 V92 Q406 110 388 110 H' + (next.x + 12);
+      }
+      path.appendChild(svgElement('path', { d, fill: 'none', stroke: 'rgba(201,154,98,.5)',
+        'stroke-width': 1, 'marker-end': 'url(#tutorial-cycle-arrow)' }));
     }
+  }
+
+  window.matchMedia('(max-width: 400px)').addEventListener('change', () => {
+    if (mode === 'card' && displayPages()[pageIndex]?.kind === 'cycle') renderCycle(getTutorialCard(activeId));
+  });
+
+  function displayPages() {
+    return tutorialDisplayPages(getTutorialCard(activeId), flow.pagesFor(activeId));
   }
 
   function renderDots(card) {
     pageDots.replaceChildren();
-    for (const index of flow.pagesFor(activeId)) {
+    for (const [index] of displayPages().entries()) {
       const dot = document.createElement('button');
       dot.type = 'button';
       dot.className = `tutorial-page-dot${index === pageIndex ? ' active' : ''}`;
@@ -329,19 +371,24 @@ export function createTutorialManager({ state }) {
   function renderCard() {
     const card = getTutorialCard(activeId);
     if (!card) return;
-    const availablePages = flow.pagesFor(activeId);
+    const availablePages = displayPages();
     if (!availablePages.length) return;
-    if (!availablePages.includes(pageIndex)) pageIndex = availablePages[0];
-    const currentPage = card.pages[pageIndex] || card.pages[0];
-    const pagePosition = availablePages.indexOf(pageIndex);
+    pageIndex = Math.min(pageIndex, availablePages.length - 1);
+    const currentPage = availablePages[pageIndex];
+    const pagePosition = pageIndex;
+    cardView.dataset.pageKind = currentPage.kind;
+    cardView.dataset.pageTone = currentPage.kind !== 'cycle'
+      && /no jogo|como usar|poder inimigo|novo movimento|missão do jogador/i.test(currentPage.title) ? 'game' : 'science';
+    title.classList.toggle('tutorial-title--scientific', /^organism-(rhizobium|azospirillum|bacillus|pseudomonas|trichoderma|rhizoctonia|ralstonia|meloidogyne)/.test(card.id));
 
     panel.style.setProperty('--tutorial-accent', card.accent || '#70e5d6');
     setText(category, card.category);
     setText(title, card.title);
-    setText(subtitle, card.subtitle);
+    setText(subtitle, pageIndex === 0 ? card.subtitle : currentPage.title);
     microscope.show(card.id);
     setText(pageCounter, `${pagePosition + 1} / ${availablePages.length}`);
     setText(pageTitle, currentPage.title);
+    pageTitle.hidden = pageIndex > 0;
     setText(pageBody, currentPage.body);
     if (newBadge) newBadge.hidden = !activeFirstSeen;
 
@@ -353,7 +400,11 @@ export function createTutorialManager({ state }) {
     }
     pagePoints.hidden = !(currentPage.points || []).length;
 
-    renderCycle(card);
+    renderCycle(currentPage.kind === 'cycle' ? card : { cycle: [] });
+    pageBody.hidden = !currentPage.body;
+    pageDots.parentElement.hidden = availablePages.length <= 1;
+    pageDots.parentElement.classList.toggle('tutorial-pagination--many', availablePages.length > 6);
+    previousButton.hidden = availablePages.length <= 1;
     renderDots(card);
 
     // A pagina nova comeca do comeco. Sem isto a rolagem da pagina anterior
@@ -368,7 +419,7 @@ export function createTutorialManager({ state }) {
 
     nextButton.setAttribute('aria-label', nextActionLabel);
     nextButton.title = nextActionLabel;
-    nextButton.textContent = finalPage ? nextActionLabel : 'Próximo →';
+    setText(nextButton.querySelector('.tutorial-button-label'), finalPage ? nextActionLabel : 'Continuar');
     nextButton.dataset.action = finalPage ? 'finish' : 'next';
 
     previousButton.disabled = pagePosition === 0;
@@ -397,7 +448,7 @@ export function createTutorialManager({ state }) {
     panel.classList.remove('tutorial-panel--library');
     mode = 'card';
     activeId = id;
-    pageIndex = availablePages[0];
+    pageIndex = 0;
     returnToLibrary = fromLibrary;
     activeFirstSeen = firstSeen;
     cardView.hidden = false;
@@ -423,10 +474,9 @@ export function createTutorialManager({ state }) {
   function nextPage() {
     const card = getTutorialCard(activeId);
     if (!card) return;
-    const availablePages = flow.pagesFor(activeId);
-    const pagePosition = availablePages.indexOf(pageIndex);
-    if (pagePosition >= 0 && pagePosition < availablePages.length - 1) {
-      pageIndex = availablePages[pagePosition + 1];
+    const availablePages = displayPages();
+    if (pageIndex < availablePages.length - 1) {
+      pageIndex++;
       renderCard();
       return;
     }
@@ -434,10 +484,8 @@ export function createTutorialManager({ state }) {
   }
 
   function previousPage() {
-    const availablePages = flow.pagesFor(activeId);
-    const pagePosition = availablePages.indexOf(pageIndex);
-    if (pagePosition <= 0) return;
-    pageIndex = availablePages[pagePosition - 1];
+    if (pageIndex <= 0) return;
+    pageIndex--;
     renderCard();
   }
 
