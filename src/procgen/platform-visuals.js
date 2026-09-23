@@ -1,5 +1,6 @@
 import { H, W } from '../core/constants.js';
 import { drawWorldLabel } from './world-label.js';
+import { createRhizosphereGeometry, readGeometryPreference } from '../render/rhizosphere-geometry.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -124,29 +125,13 @@ function drawUpwardHairs(ctx, platform, seed) {
   ctx.restore();
 }
 
-export function drawRootVisual(ctx, platform) {
-  const seed = platformSeed(platform);
-  const radius = platform.final ? 18 : 15;
-  const health = clamp(platform.rootHealth ?? 1, 0, 1);
-  const permanentDamage = clamp(platform.permanentDamage || 0, 0, .7);
-  const stateStyle = stateInfo(platform);
-
-  // 1. Radículas / Pelos no topo
-  drawUpwardHairs(ctx, platform, seed);
-
-  ctx.save();
-  roundedPath(ctx, platform, radius);
-  ctx.clip();
-
-  // 2. Fundo base
-  ctx.fillStyle = ROOT_PALETTE.innerBase;
-  ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-
-  const padX = platform.w * 0.05;
-  const gX = platform.x - padX;
-  const gEndX = platform.x + platform.w + padX;
-  const y = platform.y;
-  const height = platform.h;
+// Tecido da raiz em camadas (epiderme verde, faixa azulada, córtex ocre) no
+// retângulo dado. Usado pelo bloco antigo e pela raiz lateral/vertical do
+// visual de geometria — a textura é a mesma nos dois.
+export function paintRootTissue(ctx, seed, x, y, width, height) {
+  const padX = width * 0.05;
+  const gX = x - padX;
+  const gEndX = x + width + padX;
 
   const greenBand = height * 0.20;
   const blueBand = height * 0.14;
@@ -183,6 +168,43 @@ export function drawRootVisual(ctx, platform) {
     fillColors: ROOT_PALETTE.ochreLarge, strokeColor: ROOT_PALETTE.ochreStroke,
     strokeWidth: clamp(height * 0.010, 0.75, 1.15),
   });
+}
+
+// A mesma textura de tecido, para uma raiz VERTICAL: as camadas viram faixas
+// verticais (epiderme verde nas duas bordas, córtex ocre no meio) e as células
+// se alongam ao longo do eixo da raiz. Tudo em coordenadas de mundo.
+export function paintRootTissueVertical(ctx, seed, centerX, top, bottom, halfWidth) {
+  const height = bottom - top;
+  const bands = [
+    { share: 0.20, colors: ROOT_PALETTE.green, stroke: ROOT_PALETTE.greenStroke, cellH: 16 },
+    { share: 0.14, colors: ROOT_PALETTE.blue, stroke: ROOT_PALETTE.blueStroke, cellH: 11 },
+    { share: 0.10, colors: ROOT_PALETTE.ochreSmall, stroke: ROOT_PALETTE.ochreStroke, cellH: 12 },
+  ];
+  let inner = halfWidth;
+  bands.forEach((band, index) => {
+    const width = Math.max(3, halfWidth * band.share);
+    for (const side of [-1, 1]) {
+      const outer = centerX + side * inner;
+      const next = centerX + side * (inner - width);
+      drawTissueLayerCanvas(ctx, seed + index * 101 + (side > 0 ? 37 : 0), {
+        startX: Math.min(outer, next), endX: Math.max(outer, next), startY: top, endY: top + height,
+        cellW: width, cellH: band.cellH,
+        fillColors: band.colors, strokeColor: band.stroke, strokeWidth: 0.8,
+      });
+    }
+    inner -= width;
+  });
+  drawTissueLayerCanvas(ctx, seed + 911, {
+    startX: centerX - inner, endX: centerX + inner, startY: top, endY: top + height,
+    cellW: clamp(inner * .5, 7, 11), cellH: 16,
+    fillColors: ROOT_PALETTE.ochreLarge, strokeColor: ROOT_PALETTE.ochreStroke, strokeWidth: 0.9,
+  });
+}
+
+// Saúde, cicatriz permanente e estresse da raiz, sobre o retângulo dela.
+export function paintRootCondition(ctx, platform) {
+  const permanentDamage = clamp(platform.permanentDamage || 0, 0, .7);
+  const stateStyle = stateInfo(platform);
 
   // Overlay de estado de saúde
   ctx.fillStyle = stateStyle.overlay;
@@ -208,13 +230,31 @@ export function drawRootVisual(ctx, platform) {
     ctx.fillStyle = stress;
     ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
   }
+}
+
+export function drawRootVisual(ctx, platform) {
+  const seed = platformSeed(platform);
+  const radius = platform.final ? 18 : 15;
+
+  // 1. Radículas / Pelos no topo
+  drawUpwardHairs(ctx, platform, seed);
+
+  ctx.save();
+  roundedPath(ctx, platform, radius);
+  ctx.clip();
+
+  // 2. Fundo base
+  ctx.fillStyle = ROOT_PALETTE.innerBase;
+  ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+  paintRootTissue(ctx, seed, platform.x, platform.y, platform.w, platform.h);
+  paintRootCondition(ctx, platform);
 
   ctx.restore();
 
   // Outlining do bloco de raiz
   ctx.save();
   ctx.strokeStyle = ROOT_PALETTE.outline;
-  ctx.lineWidth = Math.max(2, height * 0.025);
+  ctx.lineWidth = Math.max(2, platform.h * 0.025);
   roundedPath(ctx, platform, radius);
   ctx.stroke();
   ctx.restore();
@@ -269,22 +309,18 @@ export function createPlatformVisuals({ state }) {
     ctx.restore();
   }
 
-  function drawSoil(ctx, platform) {
-    const seed = platformSeed(platform);
-    const radius = 10;
-    const x = platform.x;
-    const y = platform.y;
-    const width = platform.w;
-    const height = platform.h;
+  // Textura do solo do autor (agregados, poros, grãos de silte/areia) num
+  // retângulo. `grain` é a altura de referência que dimensiona os torrões e
+  // poros: no bloco antigo é a própria altura da plataforma; na massa de solo
+  // continua sendo a altura do topo, para o grão não crescer com a massa.
+  function paintSoilTexture(ctx, seed, x, y, width, height, grain = height, withBase = true) {
     const area = width * height;
 
-    ctx.save();
-    roundedPath(ctx, platform, radius);
-    ctx.clip();
-
-    // Fundo base
-    ctx.fillStyle = SOIL_PALETTE.base;
-    ctx.fillRect(x, y, width, height);
+    if (withBase) {
+      // Fundo base
+      ctx.fillStyle = SOIL_PALETTE.base;
+      ctx.fillRect(x, y, width, height);
+    }
 
     // 1. Macroagregados (Torrões maiores)
     const macroCount = Math.floor(area / 1500);
@@ -292,7 +328,7 @@ export function createPlatformVisuals({ state }) {
       const idx = i * 13 + 500;
       const cx = x + pseudo(seed, idx) * width;
       const cy = y + pseudo(seed, idx + 1) * height;
-      const r = (0.15 + pseudo(seed, idx + 2) * 0.20) * height;
+      const r = (0.15 + pseudo(seed, idx + 2) * 0.20) * grain;
       const color = SOIL_PALETTE.aggregates[Math.floor(pseudo(seed, idx + 3) * SOIL_PALETTE.aggregates.length)];
       const alpha = 0.7 + pseudo(seed, idx + 4) * 0.3;
       drawOrganicBlobCanvas(ctx, seed, idx, cx, cy, r, color, alpha);
@@ -304,7 +340,7 @@ export function createPlatformVisuals({ state }) {
       const idx = i * 17 + 1000;
       const cx = x + pseudo(seed, idx) * width;
       const cy = y + pseudo(seed, idx + 1) * height;
-      const r = (0.05 + pseudo(seed, idx + 2) * 0.07) * height;
+      const r = (0.05 + pseudo(seed, idx + 2) * 0.07) * grain;
       drawOrganicBlobCanvas(ctx, seed, idx, cx, cy, r, SOIL_PALETTE.pores, 0.8);
     }
 
@@ -325,16 +361,46 @@ export function createPlatformVisuals({ state }) {
       ctx.fill();
       ctx.restore();
     }
+  }
 
+  function drawSoil(ctx, platform) {
+    const seed = platformSeed(platform);
+    const radius = 10;
+
+    ctx.save();
+    roundedPath(ctx, platform, radius);
+    ctx.clip();
+    paintSoilTexture(ctx, seed, platform.x, platform.y, platform.w, platform.h);
     ctx.restore();
 
     // Outlining do bloco de solo
     ctx.save();
     ctx.strokeStyle = SOIL_PALETTE.outline;
-    ctx.lineWidth = Math.max(2, height * 0.025);
+    ctx.lineWidth = Math.max(2, platform.h * 0.025);
     roundedPath(ctx, platform, radius);
     ctx.stroke();
     ctx.restore();
+  }
+
+  // Visual de geometria (massas de solo, raízes laterais, teto). `?geo=0`
+  // volta aos blocos para comparação. Só desenho: nada disso vira colisor.
+  const geometryEnabled = readGeometryPreference(globalThis.location);
+  const geometry = createRhizosphereGeometry({
+    state,
+    painters: {
+      paintSoilTexture,
+      paintRootTissue,
+      paintRootTissueVertical,
+      paintRootCondition,
+      soilPalette: SOIL_PALETTE,
+      rootPalette: ROOT_PALETTE,
+    },
+  });
+  if (typeof window !== 'undefined') {
+    window.miguelitoGeometry = {
+      enabled: geometryEnabled,
+      get lastRenderMs() { return geometry.lastRenderMs; },
+    };
   }
 
   function drawTraversalDebug(ctx) {
@@ -794,25 +860,34 @@ export function createPlatformVisuals({ state }) {
     const viewRight = (state.cameraX || 0) + visibleWidth + margin;
     const viewTop = cameraY - margin;
     const viewBottom = cameraY + visibleHeight + margin;
-    for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
-      if (
-        platform.x + platform.w < viewLeft
-        || platform.x > viewRight
-        || platform.y + platform.h < viewTop
-        || platform.y > viewBottom
-      ) continue;
-      // Recovery desligada e recovery desligada, sem excecao. A versao anterior
-      // tinha `&& !platform.safetyStep`, e por isso um degrau da antiga rede
-      // anti-softlock continuava visivel mesmo com o toggle ativo. Defesa contra
-      // niveis salvos antigos, uso do Phase Lab e residuos.
-      //
-      // Uma recovery PROMOVIDA (ex.: hospedeiro da escada de Azospirillum)
-      // recebe `recovery = false` e por isso continua aqui, visivel e normal.
-      if (platform.recovery && state.recoveryPlatformsDisabled) continue;
+    if (geometryEnabled) {
+      geometry.draw(ctx, {
+        left: (state.cameraX || 0) - 60,
+        right: (state.cameraX || 0) + visibleWidth + 60,
+        top: cameraY - 60,
+        bottom: cameraY + visibleHeight + 60,
+      }, platformSeed);
+    } else {
+      for (const platform of state.level.platforms || []) {
+        if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
+        if (
+          platform.x + platform.w < viewLeft
+          || platform.x > viewRight
+          || platform.y + platform.h < viewTop
+          || platform.y > viewBottom
+        ) continue;
+        // Recovery desligada e recovery desligada, sem excecao. A versao anterior
+        // tinha `&& !platform.safetyStep`, e por isso um degrau da antiga rede
+        // anti-softlock continuava visivel mesmo com o toggle ativo. Defesa contra
+        // niveis salvos antigos, uso do Phase Lab e residuos.
+        //
+        // Uma recovery PROMOVIDA (ex.: hospedeiro da escada de Azospirillum)
+        // recebe `recovery = false` e por isso continua aqui, visivel e normal.
+        if (platform.recovery && state.recoveryPlatformsDisabled) continue;
 
-      if (platform.type === 'soil') drawSoil(ctx, platform);
-      else drawRootVisual(ctx, platform);
+        if (platform.type === 'soil') drawSoil(ctx, platform);
+        else drawRootVisual(ctx, platform);
+      }
     }
 
     for (const label of state.level.worldLabels || []) {

@@ -13,6 +13,16 @@ O protótipo usa Canvas 2D com uma rizosfera fantástica, colorida e orgânica. 
 
 - Microrganismos são desenhados proceduralmente com flagelos, hifas, colônias, halos e partículas.
 - Plataformas sólidas têm bordas orgânicas arredondadas.
+
+## Geometria da rizosfera
+
+Camada em `src/render/rhizosphere-geometry.js`, chamada por `platformVisuals.drawWorld`. Só desenho: o colisor continua sendo o retângulo da plataforma, e o topo de toda forma desenhada fica exatamente em `platform.y`. Referência: `miguelito-fase1 (1).html` (drawSolids, buildSolidSprite, drawVerticalRoot, drawHorizontalRoot).
+
+- Solo: cada plataforma é o topo de uma massa contínua que desce até o fundo da tela. Paredes irregulares, no prumo do colisor na altura dos pulos e alargando para baixo (até 45% do vão), então os vãos viram barrancos em V que nunca fecham — a zona letal continua visível. Se houver outra plataforma embaixo, a massa para 170 px acima dela.
+- Raiz: raiz lateral com topo reto, afunilando da base até a coifa translúcida, com pelos radiculares na zona de maturação; nasce, com colar de ramificação, de uma raiz vertical escurecida que desce do teto.
+- Teto: faixa de solo acompanhando o terreno, 230 px acima da plataforma mais alta ao alcance (+140 com pulo duplo). Some na cinemática final e em fases com propulsão.
+- Texturas do autor mantidas: células em camadas das raízes (também em faixas verticais no tronco) e agregados/poros/grãos do solo, em ladrilhos presos ao mundo para não deslizar com a câmera.
+- `?geo=0` volta aos blocos antigos, para comparação. `window.miguelitoGeometry.lastRenderMs` mede o custo do quadro.
 - Elementos de progresso usam brilho e partículas, não ícones explicativos.
 
 ## Luz e atmosfera

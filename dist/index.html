@@ -1961,6 +1961,7 @@ html.tutorial-open .phase-lab {
     <button class="mobile-tool" data-mobile-action="fullscreen" aria-label="Tela cheia">⛶</button>
     <button class="mobile-tool" data-mobile-action="toggle-recovery" aria-label="Ligar/desligar plataformas de segurança (tecla T)" aria-pressed="false">⛨</button>
     <button class="mobile-tool" data-mobile-action="toggle-parallax" aria-label="Ligar/desligar paralaxe biológico (tecla P)" aria-pressed="true">P</button>
+    <button class="mobile-tool" data-mobile-action="toggle-lighting" aria-label="Ligar/desligar luz e atmosfera (tecla L)" aria-pressed="true">☀</button>
     <button class="mobile-tool" data-mobile-action="toggle-sound" aria-label="Ligar ou desligar o som (tecla M)" aria-pressed="false" title="Clique para ativar o som">♪</button>
     <button class="mobile-tool zoom-step" data-camera-action="out" aria-label="Afastar câmera">−</button>
     <!-- Sem valor fixo no HTML: quem escreve e `refreshReadout()`, com o padrao do
@@ -1989,12 +1990,12 @@ html.tutorial-open .phase-lab {
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"3e08f21","subject":"Cartão mobile: texto do papel ganha contraste e título desce","builtAt":"2026-08-07 16:58"};
+window.__BEANS_BUILD__ = {"commit":"a762f05","subject":"Add files via upload","builtAt":"2026-09-23 16:07"};
 (() => {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel, auditTraversableRoute } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { ensureAzospirillumBeforeAscentGates, generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { createRouteAnchorRegistry, recordRouteGeometryStage } = __require("src/procgen/route-geometry.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry, createPhosphateDepositAt, finalizePhosphateStockCapacity } = __require("src/procgen/phosphate-solubilization.js");const { createPhaseTenOptionalDetour } = __require("src/procgen/optional-detour-composer.js");const { createPhaseTenTopologyDetour } = __require("src/procgen/optional-detour-topology-synthesizer.js");const { validateOptionalDetour } = __require("src/procgen/optional-detour-validator.js");const { getNitrogenAvailability } = __require("src/procgen/nitrogen-availability.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, campaignManifest, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { updateContextPanel } = __require("src/procgen/hud-context.js");const { computeEcologicalScore } = __require("src/procgen/ecological-score.js");const { JETPACK_CONFIG, jetpackRechargeBonuses } = __require("src/player-jetpack.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createGameAudio } = __require("src/game-audio.js");const { createBiologicalAudio } = __require("src/procgen/biological-audio.js");const { biologicalGroupsForProgress, PHASE_VICTORY_TOAST_SECONDS, VICTORY_AUDIO_FALLBACK_SECONDS } = __require("src/audio-manifest.js");const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");const { createRenderer } = __require("src/render/renderer.js");const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");const { ROUTE_GATE_KINDS, ROUTE_GATE_REQUIRED_ABILITY, ROUTE_GATE_REQUIRED_ORGANISM } = __require("src/procgen/phase-vertical-plan.js");const { synchronizeWorldBounds } = __require("src/procgen/world-bounds.js");const { validateAndRepairAzospirillumGates } = __require("src/procgen/azospirillum-gate-integrity.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { createPathogenArrival, PATHOGEN_ARRIVAL_DEFAULTS } = __require("src/procgen/pathogen-arrival.js");const { createPhaseFinale, phaseFinaleSeconds } = __require("src/procgen/phase-finale.js");const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
+const { generateLevel, auditTraversableRoute } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { ensureAzospirillumBeforeAscentGates, generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { createRouteAnchorRegistry, recordRouteGeometryStage } = __require("src/procgen/route-geometry.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry, createPhosphateDepositAt, finalizePhosphateStockCapacity } = __require("src/procgen/phosphate-solubilization.js");const { createPhaseTenOptionalDetour } = __require("src/procgen/optional-detour-composer.js");const { createPhaseTenTopologyDetour } = __require("src/procgen/optional-detour-topology-synthesizer.js");const { validateOptionalDetour } = __require("src/procgen/optional-detour-validator.js");const { getNitrogenAvailability } = __require("src/procgen/nitrogen-availability.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, campaignManifest, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { updateContextPanel } = __require("src/procgen/hud-context.js");const { computeEcologicalScore } = __require("src/procgen/ecological-score.js");const { JETPACK_CONFIG, jetpackRechargeBonuses } = __require("src/player-jetpack.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createGameAudio } = __require("src/game-audio.js");const { createBiologicalAudio } = __require("src/procgen/biological-audio.js");const { biologicalGroupsForProgress, PHASE_VICTORY_TOAST_SECONDS, VICTORY_AUDIO_FALLBACK_SECONDS } = __require("src/audio-manifest.js");const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");const { createRenderer } = __require("src/render/renderer.js");const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createRhizosphereLighting, readLightingPreference } = __require("src/render/rhizosphere-lighting.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");const { ROUTE_GATE_KINDS, ROUTE_GATE_REQUIRED_ABILITY, ROUTE_GATE_REQUIRED_ORGANISM } = __require("src/procgen/phase-vertical-plan.js");const { synchronizeWorldBounds } = __require("src/procgen/world-bounds.js");const { validateAndRepairAzospirillumGates } = __require("src/procgen/azospirillum-gate-integrity.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { createPathogenArrival, PATHOGEN_ARRIVAL_DEFAULTS } = __require("src/procgen/pathogen-arrival.js");const { createPhaseFinale, phaseFinaleSeconds } = __require("src/procgen/phase-finale.js");const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
   // alcançadas, não só da atual.
 
   createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
@@ -2731,6 +2732,9 @@ let seed = '';
 let levelData = null;
 let renderer = null;
 let platformVisuals = null;
+let lighting = null;
+// Luz e atmosfera: `?luz=0` desliga ao abrir; a tecla L alterna durante o jogo.
+let lightingEnabled = readLightingPreference(window.location);
 let biologicalParallaxEnabled = true;
 // O console de telemetria e ferramenta de desenvolvimento, nao HUD de jogo:
 // nasce ligado so dentro do Phase Lab. Fora dele continua acessivel pelo Tab
@@ -3239,6 +3243,13 @@ function initGame({ announce = false } = {}) {
   });
   renderer.parallaxBackground.setEnabled(biologicalParallaxEnabled);
   platformVisuals = createPlatformVisuals({ state: sim.state });
+  lighting = createRhizosphereLighting({
+    canvas,
+    state: sim.state,
+    getAgents: () => sim.ecology?.agents || null,
+    enabled: lightingEnabled,
+  });
+  window.miguelitoLighting = lighting;
   toastDiv.className = '';
   lastToast = '';
   updateTouchAbilityVisibility();
@@ -3544,6 +3555,21 @@ parallaxToggleButton?.addEventListener('click', event => {
   parallaxToggleButton.blur();
 });
 
+const lightingToggleButton = document.querySelector('[data-mobile-action="toggle-lighting"]');
+lightingToggleButton?.setAttribute('aria-pressed', String(lightingEnabled));
+function toggleLighting() {
+  if (!lighting || sim.state.gameState !== 'play') return;
+  lightingEnabled = lighting.toggle();
+  lightingToggleButton?.setAttribute('aria-pressed', String(lightingEnabled));
+  sim.state.toast = lightingEnabled ? 'Luz e atmosfera ativadas' : 'Luz e atmosfera desativadas';
+  sim.state.toastTime = 3.2;
+}
+lightingToggleButton?.addEventListener('click', event => {
+  event.preventDefault();
+  toggleLighting();
+  lightingToggleButton.blur();
+});
+
 // Remove o foco do teclado de qualquer botao clicado para impedir que a tecla Espaco reatire o clique do botao
 document.addEventListener('click', event => {
   const btn = event.target?.closest?.('button, [role="button"]');
@@ -3573,6 +3599,7 @@ window.addEventListener('keydown', event => {
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'KeyT' && !event.repeat) toggleRecoveryPlatforms();
   if (event.code === 'KeyM' && !event.repeat) toggleGameAudio();
+  if (event.code === 'KeyL' && !event.repeat) toggleLighting();
   if (event.code === BIOLOGICAL_PARALLAX_KEY && !event.repeat) toggleBiologicalParallax();
   if (event.code === 'Tab') {
     event.preventDefault();
@@ -3636,6 +3663,7 @@ function renderWorld() {
     phaseFinale.renderWorldLayer(ctx);
     sim.state.level.traversalDebugVisible = showDebug;
     platformVisuals.drawWorld(ctx);
+    lighting?.renderPlatformDepth(ctx);
     rhizoctoniaControl.render(ctx);
     ralstoniaControl.render(ctx);
     sim.pseudomonasSiderophores.renderDeposits(ctx);
@@ -3658,6 +3686,9 @@ function renderWorld() {
     sim.bacillusBioprotection.render(ctx);
     sim.phosphateSolubilization.render(ctx);
     fixedBlockRuntime.render(ctx);
+    // Luz por ultimo no mundo: escurece o fundo, recorta as fontes de luz e
+    // acrescenta feixes e primeiro plano. So visual; nao le nada da fisica.
+    lighting?.render(ctx, { finaleActive: phaseFinale.active });
     platformVisuals.renderLabel(ctx);
   } finally {
     ctx.restore();
@@ -19479,7 +19510,7 @@ function drawWorldLabel(ctx, x, y, text, options = {}) {
 Object.assign(__exports, { drawWorldLabel });
 },
 "src/procgen/platform-visuals.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { drawWorldLabel } = __require("src/procgen/world-label.js");
+const { H, W } = __require("src/core/constants.js");const { drawWorldLabel } = __require("src/procgen/world-label.js");const { createRhizosphereGeometry, readGeometryPreference } = __require("src/render/rhizosphere-geometry.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -19603,29 +19634,13 @@ function drawUpwardHairs(ctx, platform, seed) {
   ctx.restore();
 }
 
-function drawRootVisual(ctx, platform) {
-  const seed = platformSeed(platform);
-  const radius = platform.final ? 18 : 15;
-  const health = clamp(platform.rootHealth ?? 1, 0, 1);
-  const permanentDamage = clamp(platform.permanentDamage || 0, 0, .7);
-  const stateStyle = stateInfo(platform);
-
-  // 1. Radículas / Pelos no topo
-  drawUpwardHairs(ctx, platform, seed);
-
-  ctx.save();
-  roundedPath(ctx, platform, radius);
-  ctx.clip();
-
-  // 2. Fundo base
-  ctx.fillStyle = ROOT_PALETTE.innerBase;
-  ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-
-  const padX = platform.w * 0.05;
-  const gX = platform.x - padX;
-  const gEndX = platform.x + platform.w + padX;
-  const y = platform.y;
-  const height = platform.h;
+// Tecido da raiz em camadas (epiderme verde, faixa azulada, córtex ocre) no
+// retângulo dado. Usado pelo bloco antigo e pela raiz lateral/vertical do
+// visual de geometria — a textura é a mesma nos dois.
+function paintRootTissue(ctx, seed, x, y, width, height) {
+  const padX = width * 0.05;
+  const gX = x - padX;
+  const gEndX = x + width + padX;
 
   const greenBand = height * 0.20;
   const blueBand = height * 0.14;
@@ -19662,6 +19677,43 @@ function drawRootVisual(ctx, platform) {
     fillColors: ROOT_PALETTE.ochreLarge, strokeColor: ROOT_PALETTE.ochreStroke,
     strokeWidth: clamp(height * 0.010, 0.75, 1.15),
   });
+}
+
+// A mesma textura de tecido, para uma raiz VERTICAL: as camadas viram faixas
+// verticais (epiderme verde nas duas bordas, córtex ocre no meio) e as células
+// se alongam ao longo do eixo da raiz. Tudo em coordenadas de mundo.
+function paintRootTissueVertical(ctx, seed, centerX, top, bottom, halfWidth) {
+  const height = bottom - top;
+  const bands = [
+    { share: 0.20, colors: ROOT_PALETTE.green, stroke: ROOT_PALETTE.greenStroke, cellH: 16 },
+    { share: 0.14, colors: ROOT_PALETTE.blue, stroke: ROOT_PALETTE.blueStroke, cellH: 11 },
+    { share: 0.10, colors: ROOT_PALETTE.ochreSmall, stroke: ROOT_PALETTE.ochreStroke, cellH: 12 },
+  ];
+  let inner = halfWidth;
+  bands.forEach((band, index) => {
+    const width = Math.max(3, halfWidth * band.share);
+    for (const side of [-1, 1]) {
+      const outer = centerX + side * inner;
+      const next = centerX + side * (inner - width);
+      drawTissueLayerCanvas(ctx, seed + index * 101 + (side > 0 ? 37 : 0), {
+        startX: Math.min(outer, next), endX: Math.max(outer, next), startY: top, endY: top + height,
+        cellW: width, cellH: band.cellH,
+        fillColors: band.colors, strokeColor: band.stroke, strokeWidth: 0.8,
+      });
+    }
+    inner -= width;
+  });
+  drawTissueLayerCanvas(ctx, seed + 911, {
+    startX: centerX - inner, endX: centerX + inner, startY: top, endY: top + height,
+    cellW: clamp(inner * .5, 7, 11), cellH: 16,
+    fillColors: ROOT_PALETTE.ochreLarge, strokeColor: ROOT_PALETTE.ochreStroke, strokeWidth: 0.9,
+  });
+}
+
+// Saúde, cicatriz permanente e estresse da raiz, sobre o retângulo dela.
+function paintRootCondition(ctx, platform) {
+  const permanentDamage = clamp(platform.permanentDamage || 0, 0, .7);
+  const stateStyle = stateInfo(platform);
 
   // Overlay de estado de saúde
   ctx.fillStyle = stateStyle.overlay;
@@ -19687,13 +19739,31 @@ function drawRootVisual(ctx, platform) {
     ctx.fillStyle = stress;
     ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
   }
+}
+
+function drawRootVisual(ctx, platform) {
+  const seed = platformSeed(platform);
+  const radius = platform.final ? 18 : 15;
+
+  // 1. Radículas / Pelos no topo
+  drawUpwardHairs(ctx, platform, seed);
+
+  ctx.save();
+  roundedPath(ctx, platform, radius);
+  ctx.clip();
+
+  // 2. Fundo base
+  ctx.fillStyle = ROOT_PALETTE.innerBase;
+  ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+  paintRootTissue(ctx, seed, platform.x, platform.y, platform.w, platform.h);
+  paintRootCondition(ctx, platform);
 
   ctx.restore();
 
   // Outlining do bloco de raiz
   ctx.save();
   ctx.strokeStyle = ROOT_PALETTE.outline;
-  ctx.lineWidth = Math.max(2, height * 0.025);
+  ctx.lineWidth = Math.max(2, platform.h * 0.025);
   roundedPath(ctx, platform, radius);
   ctx.stroke();
   ctx.restore();
@@ -19748,22 +19818,18 @@ function createPlatformVisuals({ state }) {
     ctx.restore();
   }
 
-  function drawSoil(ctx, platform) {
-    const seed = platformSeed(platform);
-    const radius = 10;
-    const x = platform.x;
-    const y = platform.y;
-    const width = platform.w;
-    const height = platform.h;
+  // Textura do solo do autor (agregados, poros, grãos de silte/areia) num
+  // retângulo. `grain` é a altura de referência que dimensiona os torrões e
+  // poros: no bloco antigo é a própria altura da plataforma; na massa de solo
+  // continua sendo a altura do topo, para o grão não crescer com a massa.
+  function paintSoilTexture(ctx, seed, x, y, width, height, grain = height, withBase = true) {
     const area = width * height;
 
-    ctx.save();
-    roundedPath(ctx, platform, radius);
-    ctx.clip();
-
-    // Fundo base
-    ctx.fillStyle = SOIL_PALETTE.base;
-    ctx.fillRect(x, y, width, height);
+    if (withBase) {
+      // Fundo base
+      ctx.fillStyle = SOIL_PALETTE.base;
+      ctx.fillRect(x, y, width, height);
+    }
 
     // 1. Macroagregados (Torrões maiores)
     const macroCount = Math.floor(area / 1500);
@@ -19771,7 +19837,7 @@ function createPlatformVisuals({ state }) {
       const idx = i * 13 + 500;
       const cx = x + pseudo(seed, idx) * width;
       const cy = y + pseudo(seed, idx + 1) * height;
-      const r = (0.15 + pseudo(seed, idx + 2) * 0.20) * height;
+      const r = (0.15 + pseudo(seed, idx + 2) * 0.20) * grain;
       const color = SOIL_PALETTE.aggregates[Math.floor(pseudo(seed, idx + 3) * SOIL_PALETTE.aggregates.length)];
       const alpha = 0.7 + pseudo(seed, idx + 4) * 0.3;
       drawOrganicBlobCanvas(ctx, seed, idx, cx, cy, r, color, alpha);
@@ -19783,7 +19849,7 @@ function createPlatformVisuals({ state }) {
       const idx = i * 17 + 1000;
       const cx = x + pseudo(seed, idx) * width;
       const cy = y + pseudo(seed, idx + 1) * height;
-      const r = (0.05 + pseudo(seed, idx + 2) * 0.07) * height;
+      const r = (0.05 + pseudo(seed, idx + 2) * 0.07) * grain;
       drawOrganicBlobCanvas(ctx, seed, idx, cx, cy, r, SOIL_PALETTE.pores, 0.8);
     }
 
@@ -19804,16 +19870,46 @@ function createPlatformVisuals({ state }) {
       ctx.fill();
       ctx.restore();
     }
+  }
 
+  function drawSoil(ctx, platform) {
+    const seed = platformSeed(platform);
+    const radius = 10;
+
+    ctx.save();
+    roundedPath(ctx, platform, radius);
+    ctx.clip();
+    paintSoilTexture(ctx, seed, platform.x, platform.y, platform.w, platform.h);
     ctx.restore();
 
     // Outlining do bloco de solo
     ctx.save();
     ctx.strokeStyle = SOIL_PALETTE.outline;
-    ctx.lineWidth = Math.max(2, height * 0.025);
+    ctx.lineWidth = Math.max(2, platform.h * 0.025);
     roundedPath(ctx, platform, radius);
     ctx.stroke();
     ctx.restore();
+  }
+
+  // Visual de geometria (massas de solo, raízes laterais, teto). `?geo=0`
+  // volta aos blocos para comparação. Só desenho: nada disso vira colisor.
+  const geometryEnabled = readGeometryPreference(globalThis.location);
+  const geometry = createRhizosphereGeometry({
+    state,
+    painters: {
+      paintSoilTexture,
+      paintRootTissue,
+      paintRootTissueVertical,
+      paintRootCondition,
+      soilPalette: SOIL_PALETTE,
+      rootPalette: ROOT_PALETTE,
+    },
+  });
+  if (typeof window !== 'undefined') {
+    window.miguelitoGeometry = {
+      enabled: geometryEnabled,
+      get lastRenderMs() { return geometry.lastRenderMs; },
+    };
   }
 
   function drawTraversalDebug(ctx) {
@@ -20273,25 +20369,34 @@ function createPlatformVisuals({ state }) {
     const viewRight = (state.cameraX || 0) + visibleWidth + margin;
     const viewTop = cameraY - margin;
     const viewBottom = cameraY + visibleHeight + margin;
-    for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
-      if (
-        platform.x + platform.w < viewLeft
-        || platform.x > viewRight
-        || platform.y + platform.h < viewTop
-        || platform.y > viewBottom
-      ) continue;
-      // Recovery desligada e recovery desligada, sem excecao. A versao anterior
-      // tinha `&& !platform.safetyStep`, e por isso um degrau da antiga rede
-      // anti-softlock continuava visivel mesmo com o toggle ativo. Defesa contra
-      // niveis salvos antigos, uso do Phase Lab e residuos.
-      //
-      // Uma recovery PROMOVIDA (ex.: hospedeiro da escada de Azospirillum)
-      // recebe `recovery = false` e por isso continua aqui, visivel e normal.
-      if (platform.recovery && state.recoveryPlatformsDisabled) continue;
+    if (geometryEnabled) {
+      geometry.draw(ctx, {
+        left: (state.cameraX || 0) - 60,
+        right: (state.cameraX || 0) + visibleWidth + 60,
+        top: cameraY - 60,
+        bottom: cameraY + visibleHeight + 60,
+      }, platformSeed);
+    } else {
+      for (const platform of state.level.platforms || []) {
+        if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
+        if (
+          platform.x + platform.w < viewLeft
+          || platform.x > viewRight
+          || platform.y + platform.h < viewTop
+          || platform.y > viewBottom
+        ) continue;
+        // Recovery desligada e recovery desligada, sem excecao. A versao anterior
+        // tinha `&& !platform.safetyStep`, e por isso um degrau da antiga rede
+        // anti-softlock continuava visivel mesmo com o toggle ativo. Defesa contra
+        // niveis salvos antigos, uso do Phase Lab e residuos.
+        //
+        // Uma recovery PROMOVIDA (ex.: hospedeiro da escada de Azospirillum)
+        // recebe `recovery = false` e por isso continua aqui, visivel e normal.
+        if (platform.recovery && state.recoveryPlatformsDisabled) continue;
 
-      if (platform.type === 'soil') drawSoil(ctx, platform);
-      else drawRootVisual(ctx, platform);
+        if (platform.type === 'soil') drawSoil(ctx, platform);
+        else drawRootVisual(ctx, platform);
+      }
     }
 
     for (const label of state.level.worldLabels || []) {
@@ -20317,7 +20422,610 @@ function createPlatformVisuals({ state }) {
     renderLabel,
   };
 }
-Object.assign(__exports, { drawRootVisual, createPlatformVisuals });
+Object.assign(__exports, { paintRootTissue, paintRootTissueVertical, paintRootCondition, drawRootVisual, createPlatformVisuals });
+},
+"src/render/rhizosphere-geometry.js": (__exports, __require) => {
+// GEOMETRIA DA RIZOSFERA — só desenho
+// ===================================
+//
+// Troca a cara de "blocos de videogame" por paisagem de solo, seguindo o
+// protótipo de referência (drawSolids / buildSolidSprite / drawVerticalRoot /
+// drawHorizontalRoot):
+//
+// · plataforma de solo = topo de uma massa contínua que desce até o fundo da
+//   tela, com parede irregular; o vão entre duas massas vira barranco;
+// · plataforma de raiz = raiz lateral que sai de uma raiz vertical descendo do
+//   teto, afunilando até a coifa, com pelos radiculares na zona de maturação;
+// · faixa de solo no teto da fase.
+//
+// Nada aqui é lido pela física, pelo gerador ou pelos validadores: o colisor
+// continua sendo o retângulo da plataforma. Por isso a borda de cima de toda
+// forma desenhada fica exatamente em `platform.y` — é onde o pé pousa.
+//
+// As texturas (células da raiz, agregados/poros/grãos do solo) são as do
+// autor e chegam prontas por `painters`; este módulo só decide a forma.
+
+const TAU = Math.PI * 2;
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function pseudo(seed, index) {
+  const value = Math.sin(seed * .000013 + index * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function hash2(x, y) {
+  return Math.abs((Math.round(x) * 73856093) ^ (Math.round(y) * 19349663)) + 1;
+}
+
+// Curva suave passando pelos pontos médios (smoothPath do protótipo). Pontos
+// consecutivos na mesma altura produzem trecho reto — é assim que o topo
+// pisável fica plano.
+function traceSmooth(ctx, points) {
+  const n = points.length;
+  ctx.beginPath();
+  ctx.moveTo((points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2);
+  for (let i = 1; i <= n; i++) {
+    const p = points[i % n];
+    const q = points[(i + 1) % n];
+    ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+  }
+  ctx.closePath();
+}
+
+// `?geo=0` volta ao visual antigo (blocos), para comparação.
+function readGeometryPreference(locationLike) {
+  try {
+    const value = new URLSearchParams(locationLike?.search || '').get('geo');
+    if (value === null) return true;
+    return !['0', 'off', 'false', 'nao', 'não'].includes(value.toLowerCase());
+  } catch (_) {
+    return true;
+  }
+}
+
+// Folga entre o topo das plataformas e o teto desenhado. O pulo simples sobe
+// ~96 px e o Miguelito tem 48: 230 deixa a cabeça sempre longe da faixa.
+const CEILING_CLEARANCE = 230;
+const DOUBLE_JUMP_EXTRA = 140;
+// Alcance horizontal de cada plataforma na altura do teto: cobre o vão que o
+// jogador atravessa pulando a partir dela.
+const CEILING_REACH = 300;
+const CEILING_STEP = 36;
+// Espaço livre mínimo acima de uma plataforma que está embaixo de outra massa.
+const UNDER_HEADROOM = 170;
+
+function createRhizosphereGeometry({ state, painters }) {
+  const {
+    paintSoilTexture, paintRootTissue, paintRootTissueVertical, paintRootCondition, soilPalette, rootPalette,
+  } = painters;
+
+  function solidPlatforms() {
+    return (state.level?.platforms || []).filter(platform => !(
+      platform.mycorrhizaStructure
+      || platform.azospirillumStructure
+      || (platform.recovery && state.recoveryPlatformsDisabled)
+    ));
+  }
+
+  // ---------------------------------------------------------------- teto ----
+
+  function ceilingClearance() {
+    const unlocks = state.campaign?.unlocks || {};
+    return CEILING_CLEARANCE + (unlocks.doubleJump ? DOUBLE_JUMP_EXTRA : 0);
+  }
+
+  // Linha de baixo do teto em x. Depende só das plataformas (nunca da câmera),
+  // então não "nada" quando a câmera anda.
+  function ceilingLineAt(x, platforms, clearance, topLimit) {
+    let best = Infinity;
+    for (const platform of platforms) {
+      const left = platform.x - CEILING_REACH;
+      const right = platform.x + platform.w + CEILING_REACH;
+      if (x < left || x > right) continue;
+      // Some suave nas pontas do alcance, para o teto não fazer degrau.
+      const edge = Math.min(x - left, right - x);
+      const lift = edge < 120 ? (120 - edge) * .55 : 0;
+      best = Math.min(best, platform.y - clearance - lift);
+    }
+    if (!Number.isFinite(best)) return null;
+    const bump = (pseudo(hash2(Math.floor(x / CEILING_STEP), 7), 3) - .5) * 14;
+    return Math.max(topLimit, best + bump);
+  }
+
+  function drawCeiling(ctx, view, platforms) {
+    if (!platforms.length) return false;
+    // Na cinemática final o céu aparece acima da superfície: o teto sai.
+    if (state.level?.finalRootPulse !== undefined) return false;
+    // Com propulsão o jogador voa até o limite do mundo: não há onde pôr teto.
+    if (state.campaign?.unlocks?.jetpack) return false;
+    const clearance = ceilingClearance();
+    const worldTop = Number(state.level?.worldTopY);
+    const topLimit = Number.isFinite(worldTop) ? worldTop + 30 : -Infinity;
+    const first = Math.floor((view.left - 60) / CEILING_STEP);
+    const last = Math.ceil((view.right + 60) / CEILING_STEP);
+    const line = [];
+    for (let i = first; i <= last; i++) {
+      const x = i * CEILING_STEP;
+      const y = ceilingLineAt(x, platforms, clearance, topLimit);
+      if (y !== null) line.push([x, y]);
+    }
+    if (line.length < 2) return false;
+    let deepest = -Infinity;
+    for (const point of line) deepest = Math.max(deepest, point[1]);
+    // Acima da câmera: existe, só não aparece.
+    if (deepest < view.top - 10) return true;
+    const top = Math.min(view.top, deepest) - 80;
+    const leftX = line[0][0];
+    const rightX = line[line.length - 1][0];
+
+    const outline = () => {
+      ctx.beginPath();
+      ctx.moveTo(leftX, top);
+      ctx.lineTo(rightX, top);
+      ctx.lineTo(rightX, line[line.length - 1][1]);
+      for (let i = line.length - 1; i > 0; i--) {
+        const p = line[i];
+        const q = line[i - 1];
+        ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+      }
+      ctx.lineTo(leftX, line[0][1]);
+      ctx.closePath();
+    };
+
+    ctx.save();
+    outline();
+    ctx.fillStyle = soilPalette.base;
+    ctx.fill();
+    ctx.clip();
+    // Textura em ladrilhos presos ao mundo: o grão não desliza com a câmera.
+    // Cada coluna de ladrilhos só desce até onde o teto chega nela.
+    const tileW = 180;
+    const tileH = 62;
+    const tx0 = Math.floor(leftX / tileW);
+    const tx1 = Math.ceil(rightX / tileW);
+    const ty0 = Math.floor(top / tileH);
+    for (let tx = tx0; tx <= tx1; tx++) {
+      let columnDeep = -Infinity;
+      for (const [px, py] of line) {
+        if (px >= tx * tileW - CEILING_STEP && px <= (tx + 1) * tileW + CEILING_STEP) columnDeep = Math.max(columnDeep, py);
+      }
+      if (!Number.isFinite(columnDeep)) continue;
+      const ty1 = Math.ceil(columnDeep / tileH);
+      for (let ty = ty0; ty <= ty1; ty++) {
+        paintSoilTexture(ctx, hash2(tx * 3 + 11, ty * 5 + 3), tx * tileW, ty * tileH, tileW, tileH, tileH, false);
+      }
+    }
+    // A face de baixo do teto, voltada para o túnel, fica um pouco mais escura.
+    ctx.strokeStyle = 'rgba(10,5,3,.34)';
+    ctx.lineWidth = 34;
+    ctx.beginPath();
+    ctx.moveTo(line[0][0], line[0][1]);
+    for (let i = 1; i < line.length; i++) {
+      const p = line[i - 1];
+      const q = line[i];
+      ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = soilPalette.outline;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(line[0][0], line[0][1]);
+    for (let i = 1; i < line.length; i++) {
+      const p = line[i - 1];
+      const q = line[i];
+      ctx.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+    }
+    ctx.stroke();
+    // Radicelas finas pendendo do teto.
+    ctx.strokeStyle = rootPalette.radicle;
+    ctx.globalAlpha = .55;
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = 'round';
+    for (let i = 1; i < line.length - 1; i++) {
+      const seed = hash2(Math.round(line[i][0] / CEILING_STEP), 29);
+      if (pseudo(seed, 1) < .55) continue;
+      const x = line[i][0] + (pseudo(seed, 2) - .5) * CEILING_STEP;
+      const y = line[i][1] - 3;
+      const len = 10 + pseudo(seed, 3) * 26;
+      const sway = Math.sin((state.time || 0) * 1.1 + i) * 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + sway, y + len * .6, x + sway * 1.6 + (pseudo(seed, 4) - .5) * 10, y + len);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return true;
+  }
+
+  // ------------------------------------------------------- massa de solo ----
+
+  // Onde a massa termina embaixo: no fundo da tela, ou acima de outra
+  // plataforma que esteja debaixo dela (o espaço de quem anda lá fica livre).
+  function massBottom(platform, platforms, floor) {
+    let bottom = floor;
+    for (const other of platforms) {
+      if (other === platform) continue;
+      if (other.y <= platform.y + platform.h) continue;
+      if (other.x >= platform.x + platform.w - 4 || other.x + other.w <= platform.x + 4) continue;
+      bottom = Math.min(bottom, other.y - UNDER_HEADROOM);
+    }
+    return Math.max(bottom, platform.y + platform.h);
+  }
+
+  // Quanto a massa pode se alargar para cada lado, embaixo: 45% do vão até o
+  // vizinho. O barranco se estreita em V para baixo mas nunca fecha — o fundo
+  // (zona letal) continua à vista.
+  function flareLimits(platform, platforms) {
+    let gapLeft = Infinity;
+    let gapRight = Infinity;
+    for (const other of platforms) {
+      if (other === platform || Math.abs(other.y - platform.y) > 320) continue;
+      if (other.x + other.w <= platform.x + 2) gapLeft = Math.min(gapLeft, platform.x - (other.x + other.w));
+      if (other.x >= platform.x + platform.w - 2) gapRight = Math.min(gapRight, other.x - (platform.x + platform.w));
+    }
+    const limit = gap => clamp(Number.isFinite(gap) ? gap * .45 : 80, 0, 80);
+    return { left: limit(gapLeft), right: limit(gapRight) };
+  }
+
+  function massOutline(platform, bottom, seed, flare) {
+    const { x, y, w, h } = platform;
+    // A parte de cima do barranco fica no prumo do colisor; o alargamento só
+    // começa abaixo do topo, fora do caminho de quem pula o vão.
+    const flareStart = y + h + 10;
+    const flareAt = (py, max) => max * clamp((py - flareStart) / 160, 0, 1);
+    const floating = bottom <= platform.y + platform.h + 1;
+    const points = [];
+    const rightWall = [];
+    const leftWall = [];
+    // Topo: fica em `y` (o colisor). Só o grumo das quinas desce um pouco.
+    points.push([x + 1, y + 12]);
+    points.push([x + 4, y + 2]);
+    for (let px = x + 14; px < x + w - 14; px += 18) points.push([px, y]);
+    points.push([x + w - 4, y + 2]);
+    points.push([x + w - 1, y + 12]);
+    // Paredes do barranco: irregulares e, na altura dos pulos, sempre para
+    // DENTRO do colisor. Ondulação lenta + ressaltos.
+    const step = 22;
+    const wall = (index, side) => 1 + (Math.sin(index * .55 + seed * .01 + side * 2.1) * .5 + .5) * 7
+      + pseudo(seed, (side ? 300 : 500) + index) * 7;
+    let i = 0;
+    for (let py = y + 28; py < bottom; py += step, i++) {
+      points.push([x + w - wall(i, 1) + flareAt(py, flare.right), py]);
+      rightWall.push(points[points.length - 1]);
+    }
+    if (floating) {
+      // Agregado suspenso: fundo arredondado e irregular.
+      for (let px = x + w - 10, k = 0; px > x + 10; px -= 20, k++) {
+        points.push([px, bottom + 2 + pseudo(seed, 400 + k) * 8]);
+      }
+    } else {
+      points.push([x + w - 2 + flare.right, bottom + 40]);
+      points.push([x + 2 - flare.left, bottom + 40]);
+    }
+    const rows = Math.floor((bottom - (y + 28)) / step);
+    for (let row = rows; row >= 0; row--) {
+      const py = y + 28 + row * step;
+      points.push([x + wall(row, 0) - flareAt(py, flare.left), py]);
+      leftWall.push(points[points.length - 1]);
+    }
+    return { points, walls: [rightWall, leftWall] };
+  }
+
+  function drawSoilMass(ctx, platform, platforms, view, floor, seed) {
+    const bottom = massBottom(platform, platforms, floor);
+    if (platform.y > view.bottom || bottom < view.top) return;
+    const floating = bottom <= platform.y + platform.h + 1;
+    const flare = floating ? { left: 0, right: 0 } : flareLimits(platform, platforms);
+    const { points, walls } = massOutline(platform, bottom, seed, flare);
+    const { x, y, w, h } = platform;
+    const wideX = x - flare.left;
+    const wideW = w + flare.left + flare.right;
+
+    ctx.save();
+    traceSmooth(ctx, points);
+    ctx.fillStyle = soilPalette.base;
+    ctx.fill();
+    ctx.clip();
+    // Topo: a mesma textura e densidade de antes, no mesmo retângulo.
+    paintSoilTexture(ctx, seed, x, y, w, h, h, false);
+    // Corpo: ladrilhos do tamanho do topo, cada um com a sua semente, desenhados
+    // só onde a câmera vê.
+    const firstRow = Math.max(1, Math.floor((view.top - y) / h));
+    const lastRow = Math.ceil((Math.min(view.bottom, bottom + 40) - y) / h);
+    for (let row = firstRow; row <= lastRow; row++) {
+      paintSoilTexture(ctx, seed + row * 7919, wideX, y + row * h, wideW, h, h, false);
+    }
+    // Quanto mais fundo, mais escuro: a massa lê como volume, não como parede chapada.
+    const depth = ctx.createLinearGradient(0, y + 20, 0, y + 380);
+    depth.addColorStop(0, 'rgba(12,6,4,0)');
+    depth.addColorStop(1, 'rgba(12,6,4,.55)');
+    ctx.fillStyle = depth;
+    ctx.beginPath();
+    ctx.moveTo(wideX - 4, y + 20);
+    ctx.lineTo(wideX + wideW + 4, y + 20);
+    ctx.lineTo(wideX + wideW + 4, bottom + 44);
+    ctx.lineTo(wideX - 4, bottom + 44);
+    ctx.fill();
+    // Paredes do barranco: sombra rente à borda, acompanhando a parede.
+    ctx.strokeStyle = 'rgba(14,7,4,.32)';
+    ctx.lineWidth = 20;
+    ctx.lineJoin = 'round';
+    for (const wall of walls) {
+      if (wall.length < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(wall[0][0], wall[0][1] - 18);
+      for (const point of wall) ctx.lineTo(point[0], point[1]);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.save();
+    traceSmooth(ctx, points);
+    ctx.strokeStyle = soilPalette.outline;
+    ctx.lineWidth = Math.max(2, h * .025);
+    ctx.stroke();
+    // Borda de pisar: linha clara de silte e grumos soltos sobre ela.
+    ctx.strokeStyle = soilPalette.silt[0];
+    ctx.globalAlpha = .75;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + 5, y + 1.5);
+    ctx.lineTo(x + w - 5, y + 1.5);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    let k = 0;
+    for (let px = x + 7; px < x + w - 7; px += 10 + pseudo(seed, 700 + k) * 20, k++) {
+      ctx.fillStyle = pseudo(seed, 720 + k) < .35 ? soilPalette.silt[0] : soilPalette.aggregates[0];
+      ctx.beginPath();
+      ctx.arc(px, y - .5 + pseudo(seed, 740 + k), 1.4 + pseudo(seed, 760 + k) * 2.2, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ------------------------------------------------------------- raízes ----
+
+  function verticalRootThickness(platform) {
+    return clamp(platform.h * .5, 22, 40);
+  }
+
+  // Raiz vertical de fundo: desce do teto, passa pela base da raiz lateral e
+  // afunila até a coifa. Mesma textura de células, em faixas verticais e mais
+  // escura, para ficar atrás do que se pisa.
+  function drawVerticalRoot(ctx, platform, view, ceilingY, seed) {
+    const thickness = verticalRootThickness(platform);
+    const cx = platform.x + thickness * .32;
+    const y0 = ceilingY - 12;
+    const y1 = platform.y + platform.h + clamp(platform.h * 1.2, 60, 110);
+    if (y1 < view.top || y0 > view.bottom) return;
+    const n = Math.max(5, Math.ceil((y1 - y0) / 18));
+    const left = [];
+    const right = [];
+    for (let i = 0; i <= n; i++) {
+      const k = i / n;
+      const yy = y0 + (y1 - y0) * k;
+      // Afunila devagar do teto até a coifa, como no protótipo.
+      const half = thickness / 2 * (1.25 - k * .8) * (k > .92 ? 1 - (k - .92) * 8 : 1);
+      const wander = Math.sin(yy * .013 + seed * .001) * 7 * k;
+      left.push([cx + wander - half, yy]);
+      right.push([cx + wander + half, yy]);
+    }
+    const tipL = left[left.length - 1];
+    const tipR = right[right.length - 1];
+    const trace = () => {
+      ctx.beginPath();
+      ctx.moveTo(left[0][0], left[0][1]);
+      for (const p of left) ctx.lineTo(p[0], p[1]);
+      ctx.quadraticCurveTo((tipL[0] + tipR[0]) / 2, tipL[1] + thickness * .3, tipR[0], tipR[1]);
+      for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
+      ctx.closePath();
+    };
+
+    ctx.save();
+    trace();
+    ctx.fillStyle = rootPalette.innerBase;
+    ctx.fill();
+    ctx.clip();
+    // Tecido em faixas verticais: epiderme verde nas duas bordas, córtex no meio.
+    // Presa a y0 (mundo), não à câmera: as células não deslizam.
+    paintRootTissueVertical(ctx, seed, cx, y0, y1 + 10, thickness * .62);
+    // Fica atrás do jogo: um véu escuro separa o fundo do que se pisa.
+    ctx.fillStyle = 'rgba(12,10,9,.5)';
+    trace();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    trace();
+    ctx.strokeStyle = rootPalette.outline;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Pelos radiculares perto da ponta.
+    ctx.strokeStyle = rootPalette.radicle;
+    ctx.globalAlpha = .5;
+    ctx.lineWidth = 1;
+    for (let i = Math.floor(n * .72); i < n - 1; i++) {
+      const sway = Math.sin((state.time || 0) * 1.4 + i) * 2;
+      ctx.beginPath();
+      ctx.moveTo(left[i][0], left[i][1]);
+      ctx.lineTo(left[i][0] - 9 - sway, left[i][1] + 5);
+      ctx.moveTo(right[i][0], right[i][1]);
+      ctx.lineTo(right[i][0] + 9 + sway, right[i][1] + 5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function lateralRootShape(platform) {
+    const x0 = platform.x;
+    const x1 = platform.x + platform.w;
+    const y = platform.y;
+    const base = platform.h;
+    const tip = Math.max(18, platform.h * .62);
+    const capLen = Math.min(tip * .9, 30, platform.w * .2);
+    const bodyEnd = x1 - capLen;
+    const thicknessAt = x => base - (base - tip) * Math.pow(clamp((x - x0) / Math.max(1, bodyEnd - x0), 0, 1), 1.7);
+    return { x0, x1, y, base, tip, capLen, bodyEnd, thicknessAt };
+  }
+
+  function traceLateral(ctx, shape) {
+    const { x0, x1, y, tip, bodyEnd, thicknessAt } = shape;
+    ctx.beginPath();
+    ctx.moveTo(x0, y);
+    // Topo reto: é onde se pisa.
+    ctx.lineTo(bodyEnd, y);
+    // Coifa.
+    ctx.quadraticCurveTo(x1 - 3, y + 1, x1, y + tip * .55);
+    ctx.quadraticCurveTo(x1 - 4, y + tip, bodyEnd, y + tip * .96);
+    for (let x = bodyEnd; x > x0; x -= 14) ctx.lineTo(x, y + thicknessAt(x) + Math.sin(x * .03) * 1.2);
+    ctx.lineTo(x0, y + thicknessAt(x0));
+    ctx.closePath();
+  }
+
+  function drawLateralRoot(ctx, platform, seed) {
+    const shape = lateralRootShape(platform);
+    const { x0, x1, y, base, bodyEnd, capLen, thicknessAt } = shape;
+    const time = state.time || 0;
+
+    // Colar de ramificação: a lateral nasce da vertical alargando-se nela,
+    // em cima e embaixo, como no protótipo.
+    const vertical = verticalRootThickness(platform);
+    const trunkLeft = x0 + vertical * .32 - vertical * .62;
+    const collarW = clamp(base * .38, 14, 30);
+    const collarH = clamp(base * .32, 10, 22);
+    const bottomAtCollar = y + thicknessAt(x0 + collarW);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(trunkLeft, y - collarH);
+    ctx.quadraticCurveTo(trunkLeft + 4, y, x0 + collarW, y);
+    ctx.lineTo(x0 + collarW, bottomAtCollar);
+    ctx.quadraticCurveTo(trunkLeft + 4, bottomAtCollar, trunkLeft, bottomAtCollar + collarH);
+    ctx.closePath();
+    ctx.fillStyle = rootPalette.ochreLarge[1];
+    ctx.fill();
+    ctx.strokeStyle = rootPalette.outline;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // Pelos radiculares da zona de maturação, atrás da coifa (antes do corpo,
+    // para nascerem de dentro dele).
+    const zoneStart = Math.max(x0 + collarW + 6, x1 - Math.min(200, platform.w * .62));
+    ctx.save();
+    ctx.strokeStyle = rootPalette.radicle;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = clamp(base * .02, 1.1, 1.8);
+    ctx.globalAlpha = .75;
+    for (let hx = zoneStart, k = 0; hx < bodyEnd - 2; hx += 8, k++) {
+      const r = pseudo(seed, 900 + k);
+      const len = 10 + r * 16;
+      const sway = Math.sin(time * 1.6 + hx * .05) * 3;
+      const bottomY = y + thicknessAt(hx) - 2;
+      ctx.beginPath();
+      ctx.moveTo(hx, bottomY);
+      ctx.quadraticCurveTo(hx + sway, bottomY + len * .6, hx + sway * 1.6 + 3, bottomY + len);
+      ctx.stroke();
+      if (r > .6) {
+        ctx.beginPath();
+        ctx.moveTo(hx + 3, y + 3);
+        ctx.quadraticCurveTo(hx + 3 + sway, y - len * .45, hx + 5 + sway, y - len * .75);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    ctx.save();
+    traceLateral(ctx, shape);
+    ctx.clip();
+    paintRootTissue(ctx, seed, x0, y, platform.w, base);
+    paintRootCondition(ctx, platform);
+    // A coifa é mais clara e translúcida que o resto da raiz.
+    const cap = ctx.createLinearGradient(bodyEnd - capLen, 0, x1, 0);
+    cap.addColorStop(0, 'rgba(250,236,205,0)');
+    cap.addColorStop(1, 'rgba(250,236,205,.38)');
+    ctx.fillStyle = cap;
+    ctx.beginPath();
+    ctx.moveTo(bodyEnd - capLen, y - 2);
+    ctx.lineTo(x1 + 2, y - 2);
+    ctx.lineTo(x1 + 2, y + base);
+    ctx.lineTo(bodyEnd - capLen, y + base);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    traceLateral(ctx, shape);
+    ctx.strokeStyle = rootPalette.outline;
+    ctx.lineWidth = Math.max(2, base * .025);
+    ctx.stroke();
+    // Coifa translúcida com mucilagem, por dentro da ponta.
+    ctx.strokeStyle = 'rgba(255,244,220,.5)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.ellipse(bodyEnd, y + shape.tip * .5, capLen * .75, shape.tip * .36, 0, -1.1, 1.1);
+    ctx.stroke();
+    ctx.restore();
+
+    if (platform.fixedObjective) {
+      const objectivePulse = .78 + Math.sin(3.2) * .08;
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,213,111,${objectivePulse})`;
+      ctx.fillStyle = 'rgba(255,213,111,.08)';
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#ffd56f';
+      traceLateral(ctx, shape);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffd56f';
+      ctx.fillRect(x0 + 12, y - 2, Math.max(24, bodyEnd - x0 - 24), 4);
+      ctx.restore();
+    }
+  }
+
+  // ------------------------------------------------------------ mundo ----
+
+  let lastRenderMs = 0;
+
+  function draw(ctx, view, seedOf) {
+    const started = typeof performance !== 'undefined' ? performance.now() : 0;
+    const platforms = solidPlatforms();
+    const worldBottom = Number(state.level?.worldBottomY);
+    const floor = Math.max(Number.isFinite(worldBottom) ? worldBottom : view.bottom, view.bottom) + 40;
+    // Folga de 100 px: o barranco alarga a massa para os lados, embaixo.
+    const inX = platform => platform.x + platform.w >= view.left - 100 && platform.x <= view.right + 100;
+    const visible = platforms.filter(inX);
+    const soils = visible.filter(platform => platform.type === 'soil');
+    const roots = visible.filter(platform => platform.type !== 'soil');
+
+    const ceilingDrawn = drawCeiling(ctx, view, platforms);
+    const clearance = ceilingClearance();
+    const worldTop = Number(state.level?.worldTopY);
+    const topLimit = Number.isFinite(worldTop) ? worldTop + 30 : -Infinity;
+    for (const platform of roots) {
+      const thickness = verticalRootThickness(platform);
+      // Sem teto na tela, a raiz vertical entra pela borda de cima.
+      const ceilingY = ceilingDrawn
+        ? ceilingLineAt(platform.x + thickness * .32, platforms, clearance, topLimit) ?? view.top - 40
+        : view.top - 40;
+      drawVerticalRoot(ctx, platform, view, ceilingY, seedOf(platform));
+    }
+    for (const platform of soils) drawSoilMass(ctx, platform, platforms, view, floor, seedOf(platform));
+    for (const platform of roots) {
+      if (platform.y > view.bottom || platform.y + platform.h < view.top) continue;
+      drawLateralRoot(ctx, platform, seedOf(platform));
+    }
+    if (started) lastRenderMs = performance.now() - started;
+  }
+
+  return {
+    draw,
+    get lastRenderMs() { return lastRenderMs; },
+  };
+}
+Object.assign(__exports, { readGeometryPreference, createRhizosphereGeometry });
 },
 "src/procgen/azospirillum-root-growth.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { ensurePhaseObjectiveProgress } = __require("src/procgen/campaign-objective-progress.js");const { createRandom } = __require("src/procgen/random.js");const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");const { getNitrogenAvailability } = __require("src/procgen/nitrogen-availability.js");const { synchronizeWorldBounds } = __require("src/procgen/world-bounds.js");const { fxLanded } = __require("src/game-audio.js");
@@ -42656,21 +43364,24 @@ function drawProtozoan(ctx, random, x, y) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(tilt);
-  ctx.fillStyle = 'rgba(74,164,164,.08)';
-  ctx.strokeStyle = 'rgba(119,220,207,.20)';
+  ctx.globalCompositeOperation = 'screen';
+  ctx.shadowColor = 'rgba(67,164,179,.24)';
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = 'rgba(56,138,151,.15)';
+  ctx.strokeStyle = 'rgba(119,220,207,.34)';
   ctx.lineWidth = 1.2;
   ctx.beginPath();
   ctx.ellipse(0, 0, rx, ry, 0, 0, TAU);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = 'rgba(140,220,207,.13)';
+  ctx.fillStyle = 'rgba(140,220,207,.22)';
   for (let i = 0; i < 4; i++) {
     const angle = i * 1.7 + random();
     ctx.beginPath();
     ctx.arc(Math.cos(angle) * rx * 0.46, Math.sin(angle) * ry * 0.48, 1.6 + random() * 2.2, 0, TAU);
     ctx.fill();
   }
-  ctx.strokeStyle = 'rgba(125,207,199,.12)';
+  ctx.strokeStyle = 'rgba(125,207,199,.20)';
   ctx.lineWidth = 0.8;
   for (let i = 0; i < 10; i++) {
     const angle = (i / 10) * TAU;
@@ -42688,19 +43399,22 @@ function drawAlgaeChain(ctx, random, x, y) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
-  ctx.strokeStyle = 'rgba(104,207,184,.18)';
-  ctx.fillStyle = 'rgba(64,152,143,.08)';
+  ctx.globalCompositeOperation = 'screen';
+  ctx.shadowColor = 'rgba(63,158,172,.22)';
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = 'rgba(104,207,184,.32)';
+  ctx.fillStyle = 'rgba(49,126,139,.15)';
   ctx.lineWidth = 1;
   for (let i = 0; i < cells; i++) {
     ctx.beginPath();
     ctx.ellipse(i * 9, Math.sin(i * 1.4) * 2, 5.5, 3.8, i * 0.14, 0, TAU);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = 'rgba(130,220,192,.11)';
+    ctx.fillStyle = 'rgba(130,220,192,.20)';
     ctx.beginPath();
     ctx.arc(i * 9 + 1, Math.sin(i * 1.4) * 2, 1.2, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = 'rgba(64,152,143,.08)';
+    ctx.fillStyle = 'rgba(49,126,139,.15)';
   }
   ctx.restore();
 }
@@ -42708,8 +43422,11 @@ function drawAlgaeChain(ctx, random, x, y) {
 function drawCrystalCluster(ctx, random, x, y) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.strokeStyle = 'rgba(134,162,204,.18)';
-  ctx.fillStyle = 'rgba(77,116,159,.055)';
+  ctx.globalCompositeOperation = 'screen';
+  ctx.shadowColor = 'rgba(78,145,177,.20)';
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = 'rgba(134,183,211,.30)';
+  ctx.fillStyle = 'rgba(65,112,146,.11)';
   ctx.lineWidth = 1;
   const shards = 5 + Math.floor(random() * 3);
   const rotation = random() * TAU;
@@ -42730,7 +43447,7 @@ function drawCrystalCluster(ctx, random, x, y) {
     ctx.stroke();
     ctx.restore();
   }
-  ctx.fillStyle = 'rgba(118,167,191,.09)';
+  ctx.fillStyle = 'rgba(118,183,204,.17)';
   ctx.beginPath();
   ctx.arc(0, 0, 3.4, 0, TAU);
   ctx.fill();
@@ -42739,8 +43456,11 @@ function drawCrystalCluster(ctx, random, x, y) {
 
 function drawBubbleCluster(ctx, random, x, y) {
   ctx.save();
-  ctx.strokeStyle = 'rgba(123,203,207,.14)';
-  ctx.fillStyle = 'rgba(78,151,163,.035)';
+  ctx.globalCompositeOperation = 'screen';
+  ctx.shadowColor = 'rgba(72,160,176,.22)';
+  ctx.shadowBlur = 11;
+  ctx.strokeStyle = 'rgba(123,203,207,.27)';
+  ctx.fillStyle = 'rgba(57,128,143,.08)';
   ctx.lineWidth = 1;
   const count = 3 + Math.floor(random() * 4);
   for (let i = 0; i < count; i++) {
@@ -42751,11 +43471,11 @@ function drawBubbleCluster(ctx, random, x, y) {
     ctx.arc(bx, by, radius, 0, TAU);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = 'rgba(185,232,229,.11)';
+    ctx.fillStyle = 'rgba(185,232,229,.21)';
     ctx.beginPath();
     ctx.arc(bx - radius * 0.3, by - radius * 0.34, Math.max(0.8, radius * 0.16), 0, TAU);
     ctx.fill();
-    ctx.fillStyle = 'rgba(78,151,163,.035)';
+    ctx.fillStyle = 'rgba(57,128,143,.08)';
   }
   ctx.restore();
 }
@@ -42878,7 +43598,7 @@ function createRhizosphereParallax({
     phase: random() * TAU,
     speed: 0.18 + random() * 0.35,
     drift: 5 + random() * 7,
-    alpha: 0.08 + random() * 0.1,
+    alpha: 0.12 + random() * 0.11,
     index,
   }));
 
@@ -42977,7 +43697,9 @@ function createRhizosphereParallax({
     ctx.save();
     resetCanvasState(ctx);
     ctx.translate(0, cameraY + vertical.particles);
-    ctx.fillStyle = '#8fc8c7';
+    ctx.fillStyle = '#79bcc4';
+    ctx.shadowColor = 'rgba(70,157,174,.28)';
+    ctx.shadowBlur = 6;
     for (let tile = firstTile; tile <= lastTile; tile++) {
       const tileX = tile * TILE_WIDTH - effectiveX;
       for (let i = 0; i < particles.length; i++) {
@@ -43085,6 +43807,642 @@ function createRhizosphereParallax({
   };
 }
 Object.assign(__exports, { BIOLOGICAL_PARALLAX_KEY, RHIZOSPHERE_PARALLAX_FACTORS, calculateFilamentGeometry, createRhizosphereParallax });
+},
+"src/render/rhizosphere-lighting.js": (__exports, __require) => {
+// Iluminação e atmosfera da rizosfera.
+//
+// Camada puramente visual, desenhada DEPOIS do mundo e dos organismos. Não lê
+// nem escreve nada que a física, a coleta, os tutoriais ou o áudio usem.
+//
+//   1. Profundidade das plataformas (mundo): sombra de contato sob cada bloco e
+//      borda superior iluminada, para os blocos "assentarem" no solo.
+//   2. Feixes de luz (mundo): luz que desce da superfície por fissuras e
+//      galerias, com partículas em suspensão.
+//   3. Escuridão (tela): camada de baixa resolução que escurece o fundo pela
+//      profundidade e nas bordas, recortada por luzes do jogador, dos exsudatos,
+//      dos microrganismos e do objetivo.
+//   4. Brilhos aditivos (mundo): halos coloridos das fontes de luz.
+//   5. Primeiro plano (tela): silhuetas de raízes e agregados passando à frente
+//      da câmera com parallax maior que 1.
+//
+// Desliga com `?luz=0` na URL ou com a tecla L durante o jogo, para comparar.
+
+const TAU = Math.PI * 2;
+const DARK_SCALE = 4; // escuridão calculada em 1/4 da resolução e ampliada com suavização
+const SHAFT_SPACING = 760;
+const FG_FACTOR = 1.32;
+const FG_TILE = 1400;
+
+function hash(seed, i) {
+  const x = Math.sin((seed + 1) * 127.1 + i * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function seedFrom(value) {
+  const text = String(value ?? 'rizosfera');
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) % 100000;
+}
+
+function rgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+function readLightingPreference(locationLike) {
+  try {
+    const params = new URLSearchParams(locationLike?.search || '');
+    const value = params.get('luz');
+    if (value === null) return true;
+    return !['0', 'off', 'false', 'nao', 'não'].includes(value.toLowerCase());
+  } catch (_) {
+    return true;
+  }
+}
+
+function createRhizosphereLighting({ canvas, state, getAgents, enabled = true }) {
+  const doc = canvas?.ownerDocument || (typeof document === 'undefined' ? null : document);
+  const dark = doc ? doc.createElement('canvas') : null;
+  const dctx = dark ? dark.getContext('2d') : null;
+  let on = enabled;
+  // Transição suave: entra ao começar a jogar, sai ao desligar e na cinemática final.
+  let fade = 0;
+  let lastTime = null;
+  let lastRenderMs = 0;
+  let levelKey = null;
+  let shafts = [];
+  let fgPieces = [];
+  let seed = 0;
+  // Gradientes radiais custam caro quando há dezenas de fontes: cada luz e cada
+  // halo vira um sprite pré-renderizado, desenhado com drawImage + globalAlpha.
+  const glowCache = new Map();
+  let stampSprite = null;
+
+  function radialSprite(color, stops) {
+    if (!doc) return null;
+    const size = 128;
+    const c = doc.createElement('canvas');
+    c.width = size; c.height = size;
+    const g2 = c.getContext('2d');
+    const g = g2.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    for (const [o, a] of stops) g.addColorStop(o, rgba(color, a));
+    g2.fillStyle = g;
+    g2.fillRect(0, 0, size, size);
+    return c;
+  }
+
+  function glowSprite(color) {
+    let c = glowCache.get(color);
+    if (!c) {
+      c = radialSprite(color, [[0, 1], [.25, .45], [.60, .12], [1, 0]]);
+      glowCache.set(color, c);
+    }
+    return c;
+  }
+
+  function rebuild(level) {
+    seed = seedFrom(level?.seed ?? level?.phaseTitle ?? 'rizosfera');
+    shafts = [];
+    const x0 = -200;
+    const x1 = (Number(level?.endX) || 4000) + 600;
+    let i = 0;
+    for (let x = x0 + hash(seed, 1) * SHAFT_SPACING; x < x1; x += SHAFT_SPACING * (.7 + hash(seed, i * 7 + 3) * .6)) {
+      shafts.push({
+        x,
+        w: 70 + hash(seed, i * 5 + 11) * 90,
+        slant: .16 + hash(seed, i * 3 + 17) * .14,
+        phase: hash(seed, i * 13 + 5) * TAU,
+        strength: .55 + hash(seed, i * 19 + 2) * .45,
+        motes: Array.from({ length: 12 }, (_, k) => ({
+          u: hash(seed, i * 101 + k * 3),
+          v: hash(seed, i * 101 + k * 3 + 1),
+          s: .6 + hash(seed, i * 101 + k * 3 + 2) * 1.6,
+        })),
+      });
+      i++;
+    }
+    fgPieces = [];
+    for (let k = 0; k < 7; k++) {
+      const top = true; // só raízes pendentes: agregados na base cobriam hazards e o piso
+      fgPieces.push({
+        x: hash(seed, 420 + k) * FG_TILE,
+        top,
+        len: top ? 70 + hash(seed, 440 + k) * 110 : 40 + hash(seed, 440 + k) * 50,
+        w: top ? 10 + hash(seed, 460 + k) * 16 : 90 + hash(seed, 460 + k) * 140,
+        bend: (hash(seed, 480 + k) - .5) * 40,
+        kind: k,
+      });
+    }
+  }
+
+  function geometryBounds() {
+    const level = state.level || {};
+    const top = Number.isFinite(level.geometryTopY) ? level.geometryTopY : (Number.isFinite(level.worldTopY) ? level.worldTopY : 0);
+    const bottom = Number.isFinite(level.geometryBottomY) ? level.geometryBottomY : (Number.isFinite(level.worldBottomY) ? level.worldBottomY : 720);
+    return { top, bottom };
+  }
+
+  // ---------- 1. profundidade das plataformas (coordenadas de mundo) ----------
+  function renderPlatformDepth(ctx) {
+    if (fade <= .01) return;
+    const level = state.level;
+    if (!level?.platforms) return;
+    const camX = state.cameraX || 0;
+    const camY = state.cameraY || 0;
+    const zoom = state.cameraZoom || 1;
+    const vw = (canvas.width || 1280) / zoom;
+    const vh = (canvas.height || 720) / zoom;
+    ctx.save();
+    ctx.translate(-camX, 0);
+    for (const p of level.platforms) {
+      if (p.x + p.w < camX - 80 || p.x > camX + vw + 80) continue;
+      if (p.y > camY + vh + 120 || p.y + p.h < camY - 120) continue;
+      if (p.recovery && state.recoveryPlatformsDisabled) continue;
+      if (p.mycorrhizaStructure || p.azospirillumStructure) continue;
+
+      // So sombra de contato. O antigo rim claro em TODA plataforma fazia
+      // cada bloco parecer autoiluminado e tirava a leitura do feixe.
+      const sh = Math.min(62, 22 + p.w * .07);
+      const g = ctx.createLinearGradient(0, p.y + p.h - 4, 0, p.y + p.h + sh);
+      g.addColorStop(0, 'rgba(2,6,9,' + (.30 * fade) + ')');
+      g.addColorStop(1, 'rgba(2,6,9,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(p.x + p.w / 2, p.y + p.h - 3, p.w * .54, sh, 0, 0, Math.PI);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ---------- helpers de projeção ----------
+  function project(m, wx, wy) {
+    const x = wx - (state.cameraX || 0);
+    return [m.a * x + m.c * wy + m.e, m.b * x + m.d * wy + m.f];
+  }
+
+  function beamHalfWidthAtY(shaft, y, yTop, yBottom) {
+    const span = Math.max(1, yBottom - yTop);
+    const u = Math.max(0, Math.min(1, (y - yTop) / span));
+    return shaft.w * (.30 + u * .48);
+  }
+
+  function beamCenterAtY(shaft, y, yTop) {
+    return shaft.x + (y - yTop) * shaft.slant;
+  }
+
+  function firstShaftImpact(shaft, yTop, yBottom) {
+    const platforms = state.level?.platforms || [];
+    let best = null;
+    for (const p of platforms) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.w) || !Number.isFinite(p.h)) continue;
+      if (p.recovery && state.recoveryPlatformsDisabled) continue;
+      if (p.mycorrhizaStructure || p.azospirillumStructure) continue;
+      if (p.y < yTop || p.y > yBottom) continue;
+
+      const center = beamCenterAtY(shaft, p.y, yTop);
+      const half = beamHalfWidthAtY(shaft, p.y, yTop, yBottom);
+      const left = Math.max(p.x, center - half);
+      const right = Math.min(p.x + p.w, center + half);
+      if (right - left < 3) continue;
+
+      if (!best || p.y < best.y || (p.y === best.y && right - left > best.right - best.left)) {
+        best = { platform: p, y: p.y, center, half, left, right };
+      }
+    }
+    return best;
+  }
+
+  function collectShaftImpacts() {
+    const bounds = geometryBounds();
+    const yTop = bounds.top - 260;
+    const yBottom = bounds.bottom + 60;
+    return {
+      yTop,
+      yBottom,
+      items: shafts.map(shaft => ({
+        shaft,
+        impact: firstShaftImpact(shaft, yTop, yBottom),
+      })),
+    };
+  }
+
+  function roundedScreenRect(ctx, x, y, w, h, radius) {
+    const r = Math.max(0, Math.min(radius, w / 2, h / 2));
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(x, y, w, h, r);
+      return;
+    }
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function collectLights() {
+    const level = state.level || {};
+    const t = state.time || 0;
+    const lights = [];
+    const p = state.player;
+
+    if (p) {
+      const x = p.x + (p.w || 32) / 2;
+      const y = p.y + (p.h || 48) * .45;
+
+      // Mesmo princípio do protótipo: recorte amplo da escuridão + núcleo menor.
+      // A cor amarela pertence SOMENTE ao glow aditivo curto.
+      lights.push({
+        x, y,
+        maskR: 300, maskA: 1,
+        glowR: 0, glowA: 0,
+        color: '#ffb83e',
+        kind: 'player-ambient',
+      });
+      lights.push({
+        x, y,
+        maskR: 140, maskA: .85,
+        glowR: 40, glowA: .42,
+        color: '#ffb83e',
+        kind: 'player',
+      });
+    }
+
+    for (const e of level.exudates || []) {
+      if (e.taken) continue;
+      lights.push({
+        x: e.x,
+        y: e.y,
+        maskR: 70, maskA: .70,
+        glowR: 26, glowA: .62 + Math.sin(t * 3 + e.x) * .05,
+        color: '#d8f05a',
+        kind: 'exudate',
+      });
+    }
+
+    for (const iron of level.ironDeposits || []) {
+      if (!Number.isFinite(iron.x) || !Number.isFinite(iron.y)) continue;
+      if (Number.isFinite(iron.stock) && iron.stock <= .05) continue;
+      lights.push({
+        x: iron.x,
+        y: iron.y,
+        maskR: 58, maskA: .46,
+        glowR: 22, glowA: .52,
+        color: '#d9a34a',
+        kind: 'iron',
+      });
+    }
+
+    for (const c of level.checkpoints || []) {
+      lights.push({
+        x: c.x,
+        y: c.y,
+        maskR: c.active ? 200 : 110,
+        maskA: c.active ? .95 : .60,
+        glowR: c.active ? 70 : 34,
+        glowA: c.active ? .45 : .20,
+        color: '#f0d77a',
+        kind: 'checkpoint',
+      });
+    }
+
+    for (const b of level.biofilms || []) {
+      if (!Number.isFinite(b.x)) continue;
+      lights.push({
+        x: b.x,
+        y: b.y,
+        maskR: 90, maskA: .50,
+        glowR: 30, glowA: .36,
+        color: '#7fd8ff',
+        kind: 'biofilm',
+      });
+    }
+
+    if (level.goal && Number.isFinite(level.goal.x)) {
+      lights.push({
+        x: level.goal.x,
+        y: level.goal.y,
+        maskR: 330, maskA: .90,
+        glowR: 75, glowA: .40 + Math.sin(t * 1.6) * .04,
+        color: '#ffe7a8',
+        kind: 'goal',
+      });
+    }
+
+    // Microrganismos: abertura curta da máscara e glow ainda menor.
+    // Grupos somam luz naturalmente, sem precisar pintar a plataforma.
+    const biologicalLights = {
+      bacillus:     { color: '#68d8ff', maskR: 55, maskA: .50, glowR: 22, glowA: .60 },
+      rhizobium:    { color: '#62ded5', maskR: 55, maskA: .50, glowR: 20, glowA: .52 },
+      azospirillum: { color: '#72e7c8', maskR: 60, maskA: .52, glowR: 22, glowA: .54 },
+      pseudomonas:  { color: '#a8ef68', maskR: 55, maskA: .48, glowR: 21, glowA: .54 },
+      trichoderma:  { color: '#86e99d', maskR: 55, maskA: .45, glowR: 21, glowA: .48 },
+    };
+
+    const agents = typeof getAgents === 'function' ? (getAgents() || []) : [];
+    const viewLeft = Number(state.cameraX) || 0;
+    const viewWidth = Number(state.visibleWorldWidth) || Number(state.viewportWidth) || 1280;
+    const viewRight = viewLeft + viewWidth;
+
+    for (const agent of agents) {
+      const spec = biologicalLights[agent.type];
+      if (!spec || !Number.isFinite(agent.x) || !Number.isFinite(agent.y)) continue;
+      if (agent.x < viewLeft - 120 || agent.x > viewRight + 120) continue;
+      lights.push({
+        x: agent.x,
+        y: agent.y,
+        ...spec,
+        kind: agent.type,
+      });
+    }
+
+    return lights;
+  }
+
+  // ---------- 2. feixes de luz ----------
+  function drawShafts(ctx, m, zoom, W, H, t, shaftImpacts) {
+    const yTop = shaftImpacts.yTop;
+    const yBottom = shaftImpacts.yBottom;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+
+    for (const item of shaftImpacts.items) {
+      const s = item.shaft;
+      const impact = item.impact;
+      const yEnd = impact ? impact.y : yBottom;
+      if (yEnd <= yTop + 1) continue;
+
+      const breathe = .80 + Math.sin(t * .45 + s.phase) * .20;
+      const alpha = .075 * s.strength * breathe * fade;
+      const xTop = beamCenterAtY(s, yTop, yTop);
+      const xEnd = beamCenterAtY(s, yEnd, yTop);
+      const topPoint = project(m, xTop, yTop);
+      const endPoint = project(m, xEnd, yEnd);
+      const ax = topPoint[0], ay = topPoint[1];
+      const bx = endPoint[0], by = endPoint[1];
+      const halfTop = beamHalfWidthAtY(s, yTop, yTop, yBottom) * zoom;
+      const halfEnd = beamHalfWidthAtY(s, yEnd, yTop, yBottom) * zoom;
+      if (Math.max(ax, bx) + halfEnd < -40 || Math.min(ax, bx) - halfEnd > W + 40) continue;
+
+      // Feixe externo: existe no ar, mas nao e um trapezio branco opaco.
+      const outer = ctx.createLinearGradient(0, ay, 0, by);
+      outer.addColorStop(0, 'rgba(255,241,205,' + (alpha * .45) + ')');
+      outer.addColorStop(.68, 'rgba(239,235,202,' + alpha + ')');
+      outer.addColorStop(1, 'rgba(255,226,170,' + (alpha * 1.15) + ')');
+      ctx.fillStyle = outer;
+      ctx.beginPath();
+      ctx.moveTo(ax - halfTop, ay);
+      ctx.lineTo(ax + halfTop, ay);
+      ctx.lineTo(bx + halfEnd, by);
+      ctx.lineTo(bx - halfEnd, by);
+      ctx.closePath();
+      ctx.fill();
+
+      // Nucleo estreito para sugerir volume.
+      const coreTop = halfTop * .34;
+      const coreEnd = halfEnd * .38;
+      const core = ctx.createLinearGradient(0, ay, 0, by);
+      core.addColorStop(0, 'rgba(255,248,224,0)');
+      core.addColorStop(.35, 'rgba(255,247,218,' + (alpha * .65) + ')');
+      core.addColorStop(1, 'rgba(255,231,180,' + (alpha * 1.35) + ')');
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.moveTo(ax - coreTop, ay);
+      ctx.lineTo(ax + coreTop, ay);
+      ctx.lineTo(bx + coreEnd, by);
+      ctx.lineTo(bx - coreEnd, by);
+      ctx.closePath();
+      ctx.fill();
+
+      // Particulas param na mesma superficie que bloqueia a luz.
+      for (const mo of s.motes) {
+        const v = (mo.v + t * .018 * mo.s) % 1;
+        const wy = yTop + 70 + v * Math.max(1, yEnd - yTop - 85);
+        if (wy >= yEnd) continue;
+        const center = beamCenterAtY(s, wy, yTop);
+        const half = beamHalfWidthAtY(s, wy, yTop, yBottom);
+        const wx = center + (mo.u - .5) * half * 1.3 + Math.sin(t * .7 + mo.u * 20) * 5;
+        const pp = project(m, wx, wy);
+        const px = pp[0], py = pp[1];
+        if (px < -10 || px > W + 10 || py < -10 || py > H + 10) continue;
+        const tw = .5 + .5 * Math.sin(t * 2.2 + mo.u * 40);
+        ctx.fillStyle = 'rgba(255,244,214,' + ((.12 + tw * .25) * fade) + ')';
+        ctx.beginPath();
+        ctx.arc(px, py, mo.s * zoom, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // ---------- 3. escuridão ----------
+  function drawDarkness(ctx, m, zoom, W, H, lights, t, shaftImpacts) {
+    if (!dctx) return;
+    const dw = Math.max(2, Math.ceil(W / DARK_SCALE));
+    const dh = Math.max(2, Math.ceil(H / DARK_SCALE));
+    if (dark.width !== dw || dark.height !== dh) { dark.width = dw; dark.height = dh; }
+    dctx.globalCompositeOperation = 'source-over';
+    dctx.clearRect(0, 0, dw, dh);
+
+    const bounds = geometryBounds();
+    const topPoint = project(m, 0, bounds.top - 120);
+    const bottomPoint = project(m, 0, bounds.bottom + 80);
+    const g = dctx.createLinearGradient(0, topPoint[1] / DARK_SCALE, 0, bottomPoint[1] / DARK_SCALE);
+    g.addColorStop(0, 'rgba(2,9,14,.24)');
+    g.addColorStop(.55, 'rgba(2,8,13,.48)');
+    g.addColorStop(1, 'rgba(1,4,8,.76)');
+    dctx.fillStyle = g;
+    dctx.fillRect(0, 0, dw, dh);
+
+    const vg = dctx.createRadialGradient(dw / 2, dh * .52, Math.min(dw, dh) * .34, dw / 2, dh * .52, Math.max(dw, dh) * .76);
+    vg.addColorStop(0, 'rgba(1,4,8,0)');
+    vg.addColorStop(1, 'rgba(1,4,8,.30)');
+    dctx.fillStyle = vg;
+    dctx.fillRect(0, 0, dw, dh);
+
+    dctx.globalCompositeOperation = 'destination-out';
+    if (!stampSprite) stampSprite = radialSprite('#000000', [[0, 1], [.45, .55], [1, 0]]);
+    const stamp = (sx, sy, r, a) => {
+      const x = sx / DARK_SCALE;
+      const y = sy / DARK_SCALE;
+      const rr = r / DARK_SCALE;
+      if (x + rr < 0 || x - rr > dw || y + rr < 0 || y - rr > dh) return;
+      dctx.globalAlpha = a;
+      dctx.drawImage(stampSprite, x - rr, y - rr, rr * 2, rr * 2);
+    };
+    for (const l of lights) {
+      if (!l.maskR || !l.maskA) continue;
+      const p = project(m, l.x, l.y);
+      stamp(p[0], p[1], l.maskR * zoom, l.maskA);
+    }
+    dctx.globalAlpha = 1;
+
+    // O buraco do feixe na escuridao tambem termina no primeiro impacto.
+    for (const item of shaftImpacts.items) {
+      const s = item.shaft;
+      const yStart = shaftImpacts.yTop;
+      const yEnd = item.impact ? item.impact.y : shaftImpacts.yBottom;
+      if (yEnd <= yStart + 1) continue;
+      const breathe = .80 + Math.sin(t * .45 + s.phase) * .20;
+      const p0 = project(m, beamCenterAtY(s, yStart, yStart), yStart);
+      const p1 = project(m, beamCenterAtY(s, yEnd, yStart), yEnd);
+      const half0 = beamHalfWidthAtY(s, yStart, yStart, shaftImpacts.yBottom) * zoom;
+      const half1 = beamHalfWidthAtY(s, yEnd, yStart, shaftImpacts.yBottom) * zoom;
+      const lg = dctx.createLinearGradient(0, p0[1] / DARK_SCALE, 0, p1[1] / DARK_SCALE);
+      lg.addColorStop(0, 'rgba(0,0,0,' + (.22 * s.strength * breathe) + ')');
+      lg.addColorStop(.7, 'rgba(0,0,0,' + (.38 * s.strength * breathe) + ')');
+      lg.addColorStop(1, 'rgba(0,0,0,' + (.46 * s.strength * breathe) + ')');
+      dctx.fillStyle = lg;
+      dctx.beginPath();
+      dctx.moveTo((p0[0] - half0) / DARK_SCALE, p0[1] / DARK_SCALE);
+      dctx.lineTo((p0[0] + half0) / DARK_SCALE, p0[1] / DARK_SCALE);
+      dctx.lineTo((p1[0] + half1) / DARK_SCALE, p1[1] / DARK_SCALE);
+      dctx.lineTo((p1[0] - half1) / DARK_SCALE, p1[1] / DARK_SCALE);
+      dctx.closePath();
+      dctx.fill();
+    }
+
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(dark, 0, 0, dw * DARK_SCALE, dh * DARK_SCALE);
+    ctx.restore();
+  }
+
+  // ---------- 4. brilhos aditivos ----------
+  function drawGlows(ctx, m, zoom, W, H, lights) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const l of lights) {
+      if (!l.glowR || !l.glowA) continue;
+      const [sx, sy] = project(m, l.x, l.y);
+      const r = l.glowR * zoom;
+      if (sx + r < 0 || sx - r > W || sy + r < 0 || sy - r > H) continue;
+      const sprite = glowSprite(l.color);
+      if (!sprite) continue;
+      ctx.globalAlpha = Math.max(0, Math.min(1, l.glowA * fade));
+      ctx.drawImage(sprite, sx - r, sy - r, r * 2, r * 2);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // ---------- 5. primeiro plano ----------
+  function drawForeground(ctx, zoom, W, H, t) {
+    const off = ((state.cameraX || 0) * FG_FACTOR * zoom) % (FG_TILE * zoom);
+    ctx.save();
+    ctx.globalAlpha = .9 * fade;
+    for (let tile = -1; tile <= Math.ceil(W / (FG_TILE * zoom)) + 1; tile++) {
+      for (const piece of fgPieces) {
+        const sx = tile * FG_TILE * zoom + piece.x * zoom - off;
+        if (sx < -300 * zoom || sx > W + 300 * zoom) continue;
+        if (piece.top) {
+          // raiz fina pendendo do teto: forma afunilada preenchida, com pelos
+          const sway = Math.sin(t * .6 + piece.kind) * 5 * zoom;
+          // comprimento limitado a uma faixa do topo da tela: no celular, com
+          // zoom e densidade de pixels maiores, a raiz virava uma agulha longa
+          const len = Math.min(piece.len * zoom, H * .17);
+          const base = Math.max(piece.w * .7 * zoom, len * .09);
+          const bend = piece.bend * zoom;
+          const tipX = sx + bend * .6 + sway;
+          ctx.fillStyle = '#041116';
+          ctx.beginPath();
+          ctx.moveTo(sx - base, -12);
+          ctx.quadraticCurveTo(sx + bend - base * .4, len * .55, tipX, len);
+          ctx.quadraticCurveTo(sx + bend + base * .4, len * .55, sx + base, -12);
+          ctx.closePath();
+          ctx.fill();
+          // contraluz discreta na borda, para a silhueta não virar mancha chapada
+          ctx.strokeStyle = 'rgba(120,200,190,.10)';
+          ctx.lineWidth = Math.max(1, zoom);
+          ctx.stroke();
+          ctx.strokeStyle = 'rgba(4,17,22,.75)';
+          ctx.lineCap = 'round';
+          ctx.lineWidth = Math.max(.8, zoom * .8);
+          for (let k = 1; k < 7; k++) {
+            const u = k / 7;
+            const yy = len * u;
+            const cx = sx + (bend * u * (2 - u)) * .8 + sway * u;
+            const side = k % 2 ? 1 : -1;
+            ctx.beginPath();
+            ctx.moveTo(cx, yy);
+            ctx.quadraticCurveTo(cx + side * 10 * zoom, yy + 4 * zoom, cx + side * 16 * zoom, yy + 12 * zoom);
+            ctx.stroke();
+          }
+        } else {
+          // agregado escuro na base da tela
+          const w = piece.w * zoom;
+          const h = piece.len * zoom;
+          ctx.fillStyle = '#02070a';
+          ctx.beginPath();
+          ctx.moveTo(sx - w / 2, H + 10);
+          ctx.bezierCurveTo(sx - w * .45, H - h * .8, sx - w * .1, H - h * 1.05, sx + w * .1, H - h);
+          ctx.bezierCurveTo(sx + w * .4, H - h * .95, sx + w * .5, H - h * .3, sx + w / 2, H + 10);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  function render(ctx, { finaleActive = false } = {}) {
+    const t = Number.isFinite(state.time) ? state.time : 0;
+    const now = typeof performance !== 'undefined' ? performance.now() / 1000 : t;
+    const dt = lastTime === null ? 0 : Math.min(.1, Math.max(0, now - lastTime));
+    lastTime = now;
+    const target = on && !finaleActive && state.gameState !== 'intro' ? 1 : 0;
+    fade += (target - fade) * Math.min(1, dt * 3.5);
+    if (target === 0 && fade < .01) fade = 0;
+    if (target === 1 && fade > .99) fade = 1;
+    if (fade <= 0) return;
+    // O objeto `level` é reaproveitado entre fases (Object.assign): a chave
+    // precisa vir do conteúdo, não da referência.
+    const key = `${state.level?.seed}|${state.level?.campaignPhase}|${Math.round(state.level?.endX || 0)}`;
+    if (key !== levelKey) { levelKey = key; rebuild(state.level); }
+
+    const started = typeof performance !== 'undefined' ? performance.now() : 0;
+    const m = ctx.getTransform();
+    const zoom = Math.hypot(m.a, m.b) || 1;
+    const W = canvas.width || 1280;
+    const H = canvas.height || 720;
+    const lights = collectLights();
+    const shaftImpacts = collectShaftImpacts();
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawDarkness(ctx, m, zoom, W, H, lights, t, shaftImpacts);
+    drawShafts(ctx, m, zoom, W, H, t, shaftImpacts);
+    drawGlows(ctx, m, zoom, W, H, lights);
+    drawForeground(ctx, zoom, W, H, t);
+    ctx.restore();
+    if (started) lastRenderMs = performance.now() - started;
+  }
+
+  function toggle(value) {
+    on = typeof value === 'boolean' ? value : !on;
+    return on;
+  }
+
+  return {
+    render,
+    renderPlatformDepth,
+    toggle,
+    get enabled() { return on; },
+    get strength() { return fade; },
+    get lastRenderMs() { return lastRenderMs; },
+  };
+}
+Object.assign(__exports, { readLightingPreference, createRhizosphereLighting });
 },
 "src/procgen/camera-view.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");const { clamp, lerp } = __require("src/core/math.js");const { zoomProfileFor } = __require("src/procgen/touch-profile.js");
