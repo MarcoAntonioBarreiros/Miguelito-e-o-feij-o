@@ -16,8 +16,6 @@
 //
 // Desliga com `?luz=0` na URL ou com a tecla L durante o jogo, para comparar.
 
-import { MICROBE_MOTION_PROFILES } from '../procgen/microbe-ecology.js';
-
 const TAU = Math.PI * 2;
 const DARK_SCALE = 4; // escuridão calculada em 1/4 da resolução e ampliada com suavização
 const SHAFT_SPACING = 760;
@@ -154,22 +152,17 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
       if (p.y > camY + vh + 120 || p.y + p.h < camY - 120) continue;
       if (p.recovery && state.recoveryPlatformsDisabled) continue;
       if (p.mycorrhizaStructure || p.azospirillumStructure) continue;
-      // sombra de contato: o solo logo abaixo do bloco fica mais escuro
-      const sh = Math.min(70, 26 + p.w * .08);
-      const g = ctx.createLinearGradient(0, p.y + p.h - 6, 0, p.y + p.h + sh);
-      g.addColorStop(0, `rgba(2,6,9,${.42 * fade})`);
+
+      // So sombra de contato. O antigo rim claro em TODA plataforma fazia
+      // cada bloco parecer autoiluminado e tirava a leitura do feixe.
+      const sh = Math.min(62, 22 + p.w * .07);
+      const g = ctx.createLinearGradient(0, p.y + p.h - 4, 0, p.y + p.h + sh);
+      g.addColorStop(0, 'rgba(2,6,9,' + (.30 * fade) + ')');
       g.addColorStop(1, 'rgba(2,6,9,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.ellipse(p.x + p.w / 2, p.y + p.h - 4, p.w * .56, sh, 0, 0, Math.PI);
+      ctx.ellipse(p.x + p.w / 2, p.y + p.h - 3, p.w * .54, sh, 0, 0, Math.PI);
       ctx.fill();
-      // borda superior iluminada pela luz que vem de cima
-      const rim = ctx.createLinearGradient(0, p.y - 2, 0, p.y + 10);
-      rim.addColorStop(0, `rgba(255,232,180,${.34 * fade})`);
-      rim.addColorStop(1, 'rgba(255,232,180,0)');
-      ctx.fillStyle = rim;
-      const inset = Math.min(10, p.w * .08);
-      ctx.fillRect(p.x + inset, p.y - 1, p.w - inset * 2, 10);
     }
     ctx.restore();
   }
@@ -185,28 +178,27 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     const t = state.time || 0;
     const lights = [];
     const p = state.player;
-    if (p) lights.push({ x: p.x + (p.w || 32) / 2, y: p.y + (p.h || 48) * .45, r: 250, a: .92, color: '#bfeee6', glow: .10 });
+    if (p) {
+      const x = p.x + (p.w || 32) / 2;
+      const y = p.y + (p.h || 48) * .45;
+      // Como no prototipo: halo amplo mais um nucleo claro.
+      lights.push({ x, y, r: 300, a: .56, color: '#bfeee6', glow: .05 });
+      lights.push({ x, y, r: 140, a: .86, color: '#dffbf3', glow: .09 });
+    }
     for (const e of level.exudates || []) {
       if (e.taken) continue;
-      lights.push({ x: e.x, y: e.y, r: 120, a: .72, color: '#9df27a', glow: .30 + Math.sin(t * 3 + e.x) * .06 });
+      lights.push({ x: e.x, y: e.y, r: 105, a: .58, color: '#9df27a', glow: .20 + Math.sin(t * 3 + e.x) * .04 });
     }
-    for (const c of level.crystals || []) {
-      if (c.taken || c.collected) continue;
-      lights.push({ x: c.x, y: c.y, r: 110, a: .6, color: '#9fd8ff', glow: .25 });
+    for (const c of level.checkpoints || []) {
+      lights.push({ x: c.x, y: c.y, r: c.active ? 155 : 105, a: c.active ? .66 : .42, color: '#f3dc86', glow: c.active ? .22 : .09 });
     }
-    for (const c of level.checkpoints || []) lights.push({ x: c.x, y: c.y, r: 150, a: .6, color: '#f3dc86', glow: c.active ? .35 : .15 });
-    for (const b of level.biofilms || []) if (Number.isFinite(b.x)) lights.push({ x: b.x, y: b.y, r: 150, a: .6, color: '#f3dc86', glow: .28 });
+    for (const b of level.biofilms || []) {
+      if (Number.isFinite(b.x)) lights.push({ x: b.x, y: b.y, r: 135, a: .48, color: '#f3dc86', glow: .16 });
+    }
     if (level.goal && Number.isFinite(level.goal.x)) {
-      lights.push({ x: level.goal.x, y: level.goal.y, r: 330, a: .95, color: '#ffe7a8', glow: .38 + Math.sin(t * 1.6) * .05 });
+      lights.push({ x: level.goal.x, y: level.goal.y, r: 300, a: .78, color: '#ffe7a8', glow: .24 + Math.sin(t * 1.6) * .04 });
     }
-    const agents = typeof getAgents === 'function' ? getAgents() : null;
-    if (agents) {
-      for (const a of agents) {
-        if (!Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
-        const color = MICROBE_MOTION_PROFILES[a.type]?.color || '#9ff3e6';
-        lights.push({ x: a.x, y: a.y, r: 78, a: .42, color, glow: .22 });
-      }
-    }
+    // Nao perfura a escuridao com todos os agentes ambientais.
     return lights;
   }
 
