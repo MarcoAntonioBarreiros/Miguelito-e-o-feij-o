@@ -277,13 +277,21 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     if (p) {
       const x = p.x + (p.w || 32) / 2;
       const y = p.y + (p.h || 48) * .45;
-      // Halo quente e concentrado: penumbra curta + nucleo luminoso.
-      lights.push({ x, y, r: 230, a: .72, color: '#ffe2a8', glow: .10 });
-      lights.push({ x, y, r: 110, a: .96, color: '#fff1c9', glow: .18 });
+      // Miguelito é a única fonte deliberadamente quente da cena.
+      lights.push({ x, y, r: 230, a: .72, color: '#ffd77f', glow: .11, kind: 'player' });
+      lights.push({ x, y, r: 110, a: .96, color: '#fff0bd', glow: .20, kind: 'player' });
     }
     for (const e of level.exudates || []) {
       if (e.taken) continue;
-      lights.push({ x: e.x, y: e.y, r: 105, a: .58, color: '#9df27a', glow: .20 + Math.sin(t * 3 + e.x) * .04 });
+      lights.push({
+        x: e.x,
+        y: e.y,
+        r: 112,
+        a: .62,
+        color: '#d7ef6c',
+        glow: .34 + Math.sin(t * 3 + e.x) * .05,
+        kind: 'exudate',
+      });
     }
     for (const c of level.checkpoints || []) {
       lights.push({ x: c.x, y: c.y, r: c.active ? 155 : 105, a: c.active ? .66 : .42, color: '#f3dc86', glow: c.active ? .22 : .09 });
@@ -294,7 +302,34 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     if (level.goal && Number.isFinite(level.goal.x)) {
       lights.push({ x: level.goal.x, y: level.goal.y, r: 300, a: .78, color: '#ffe7a8', glow: .24 + Math.sin(t * 1.6) * .04 });
     }
-    // Nao perfura a escuridao com todos os agentes ambientais.
+
+    // Microrganismos recebem luz curta na própria cor. A abertura na escuridão
+    // permanece pequena para recuperar a leitura sem lavar a fase inteira.
+    const biologicalLights = {
+      bacillus:     { color: '#78d7f2', r: 68, a: .20, glow: .34 },
+      rhizobium:    { color: '#68ddd5', r: 62, a: .17, glow: .28 },
+      azospirillum: { color: '#76e0c7', r: 64, a: .17, glow: .29 },
+      pseudomonas:  { color: '#a8ef78', r: 64, a: .17, glow: .30 },
+      trichoderma:  { color: '#8de9a7', r: 62, a: .14, glow: .24 },
+    };
+    const agents = typeof getAgents === 'function' ? (getAgents() || []) : [];
+    const viewLeft = Number(state.cameraX) || 0;
+    const viewWidth = Number(state.visibleWorldWidth) || Number(state.viewportWidth) || 1280;
+    const viewRight = viewLeft + viewWidth;
+    for (const agent of agents) {
+      const spec = biologicalLights[agent.type];
+      if (!spec || !Number.isFinite(agent.x) || !Number.isFinite(agent.y)) continue;
+      if (agent.x < viewLeft - 120 || agent.x > viewRight + 120) continue;
+      lights.push({
+        x: agent.x,
+        y: agent.y,
+        r: spec.r,
+        a: spec.a,
+        color: spec.color,
+        glow: spec.glow,
+        kind: agent.type,
+      });
+    }
     return lights;
   }
 
@@ -576,7 +611,8 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     for (const l of lights) {
       if (!l.glow) continue;
       const [sx, sy] = project(m, l.x, l.y);
-      const r = l.r * .42 * zoom;
+      const glowScale = l.kind === 'player' ? .44 : (l.kind === 'exudate' ? .52 : .48);
+      const r = l.r * glowScale * zoom;
       if (sx + r < 0 || sx - r > W || sy + r < 0 || sy - r > H) continue;
       const sprite = glowSprite(l.color);
       if (!sprite) continue;
