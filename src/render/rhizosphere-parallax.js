@@ -194,21 +194,24 @@ function drawProtozoan(ctx, random, x, y) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(tilt);
-  ctx.fillStyle = 'rgba(74,164,164,.08)';
-  ctx.strokeStyle = 'rgba(119,220,207,.20)';
+  ctx.globalCompositeOperation = 'screen';
+  ctx.shadowColor = 'rgba(67,164,179,.24)';
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = 'rgba(56,138,151,.15)';
+  ctx.strokeStyle = 'rgba(119,220,207,.34)';
   ctx.lineWidth = 1.2;
   ctx.beginPath();
   ctx.ellipse(0, 0, rx, ry, 0, 0, TAU);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = 'rgba(140,220,207,.13)';
+  ctx.fillStyle = 'rgba(140,220,207,.22)';
   for (let i = 0; i < 4; i++) {
     const angle = i * 1.7 + random();
     ctx.beginPath();
     ctx.arc(Math.cos(angle) * rx * 0.46, Math.sin(angle) * ry * 0.48, 1.6 + random() * 2.2, 0, TAU);
     ctx.fill();
   }
-  ctx.strokeStyle = 'rgba(125,207,199,.12)';
+  ctx.strokeStyle = 'rgba(125,207,199,.20)';
   ctx.lineWidth = 0.8;
   for (let i = 0; i < 10; i++) {
     const angle = (i / 10) * TAU;
@@ -226,19 +229,22 @@ function drawAlgaeChain(ctx, random, x, y) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
-  ctx.strokeStyle = 'rgba(104,207,184,.18)';
-  ctx.fillStyle = 'rgba(64,152,143,.08)';
+  ctx.globalCompositeOperation = 'screen';
+  ctx.shadowColor = 'rgba(63,158,172,.22)';
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = 'rgba(104,207,184,.32)';
+  ctx.fillStyle = 'rgba(49,126,139,.15)';
   ctx.lineWidth = 1;
   for (let i = 0; i < cells; i++) {
     ctx.beginPath();
     ctx.ellipse(i * 9, Math.sin(i * 1.4) * 2, 5.5, 3.8, i * 0.14, 0, TAU);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = 'rgba(130,220,192,.11)';
+    ctx.fillStyle = 'rgba(130,220,192,.20)';
     ctx.beginPath();
     ctx.arc(i * 9 + 1, Math.sin(i * 1.4) * 2, 1.2, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = 'rgba(64,152,143,.08)';
+    ctx.fillStyle = 'rgba(49,126,139,.15)';
   }
   ctx.restore();
 }
@@ -246,8 +252,11 @@ function drawAlgaeChain(ctx, random, x, y) {
 function drawCrystalCluster(ctx, random, x, y) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.strokeStyle = 'rgba(134,162,204,.18)';
-  ctx.fillStyle = 'rgba(77,116,159,.055)';
+  ctx.globalCompositeOperation = 'screen';
+  ctx.shadowColor = 'rgba(78,145,177,.20)';
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = 'rgba(134,183,211,.30)';
+  ctx.fillStyle = 'rgba(65,112,146,.11)';
   ctx.lineWidth = 1;
   const shards = 5 + Math.floor(random() * 3);
   const rotation = random() * TAU;
@@ -268,7 +277,7 @@ function drawCrystalCluster(ctx, random, x, y) {
     ctx.stroke();
     ctx.restore();
   }
-  ctx.fillStyle = 'rgba(118,167,191,.09)';
+  ctx.fillStyle = 'rgba(118,183,204,.17)';
   ctx.beginPath();
   ctx.arc(0, 0, 3.4, 0, TAU);
   ctx.fill();
@@ -277,8 +286,11 @@ function drawCrystalCluster(ctx, random, x, y) {
 
 function drawBubbleCluster(ctx, random, x, y) {
   ctx.save();
-  ctx.strokeStyle = 'rgba(123,203,207,.14)';
-  ctx.fillStyle = 'rgba(78,151,163,.035)';
+  ctx.globalCompositeOperation = 'screen';
+  ctx.shadowColor = 'rgba(72,160,176,.22)';
+  ctx.shadowBlur = 11;
+  ctx.strokeStyle = 'rgba(123,203,207,.27)';
+  ctx.fillStyle = 'rgba(57,128,143,.08)';
   ctx.lineWidth = 1;
   const count = 3 + Math.floor(random() * 4);
   for (let i = 0; i < count; i++) {
@@ -289,11 +301,11 @@ function drawBubbleCluster(ctx, random, x, y) {
     ctx.arc(bx, by, radius, 0, TAU);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = 'rgba(185,232,229,.11)';
+    ctx.fillStyle = 'rgba(185,232,229,.21)';
     ctx.beginPath();
     ctx.arc(bx - radius * 0.3, by - radius * 0.34, Math.max(0.8, radius * 0.16), 0, TAU);
     ctx.fill();
-    ctx.fillStyle = 'rgba(78,151,163,.035)';
+    ctx.fillStyle = 'rgba(57,128,143,.08)';
   }
   ctx.restore();
 }
@@ -416,7 +428,7 @@ export function createRhizosphereParallax({
     phase: random() * TAU,
     speed: 0.18 + random() * 0.35,
     drift: 5 + random() * 7,
-    alpha: 0.08 + random() * 0.1,
+    alpha: 0.12 + random() * 0.11,
     index,
   }));
 
@@ -515,7 +527,9 @@ export function createRhizosphereParallax({
     ctx.save();
     resetCanvasState(ctx);
     ctx.translate(0, cameraY + vertical.particles);
-    ctx.fillStyle = '#8fc8c7';
+    ctx.fillStyle = '#79bcc4';
+    ctx.shadowColor = 'rgba(70,157,174,.28)';
+    ctx.shadowBlur = 6;
     for (let tile = firstTile; tile <= lastTile; tile++) {
       const tileX = tile * TILE_WIDTH - effectiveX;
       for (let i = 0; i < particles.length; i++) {
