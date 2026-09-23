@@ -50,6 +50,7 @@ import {
 import { createRenderer } from '../render/renderer.js';
 import { BIOLOGICAL_PARALLAX_KEY } from '../render/rhizosphere-parallax.js';
 import { createPlatformVisuals } from './platform-visuals.js';
+import { createRhizosphereLighting, readLightingPreference } from '../render/rhizosphere-lighting.js';
 import { createCameraView } from './camera-view.js';
 import { createResponsiveCanvas } from './responsive-canvas.js';
 import { getPrimaryTraversalPlatforms } from './traversal-route.js';
@@ -816,6 +817,9 @@ let seed = '';
 let levelData = null;
 let renderer = null;
 let platformVisuals = null;
+let lighting = null;
+// Luz e atmosfera: `?luz=0` desliga ao abrir; a tecla L alterna durante o jogo.
+let lightingEnabled = readLightingPreference(window.location);
 let biologicalParallaxEnabled = true;
 // O console de telemetria e ferramenta de desenvolvimento, nao HUD de jogo:
 // nasce ligado so dentro do Phase Lab. Fora dele continua acessivel pelo Tab
@@ -1324,6 +1328,13 @@ function initGame({ announce = false } = {}) {
   });
   renderer.parallaxBackground.setEnabled(biologicalParallaxEnabled);
   platformVisuals = createPlatformVisuals({ state: sim.state });
+  lighting = createRhizosphereLighting({
+    canvas,
+    state: sim.state,
+    getAgents: () => sim.ecology?.agents || null,
+    enabled: lightingEnabled,
+  });
+  window.miguelitoLighting = lighting;
   toastDiv.className = '';
   lastToast = '';
   updateTouchAbilityVisibility();
@@ -1629,6 +1640,21 @@ parallaxToggleButton?.addEventListener('click', event => {
   parallaxToggleButton.blur();
 });
 
+const lightingToggleButton = document.querySelector('[data-mobile-action="toggle-lighting"]');
+lightingToggleButton?.setAttribute('aria-pressed', String(lightingEnabled));
+function toggleLighting() {
+  if (!lighting || sim.state.gameState !== 'play') return;
+  lightingEnabled = lighting.toggle();
+  lightingToggleButton?.setAttribute('aria-pressed', String(lightingEnabled));
+  sim.state.toast = lightingEnabled ? 'Luz e atmosfera ativadas' : 'Luz e atmosfera desativadas';
+  sim.state.toastTime = 3.2;
+}
+lightingToggleButton?.addEventListener('click', event => {
+  event.preventDefault();
+  toggleLighting();
+  lightingToggleButton.blur();
+});
+
 // Remove o foco do teclado de qualquer botao clicado para impedir que a tecla Espaco reatire o clique do botao
 document.addEventListener('click', event => {
   const btn = event.target?.closest?.('button, [role="button"]');
@@ -1658,6 +1684,7 @@ window.addEventListener('keydown', event => {
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'KeyT' && !event.repeat) toggleRecoveryPlatforms();
   if (event.code === 'KeyM' && !event.repeat) toggleGameAudio();
+  if (event.code === 'KeyL' && !event.repeat) toggleLighting();
   if (event.code === BIOLOGICAL_PARALLAX_KEY && !event.repeat) toggleBiologicalParallax();
   if (event.code === 'Tab') {
     event.preventDefault();
@@ -1721,6 +1748,7 @@ function renderWorld() {
     phaseFinale.renderWorldLayer(ctx);
     sim.state.level.traversalDebugVisible = showDebug;
     platformVisuals.drawWorld(ctx);
+    lighting?.renderPlatformDepth(ctx);
     rhizoctoniaControl.render(ctx);
     ralstoniaControl.render(ctx);
     sim.pseudomonasSiderophores.renderDeposits(ctx);
@@ -1743,6 +1771,9 @@ function renderWorld() {
     sim.bacillusBioprotection.render(ctx);
     sim.phosphateSolubilization.render(ctx);
     fixedBlockRuntime.render(ctx);
+    // Luz por ultimo no mundo: escurece o fundo, recorta as fontes de luz e
+    // acrescenta feixes e primeiro plano. So visual; nao le nada da fisica.
+    lighting?.render(ctx, { finaleActive: phaseFinale.active });
     platformVisuals.renderLabel(ctx);
   } finally {
     ctx.restore();
