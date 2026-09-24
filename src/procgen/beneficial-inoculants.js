@@ -4,6 +4,7 @@ import { H, W } from '../core/constants.js';
 import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from '../render/bacillus-sprite.js';
 import { organismSprites } from '../render/organism-sprites.js';
 import { COLONY_ESTABLISHMENT_GROWTH } from '../audio-manifest.js';
+import { narrate } from './narrator.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -80,7 +81,6 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
   let nextColonyId = 1;
   let eHeldLast = false;
   let suppressEUntilRelease = false;
-  let lastRecruitToastAt = -Infinity;
   // Quando existe seletor, so o organismo escolhido responde ao E. Sem seletor
   // o comportamento antigo continua valendo, para os testes existentes.
   let activeSelection = null;
@@ -124,7 +124,6 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     nextColonyId = 1;
     eHeldLast = false;
     suppressEUntilRelease = false;
-    lastRecruitToastAt = -Infinity;
     state.level.beneficialColonies = colonies;
   }
 
@@ -188,11 +187,7 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
           }
           // Descoberta silenciosa: o recrutamento já é o feedback deste quadro.
           entities.discoverMicrobe?.(agent.type, false, { sound: false });
-          if (state.time - lastRecruitToastAt > 2.2) {
-            state.toast = `${profile.label} recrutado: leve a comunidade até uma raiz e pressione E novamente para inocular.`;
-            state.toastTime = 4.6;
-            lastRecruitToastAt = state.time;
-          }
+          narrate(state, 'inoculum.recruited');
         }
       }
     }
@@ -373,17 +368,14 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
       210,
     );
     if (!support) {
-      state.toast = 'Inoculação impossível: aproxime Miguelito de uma raiz ou plataforma estável.';
-      state.toastTime = 3.8;
+      narrate(state, 'inoculum.no-root');
       return true;
     }
 
     const entries = [...groups.entries()];
-    const names = [];
     const createdColonies = [];
     entries.forEach(([type, agents], index) => {
       createdColonies.push(createColony(type, agents, support, index, entries.length));
-      names.push(`${PROFILES[type].label} (${agents.length})`);
     });
     // UMA vez por ação, não uma por espécie. Sem seletor os testes depositam
     // vários grupos de uma vez, e o jogador executou um comando só.
@@ -395,8 +387,6 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
         instanceId: createdColonies.map(colony => colony.id).join('|'),
       });
     }
-    state.toast = `Inoculantes depositados: ${names.join(', ')}. As comunidades agora permanecem fixas e usam vigor persistente.`;
-    state.toastTime = 5.5;
     return true;
   }
 
@@ -656,17 +646,13 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     ctx.globalAlpha = 1;
 
     // A barra de vigor foi removida (poluicao): o estado agora vive no halo.
-    // Mantemos so o rotulo de identidade do organismo.
+    // Mantemos so o rotulo de identidade do organismo — o estagio tambem ja
+    // esta no halo.
     const labelY = radius + 14;
     ctx.font = '700 9px Inter,system-ui';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#effff5';
-    ctx.fillText(`${profile.short} — ${colony.stage}`, 0, labelY + 8);
-    if (colony.type === 'azospirillum' && colony.associativeNitrogenActive) {
-      ctx.font = '650 8px Inter,system-ui';
-      ctx.fillStyle = 'rgba(255,215,131,.9)';
-      ctx.fillText('Fixação associativa de N', 0, labelY + 19);
-    }
+    ctx.fillText(profile.short, 0, labelY + 8);
     ctx.restore();
   }
 

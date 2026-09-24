@@ -1,5 +1,6 @@
 import { W } from '../core/constants.js';
 import { getPhaseManifest, MYCORRHIZA_BRIDGE_DEFAULTS } from './campaign-manifest.js';
+import { narrate } from './narrator.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -169,7 +170,6 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
 
   const structures = [];
   let nextId = 1;
-  let lastToastAt = -Infinity;
 
   function clear() {
     entities?.audio?.stopGroup('mycorrhiza-bridge');
@@ -178,7 +178,6 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
       state.level.platforms = state.level.platforms.filter(platform => !platform.mycorrhizaStructure);
     }
     nextId = 1;
-    lastToastAt = -Infinity;
   }
 
   function reset() {
@@ -226,8 +225,7 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
       gain: .65,
     });
     entities.burst(structure.start.x, structure.start.y, '#d6afff', 20, 110);
-    state.toast = 'Micorriza orientada: hifas finas começaram a conectar lateralmente as raízes sobre o vão.';
-    state.toastTime = 4.8;
+    narrate(state, 'myco.bridge-start');
     return structure;
   }
 
@@ -350,7 +348,7 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
         structure.mature = true;
         collisionDirty = true;
         // Conclusão pela transição mature false → true, no ponto de chegada.
-        // Independente do toast, que tem cooldown de 1,5 s logo abaixo.
+        // Independente do toast, que passa pelo narrador logo abaixo.
         entities?.audio?.stopLoop(bridgeKey, { fade: .25 });
         entities?.audio?.play('mycorrhizaBridgeComplete', {
           x: structure.end.x,
@@ -359,11 +357,7 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
         state.player.hope += 3;
         state.player.soil += 1.6;
         entities.burst(structure.end.x, structure.end.y, '#d6afff', 34, 175);
-        if (state.time - lastToastAt > 1.5) {
-          state.toast = 'Ponte micorrízica madura: o feixe hifal horizontal agora pode ser atravessado.';
-          state.toastTime = 5;
-          lastToastAt = state.time;
-        }
+        narrate(state, 'myco.bridge-ready');
       }
     }
     if (collisionDirty) rebuildCollisionPlatforms();

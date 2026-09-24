@@ -2,6 +2,7 @@ import { createRandom } from './random.js';
 import { W } from '../core/constants.js';
 import { organismSprites } from '../render/organism-sprites.js';
 import { createRootHealthGameplay } from './root-health-gameplay.js';
+import { narrate } from './narrator.js';
 import { MELOIDOGYNE_DEFAULTS } from './campaign-manifest.js';
 import { rootEffectY } from '../render/rhizosphere-geometry.js';
 
@@ -53,7 +54,7 @@ const ARRIVAL_PATH_SAMPLES = 18;
 export function createMeloidogyneLifecycle({ state, entities }) {
   const eggs = [], juveniles = [], galls = [];
   const rootGameplay = createRootHealthGameplay({ state, entities });
-  let eggId = 1, juvenileId = 1, gallId = 1, lastToast = -Infinity;
+  let eggId = 1, juvenileId = 1, gallId = 1;
   let healthAverage = 1, infestation = 0;
 
   const roots = () => (state.level.platforms || []).filter(p => (
@@ -70,12 +71,6 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     if (!Number.isFinite(p.carbonAvailability)) p.carbonAvailability = 1;
     if (!Number.isFinite(p.nutrientEfficiency)) p.nutrientEfficiency = 1;
     if (!Number.isFinite(p.meloidogyneBurden)) p.meloidogyneBurden = 0;
-  }
-  function announce(text, duration = 5) {
-    if (state.time - lastToast < 2.2) return;
-    state.toast = text;
-    state.toastTime = duration;
-    lastToast = state.time;
   }
   function expose() {
     state.level.nematodeEggMasses = eggs;
@@ -144,11 +139,11 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       delete p.nutrientEfficiency; delete p.meloidogyneBurden; delete p.meloidogyneStage;
     }
     eggId = juvenileId = gallId = 1;
-    lastToast = -Infinity; healthAverage = 1; infestation = 0; expose();
+    healthAverage = 1; infestation = 0; expose();
   }
   function reset() {
     eggs.length = juveniles.length = galls.length = 0;
-    eggId = juvenileId = gallId = 1; lastToast = -Infinity;
+    eggId = juvenileId = gallId = 1;
     arrivalCount = 0;
     for (const p of roots()) prepareRoot(p);
     expose();
@@ -493,7 +488,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       m.trichodermaLysis = Math.max(0, (m.trichodermaLysis || 0) - dt * .06);
       if (m.hatch <= 0 && spawnJ2(m)) {
         m.eggs--; m.hatch = 1.45 + Math.random() * 2.4 + m.generation * .18;
-        if (m.eggs === m.maxEggs - 1) announce('Eclosão de Meloidogyne: juvenis J2 móveis deixaram a massa de ovos e procuram uma raiz hospedeira.');
+        if (m.eggs === m.maxEggs - 1) narrate(state, 'melo.hatch');
       } else if (m.hatch <= 0) m.hatch = 1;
     }
     for (let i = eggs.length - 1; i >= 0; i--) if (!eggs[i].eggs && eggs[i].emptyAge > 10 && eggs[i].sourceGallId) eggs.splice(i, 1);
@@ -561,7 +556,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       entities.burst(q.x, q.y, '#a8ffe6', 8, 62); return;
     }
     j.state = 'penetrating'; j.progress = 0; j.x = q.x; j.y = q.y;
-    announce('Penetração radicular: um juvenil J2 iniciou a entrada. Biofilmes ativos podem reduzir esse sucesso.');
+    narrate(state, 'melo.penetration');
   }
   function penetrate(j, dt) {
     const p = j.targetRoot;
@@ -573,7 +568,6 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     j.state = 'migrating'; j.progress = 0;
     const dir = j.targetX < p.x + p.w / 2 ? 1 : -1;
     j.feedingX = clamp(j.targetX + dir * (26 + Math.random() * 34), p.x + 28, p.x + p.w - 28);
-    announce('Migração interna: o J2 atravessa os tecidos em direção ao local de alimentação permanente.');
   }
   function addGall(j) {
     const p = j.targetRoot;
@@ -593,7 +587,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       senescence: 0, dead: false,
     });
     j.alive = false; entities.burst(j.feedingX, p.y + 4, '#ffb08f', 16, 78);
-    announce('Sítio de alimentação: células gigantes começaram a sustentar a formação da galha.', 5.5);
+    narrate(state, 'melo.feeding-site');
   }
   function migrate(j, dt) {
     const p = j.targetRoot;
@@ -646,7 +640,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     const x = clamp(g.x + 22, g.platform.x + 20, g.platform.x + g.platform.w - 20);
     addEggMass(g.platform, x, g.generation + 1, g.id); g.eggMassesLaid = 1;
     entities.burst(x, g.platform.y - 6, '#ffe0a6', 18, 72);
-    announce('Nova massa de ovos: a fêmea adulta completou o ciclo e iniciou outra geração.', 5.5);
+    narrate(state, 'melo.new-eggs');
   }
   function updateGalls(dt) {
     for (const g of galls) {
@@ -664,7 +658,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
         if (g.senescence >= 1) {
           g.dead = true;
           g.adultDrain = 0;
-          announce('A fêmea morreu de velhice. A galha e a perda de saúde máxima permanecem: é sequela, não infecção ativa.', 6);
+          narrate(state, 'melo.female-died');
         }
       }
       g.stage = stage(g);
@@ -677,7 +671,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
           : 0;
       if (g.progress >= .78 && !g.adultAnnounced) {
         g.adultAnnounced = true;
-        announce('Fêmea adulta de Meloidogyne: protegida dentro da raiz, não pode ser atingida. O controle possível é sobre ovos e J2.', 6);
+        narrate(state, 'melo.female-protected');
       }
     }
   }

@@ -1,3 +1,4 @@
+import { narrate } from './narrator.js';
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 function rootState(health) {
@@ -28,19 +29,16 @@ export function createRootHealthGameplay({ state, entities }) {
   let stressedCount = 0;
   let compromisedCount = 0;
   let collapseCount = 0;
-  let lastToastAt = -Infinity;
 
   function roots() {
     return (state.level.platforms || []).filter(eligibleRoot);
   }
 
-  function announce(root, text, duration = 4.7) {
+  // Só narra raiz perto do jogador; o resto é com o narrador.
+  function announce(root, id) {
     const playerX = state.player.x + state.player.w / 2;
     if (Math.abs(playerX - (root.x + root.w / 2)) > 520) return;
-    if (state.time - lastToastAt < 2.6) return;
-    state.toast = text;
-    state.toastTime = duration;
-    lastToastAt = state.time;
+    narrate(state, id);
   }
 
   function ensureRoot(root) {
@@ -181,7 +179,7 @@ export function createRootHealthGameplay({ state, entities }) {
     root.supportOffset += 8 + (1 - root.supportIntegrity) * 9;
     state.shake = Math.max(state.shake || 0, .34);
     entities.burst(root.x + root.w / 2, root.y + 4, '#b77b5b', 24, 150);
-    announce(root, 'A raiz perdeu sustentação: o tecido cedeu temporariamente. Micorriza madura reduz esse risco.', 4.8);
+    announce(root, 'root.support-lost');
   }
 
   function updateRoot(root, dt, galls) {
@@ -239,9 +237,8 @@ export function createRootHealthGameplay({ state, entities }) {
     root.rootStateLabel = stateLabel(root.rootState);
 
     if (root.rootState !== oldState) {
-      if (root.rootState === 'collapse') announce(root, 'Raiz em colapso: a sustentação e o transporte estão gravemente comprometidos.', 5.2);
-      else if (oldState === 'collapse' && root.rootState === 'compromised') announce(root, 'Recuperação visível: a raiz saiu do colapso, mas ainda permanece comprometida.', 4.7);
-      else if (root.healthTrend > 0) announce(root, `A raiz melhorou para o estado ${root.rootStateLabel}.`, 4.1);
+      // Recuperação não vira toast: o medidor R e o visual da raiz já mostram.
+      if (root.rootState === 'collapse') announce(root, 'root.collapse');
     }
 
     updateSupportFailure(root, dt, mycorrhiza.strength);
@@ -288,7 +285,6 @@ export function createRootHealthGameplay({ state, entities }) {
     }
     averageHealth = 1;
     healthyCount = stressedCount = compromisedCount = collapseCount = 0;
-    lastToastAt = -Infinity;
   }
 
   function reset() {

@@ -1,5 +1,6 @@
 import { organismSprites } from '../render/organism-sprites.js';
 import { publishControlSignal } from './biological-audio-signals.js';
+import { narrate } from './narrator.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
@@ -62,16 +63,8 @@ function stageLabel(enemy) {
 
 export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
   const memory = new Map();
-  let lastInstructionAt = -Infinity;
   let controlledCount = 0;
   let activeCount = 0;
-
-  function announce(text, duration = 5, cooldown = 2.4) {
-    if (state.time - lastInstructionAt < cooldown) return;
-    state.toast = text;
-    state.toastTime = duration;
-    lastInstructionAt = state.time;
-  }
 
   function ensure(enemy, index = 0) {
     if (!enemy || !enemy.alive) return null;
@@ -222,7 +215,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       enemy.rhizoCharge = 0;
       enemy.rhizoLunge = .34;
       enemy.rhizoHitApplied = false;
-      announce('Rhizoctonia: a borda da colônia lançou uma hifa de ataque. Afaste-se do halo vermelho ou contenha o foco com Bacillus.', 4.2, 1.4);
+      narrate(state, 'rhizoc.attack');
     }
   }
 
@@ -270,10 +263,6 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
 
     updateAttack(enemy, host, state.player, dt, control);
 
-    if (!mem.announced && Math.abs((state.player.x + state.player.w / 2) - enemy.infectionX) < 330) {
-      mem.announced = true;
-      announce('Controle de Rhizoctonia: Bacillus maduro contém a expansão, Pseudomonas com reserva de Fe enfraquece o fungo e Trichoderma realiza micoparasitismo.', 6.4, .2);
-    }
   }
 
   function update(dt) {
@@ -489,7 +478,6 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
 
   function reset() {
     memory.clear();
-    lastInstructionAt = -Infinity;
     controlledCount = 0;
     activeCount = 0;
   }

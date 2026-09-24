@@ -1,6 +1,7 @@
 import { H, W } from '../core/constants.js';
 import { organismSprites } from '../render/organism-sprites.js';
 import { getPhaseManifest } from './campaign-manifest.js';
+import { narrate } from './narrator.js';
 import { hyphalWorldBounds } from './world-bounds.js';
 
 const TAU = Math.PI * 2;
@@ -522,8 +523,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
       player.fungalContactGrace = 6;
       if (!contactAnnounced && player.fungalContamination > .12) {
         contactAnnounced = true;
-        state.toast = 'Contaminação fúngica: fragmentos de hifa aderidos reduzem aceleração, velocidade e impulso do pulo.';
-        state.toastTime = 5.2;
+        narrate(state, 'fungus.attached');
       }
     } else {
       player.fungalContactGrace = Math.max(
@@ -675,11 +675,8 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     const vigor = network.response?.vigor ?? 1;
     const x = network.anchor.x;
     const y = network.anchor.y - 38;
+    // Só a barra: o número por extenso poluía a cena.
     ctx.save();
-    ctx.font = '700 9px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(255,231,237,.9)';
-    ctx.fillText(`Vigor fúngico ${Math.round(vigor * 100)}%`, x, y);
     ctx.fillStyle = 'rgba(5,18,24,.8)';
     ctx.fillRect(x - 27, y + 5, 54, 5);
     ctx.fillStyle = vigor <= .45 ? '#b9f36f' : '#ff8297';

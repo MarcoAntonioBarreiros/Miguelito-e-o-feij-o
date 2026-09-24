@@ -579,16 +579,12 @@ export function createPhosphateSolubilization({
         deposit.broken = true;
         entities?.audio?.play('phosphateDepositComplete', { x: cx, y: cy });
         solubilizedCount += 1;
-        state.toast = 'Deposito esgotado: o fosforo foi solubilizado e permanece disponivel localmente.';
-        state.toastTime = 4;
       } else {
         // Impacto parcial: cooldown por deposito (0,18 s) evita um som por quadro
         // quando varios tiros chegam juntos.
         entities?.audio?.play('phosphateDissolvePartial', {
           x: cx, y: cy, instanceId: deposit.id,
         });
-        state.toast = `Solubilizacao parcial: ${Math.round((1 - deposit.remainingPhosphate / deposit.initialPhosphate) * 100)}%.`;
-        state.toastTime = 2.5;
       }
       if (shot.energy <= .001) shot.distance = config.shotRange;
     }

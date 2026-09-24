@@ -1,5 +1,6 @@
 import { getPhaseManifest } from './campaign-manifest.js';
 import { drawWorldLabel } from './world-label.js';
+import { narrate } from './narrator.js';
 
 const BLOCK_LAYOUTS = Object.freeze({
   'phase1-intro-v1': Object.freeze({
@@ -156,13 +157,13 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
   function missingText(block, result) {
     const missing = result.results.find(entry => !entry.passed);
     if (!missing) return '';
-    if (missing.condition.key === 'deployedExudateCount') return 'libere pelo menos um exsudato com E';
+    if (missing.condition.key === 'deployedExudateCount') return 'lance um exsudato com E';
     if (missing.condition.key === 'functionalBiofilmCount') {
       return block.kind === 'final'
-        ? 'volte à raiz da prova com halo amarelo e forme o biofilme nela'
-        : 'volte à raiz de treinamento com halo amarelo e inocule Bacillus nela';
+        ? 'forme o biofilme na raiz amarela'
+        : 'inocule Bacillus na raiz amarela';
     }
-    return 'complete o objetivo ecológico indicado';
+    return 'complete o objetivo';
   }
 
   // A raiz de saida do bloco autoral (chunk final de p1-intro) e retirada do
@@ -174,7 +175,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
   // intransponivel — quem cobria isso silenciosamente era o degrau global
   // `safetyStep`, que agora nao existe mais. O portao passa a ser resolvido pela
   // propria mecanica da fase: concluiu o modulo, a raiz de saida cresce.
-  function unlockRecoveryPlatform(block, mensagem) {
+  function unlockRecoveryPlatform(block, narrationId) {
     if (!block.recoveryPlatform || block.recoveryPlatformUnlocked) return;
     block.recoveryPlatformUnlocked = true;
     block.recoveryPlatformPending = false;
@@ -182,10 +183,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
       state.level.platforms.push(block.recoveryPlatform);
       state.level.platforms.sort((left, right) => left.x - right.x);
     }
-    if (mensagem) {
-      state.toast = mensagem;
-      state.toastTime = 5.2;
-    }
+    if (narrationId) narrate(state, narrationId);
     entities.burst(
       block.recoveryPlatform.x + block.recoveryPlatform.w / 2,
       block.recoveryPlatform.y - 18,
@@ -201,10 +199,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
     block.deathsAtCompletion = state.player.deaths || 0;
     block.targetPlatform.fixedObjective = false;
     unlockRecoveryPlatform(block, null);
-    state.toast = block.kind === 'final'
-      ? 'Prova final concluída: a raiz de saída recebeu um biofilme funcional.'
-      : 'Módulo concluído: recrutamento, inoculação e biofilme confirmados.';
-    state.toastTime = 5.2;
+    narrate(state, block.kind === 'final' ? 'p1.final-done' : 'p1.module-done');
     entities.burst(block.gateX, block.targetPlatform.y - 70, '#8ff2c1', 34, 150);
   }
 
@@ -237,10 +232,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
       && Math.hypot(state.player.x - checkpoint.x, state.player.y - checkpoint.y) < 110;
     if (!respawnedAtCheckpoint || !checkpointIsOnTarget(block)) return;
 
-    unlockRecoveryPlatform(
-      block,
-      'Checkpoint demonstrado: uma raiz de apoio surgiu para a segunda tentativa.',
-    );
+    unlockRecoveryPlatform(block, 'p1.support-root');
   }
 
   function holdAtGate(block, result) {
@@ -251,8 +243,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
     player.vx = Math.min(0, player.vx);
     if (state.time - lastBlockedAt < 2.4) return;
     lastBlockedAt = state.time;
-    state.toast = `Saída bloqueada: ${missingText(block, result)}.`;
-    state.toastTime = 4.2;
+    narrate(state, 'p1.exit-blocked', { missing: missingText(block, result) });
   }
 
   function update() {
@@ -316,7 +307,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
             ctx,
             debut.x,
             debut.y + 88,
-            '↓ LANCE O EXSUDATO PARA RECRUTAR BACILLUS AQUI',
+            '↓ LANCE EXSUDATO AQUI',
           );
         }
       }
@@ -327,8 +318,8 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
       const x = target.x + target.w / 2;
       const y = target.y - 72;
       const label = block.kind === 'final'
-        ? '↓ ALVO DA PROVA — FORME O BIOFILME AQUI'
-        : '↓ ALVO DA FASE — INOCULE BACILLUS AQUI';
+        ? '↓ FORME O BIOFILME AQUI'
+        : '↓ INOCULE BACILLUS AQUI';
       drawGuidance(ctx, x, y, label);
     }
     ctx.restore();

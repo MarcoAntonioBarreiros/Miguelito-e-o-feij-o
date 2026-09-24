@@ -5,6 +5,7 @@ import { createRandom } from './random.js';
 import { getPrimaryTraversalPlatforms } from './traversal-route.js';
 import { drawWorldLabel } from './world-label.js';
 import { drawRootVisual } from './platform-visuals.js';
+import { narrate } from './narrator.js';
 
 export const NITROGEN_ROOT_BLOCK_TYPE = 'underdeveloped-nitrogen-root';
 
@@ -458,8 +459,7 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
     }
     if (root.developed && !root.announced) {
       root.announced = true;
-      state.toast = 'FBN ativa: o nitrogenio sustentou o desenvolvimento de uma nova plataforma radicular.';
-      state.toastTime = 4.8;
+      narrate(state, 'nitrogen.root-grew');
       entities?.burst?.(root.x + root.targetWidth * .65, root.y, '#d9c48b', 34, 120);
     }
   }
@@ -557,13 +557,10 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
       ctx.globalAlpha = 1;
     }
 
-    if (!root.developed) {
-      const percent = Math.round(progress * 100);
-      const label = progress > 0
-        ? `Raiz recebendo N · ${percent}%`
-        : 'Raiz subdesenvolvida · forme o nódulo na raiz anterior';
-      drawWorldLabel(ctx, root.x + root.targetWidth / 2, root.y - 20, label, {
-        color: progress > 0 ? '#a8f0ea' : '#ffd36f',
+    // Com progresso a raiz cresce à vista; o rótulo só aparece enquanto falta N.
+    if (!root.developed && progress <= 0) {
+      drawWorldLabel(ctx, root.x + root.targetWidth / 2, root.y - 20, 'Sem N: nodule a raiz anterior', {
+        color: '#ffd36f',
         font: '800 12px Inter,system-ui',
         glow: 12,
       });

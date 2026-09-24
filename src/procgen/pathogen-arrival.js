@@ -5,6 +5,7 @@ import {
   isActiveMeloidogyneGall,
 } from './meloidogyne-lifecycle.js';
 import { PATHOGEN_PRESSURE_DEFAULTS } from './pathogen-pressure.js';
+import { narrate } from './narrator.js';
 
 // CHEGADAS DE PATÓGENO — etapa 2: quando e onde
 // =============================================
@@ -373,8 +374,8 @@ export function createPathogenArrival({ state, systems = {}, settings = null } =
   const ORIGIN_LABEL = Object.freeze({
     left: 'pela esquerda',
     right: 'pela direita',
-    below: 'por baixo, do solo profundo',
-    necrotic: 'de um tecido radicular necrosado',
+    below: 'por baixo',
+    necrotic: 'de tecido necrosado',
   });
 
   function viewportBounds() {
@@ -682,10 +683,7 @@ export function createPathogenArrival({ state, systems = {}, settings = null } =
     if (!state || announcedPathogens.has(pathogen)) return;
     announcedPathogens.add(pathogen);
     const where = ORIGIN_LABEL[originType] || 'pelo solo';
-    state.toast = pathogen === 'ralstonia'
-      ? `Inóculo de Ralstonia atravessando o solo ${where}. Ele só coloniza ao alcançar a raiz.`
-      : `Juvenis J2 de Meloidogyne entrando ${where}. Eles nadam até achar uma raiz.`;
-    state.toastTime = 5.5;
+    narrate(state, pathogen === 'ralstonia' ? 'arrival.ralstonia' : 'arrival.meloidogyne', { where });
   }
 
   /**
@@ -879,7 +877,6 @@ export function createPathogenArrival({ state, systems = {}, settings = null } =
     ) {
       warning.warningTriggered = true;
       warning.groupState = 'warning';
-      if (state) { state.toast = 'J2 aproximando-se da raiz'; state.toastTime = 3.5; }
       record('warning', {
         pathogen: 'meloidogyne',
         logicIndex: root?.logicIndex ?? null,

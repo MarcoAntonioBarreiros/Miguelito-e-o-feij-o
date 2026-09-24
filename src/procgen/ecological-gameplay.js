@@ -1,5 +1,6 @@
 import { H, W } from '../core/constants.js';
 import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from '../render/bacillus-sprite.js';
+import { narrate } from './narrator.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -20,11 +21,6 @@ export function createEcologicalGameplay({ state, input, entities, ecology, path
   let eHeldLast = false;
   let infectionAnnounced = false;
   let activeSelection = null;
-
-  function toast(title, message, seconds = 4.7) {
-    state.toast = `${title}: ${message}`;
-    state.toastTime = seconds;
-  }
 
   function clear() {
     entities?.audio?.stopGroup('bacillus-biofilm');
@@ -61,7 +57,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology, path
   function deployCloud() {
     const player = state.player;
     if (player.exudates <= 0) {
-      toast('Sem exsudatos', 'Colete gotas verdes antes de liberar um gradiente químico.', 3.2);
+      narrate(state, 'exudate.empty');
       return;
     }
     player.exudates--;
@@ -92,7 +88,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology, path
     entities?.interactionFx?.('exudateRelease', { gain: 1, rate: 1, instanceId: cloud.id });
     deployedCloudCount++;
     entities.burst(cloud.x, cloud.y, '#b7f36b', 22, 135);
-    toast('Gradiente de exsudatos', 'A nuvem atrai comunidades móveis e orienta interações ecológicas.', 3.5);
+    narrate(state, 'exudate.gradient');
   }
 
   function prepare() {
@@ -162,7 +158,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology, path
       player.hope = Math.max(0, player.hope - dt * (.18 + player.infection * .58));
       if (!infectionAnnounced) {
         infectionAnnounced = true;
-        toast('Contaminação oportunista', 'Propágulos aderiram. Afaste-se ou procure Bacillus e Trichoderma para reduzir a pressão.', 5.2);
+        narrate(state, 'fungus.attached');
       }
     } else if (player.infection <= .015) {
       infectionAnnounced = false;
@@ -203,7 +199,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology, path
     // numa zona pronta não passa por aqui e por isso não toca de novo.
     entities?.audio?.play('bacillusBiofilmComplete', { x: point.x, y: point.y });
     entities.burst(point.x, point.y, '#70e5d6', 38, 175);
-    toast('Biofilme de Bacillus', 'A matriz aderida estabilizou a raiz e criou uma nova zona segura.', 4.8);
+    narrate(state, 'bacillus.biofilm');
     state.discoveredMicrobes.add('bacillus');
   }
 
@@ -293,7 +289,6 @@ export function createEcologicalGameplay({ state, input, entities, ecology, path
           });
         }
         entities.burst(film.x, film.y, '#70e5d6', 26, 145);
-        toast('Zona segura de Bacillus', 'Checkpoint ativado; a matriz remove contaminação e recupera o solo.', 4.5);
       }
     }
   }

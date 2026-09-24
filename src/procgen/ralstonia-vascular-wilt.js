@@ -30,6 +30,7 @@ import { RALSTONIA_DEFAULTS, getPhaseManifest } from './campaign-manifest.js';
 import { createRandom } from './random.js';
 import { publishControlSignal } from './biological-audio-signals.js';
 import {
+  RALSTONIA_DOOR_COLORS,
   RALSTONIA_STATE_LABELS,
   isRalstoniaRootEligible,
   ralstoniaAzospirillumClosure,
@@ -44,6 +45,7 @@ import {
   ralstoniaArrivalProtection,
   ralstoniaSpreadOpening,
 } from './ralstonia-spread.js';
+import { narrate } from './narrator.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -76,13 +78,16 @@ export function ralstoniaDoorLabel(opening, config = RALSTONIA_DEFAULTS) {
   return 'Porta aberta';
 }
 
+export function ralstoniaDoorColor(opening, config = RALSTONIA_DEFAULTS) {
+  return RALSTONIA_DOOR_COLORS[ralstoniaDoorLabel(opening, config)];
+}
+
 export function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas }) {
   const foci = [];
   const spreadEvents = [];
   let nextId = 1;
   let nextEventId = 1;
   let initialized = false;
-  let lastToastAt = -Infinity;
 
   let neutralizedCount = 0;
   let criticalCount = 0;
@@ -110,13 +115,6 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
   let random = createRandom(`${state.campaign?.seed || state.level?.seed || 'ralstonia'}:ralstonia-foci`);
   let spreadWindowReached = false;
   let pedagogicalSpreadAttempts = 0;
-
-  function announce(text, duration = 5, cooldown = 2.3) {
-    if (state.time - lastToastAt < cooldown) return;
-    state.toast = text;
-    state.toastTime = duration;
-    lastToastAt = state.time;
-  }
 
   function phaseNumber() {
     return Number.isInteger(state.campaign?.phase) ? state.campaign.phase : 0;
@@ -719,12 +717,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       focus.activationState = 'warning';
       focus.activatedAt = state.time;
       focus.roleBadgeTimer = 6;
-      announce(
-        focus.role === 'containment'
-          ? 'A bactéria já entrou no xilema desta raiz. Agora o objetivo é conter o avanço, não eliminar completamente a infecção.'
-          : 'Foco superficial: feche a porta, forme uma barreira ou reduza a população antes da entrada no xilema.',
-        6.2, .1,
-      );
+      narrate(state, focus.role === 'containment' ? 'ralst.focus-containment' : 'ralst.focus-superficial');
       return;
     }
 
@@ -864,7 +857,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     state.player.soil += 2.2;
     state.player.hope += 2.8;
     entities.burst(focus.x, focus.root.y - 5, '#a8ffe6', 28, 150);
-    announce('Infecção superficial neutralizada antes da colonização vascular.', 4.4, .8);
+    narrate(state, 'ralst.neutralized');
   }
 
   function contain(focus) {
@@ -879,7 +872,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     state.player.soil += 1.8;
     state.player.hope += 2.4;
     entities.burst(focus.x, focus.root.y - 5, '#6ce7df', 24, 130);
-    announce('Infecção vascular contida: o avanço parou. A raiz segue infectada, porém funcional.', 5.2, 1);
+    narrate(state, 'ralst.contained');
   }
 
   // ---------------------------------------------------------------------------
@@ -971,7 +964,6 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       knockbackY: -185,
     });
     entities.burst(state.player.x + state.player.w / 2, focus.root.y - 2, '#b78a63', 18, 115);
-    announce('Raiz em murcha crítica: o colapso vascular tornou a plataforma instável.', 4.2, 1.3);
   }
 
   // ---------------------------------------------------------------------------
@@ -1084,7 +1076,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       didactics.entry = true;
       focus.announcedEntry = true;
       focus.entryVisualProgress = 0;
-      announce('Entrada de Ralstonia: a bactéria atravessou uma região lesionada e alcançou os vasos da raiz.', 5.2, 1.1);
+      narrate(state, 'ralst.entry');
     }
     if (focus.vascularLoad >= CONFIG.obstructionThreshold) didactics.obstruction = true;
 
@@ -1122,11 +1114,11 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
 
     if (focus.vascularLoad >= .36 && !focus.announcedVascular) {
       focus.announcedVascular = true;
-      announce('Colonização vascular ativa: transporte de água, carbono e nutrientes começou a cair.', 5.3, 1.2);
+      narrate(state, 'ralst.vascular');
     }
     if (focus.vascularLoad >= CONFIG.criticalThreshold && !focus.announcedCritical) {
       focus.announcedCritical = true;
-      announce('Murcha vascular crítica: Bacillus e Pseudomonas agora apenas desaceleram o avanço; a prevenção teria sido mais eficiente.', 6, 1.2);
+      narrate(state, 'ralst.critical');
     }
 
     applyRootEffects(focus, dt);
@@ -1301,7 +1293,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     spreadEventCount++;
     target.ralstoniaSpreadIncoming = CONFIG.spreadWarningSeconds;
     didactics.spread = true;
-    announce('Disseminação bacteriana: proteja a raiz marcada antes da chegada.', 5.4, .9);
+    narrate(state, 'ralst.spread-warning');
     return event;
   }
 
@@ -1359,12 +1351,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       state.player.hope += 1.9;
       entities.burst(probe.x, target.y - 6, '#8ef0c6', 26, 145);
       entities.burst(probe.x, target.y - 14, '#a8ffe6', 18, 95);
-      announce(
-        verdict.sealed
-          ? 'Disseminação bloqueada: a raiz estava cicatrizada e a bactéria não encontrou porta de entrada.'
-          : 'Disseminação bloqueada: a proteção biológica impediu a colonização da nova raiz.',
-        5, .9,
-      );
+      narrate(state, verdict.sealed ? 'ralst.spread-blocked-healed' : 'ralst.spread-blocked-protected');
       // A raiz resistiu: a lesão suscetível criada para a lição cicatriza.
       delete target.ralstoniaExposureWound;
       releaseTarget(event);
@@ -1391,7 +1378,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       successfulSpreadCount++;
       entities.burst(probe.x, target.y - 6, '#e8c27e', 24, 130);
       entities.burst(probe.x, target.y - 2, '#d8b674', 16, 70);
-      announce('A disseminação chegou: nasceu um novo foco superficial. Ainda dá para prevenir a entrada nesta raiz.', 5.4, .9);
+      narrate(state, 'ralst.spread-arrived');
     }
     releaseTarget(event);
   }
@@ -1769,15 +1756,12 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       ctx.setLineDash([]);
     }
 
+    // A porta não vira texto: a cor do estágio diz se ela está aberta,
+    // fechando ou bloqueada (mesmas cores do painel contextual).
     ctx.font = '700 9px Inter,system-ui';
     ctx.textAlign = 'center';
-    ctx.fillStyle = focus.neutralized ? 'rgba(168,255,230,.9)' : 'rgba(245,226,190,.92)';
+    ctx.fillStyle = focus.neutralized ? 'rgba(168,255,230,.9)' : ralstoniaDoorColor(opening, CONFIG);
     ctx.fillText(stageLabel(focus), x, y - 10);
-    ctx.font = '600 8px Inter,system-ui';
-    ctx.fillStyle = opening <= CONFIG.woundColonizationLimit
-      ? 'rgba(142,240,198,.9)'
-      : 'rgba(255,178,150,.9)';
-    ctx.fillText(ralstoniaDoorLabel(opening, CONFIG), x, y - 1.5);
 
     ctx.restore();
   }
@@ -1826,10 +1810,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     ctx.font = '700 10px Inter,system-ui';
     ctx.textAlign = 'center';
     ctx.fillStyle = focus.role === 'containment' ? 'rgba(255,178,150,.95)' : 'rgba(245,226,190,.95)';
-    ctx.fillText(
-      focus.role === 'containment' ? 'Infecção vascular adiante' : 'Contaminação superficial adiante',
-      x, y,
-    );
+    ctx.fillText('Ralstonia adiante', x, y);
     ctx.restore();
   }
 
@@ -2077,7 +2058,6 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     nextId = 1;
     nextEventId = 1;
     initialized = false;
-    lastToastAt = -Infinity;
     neutralizedCount = 0;
     criticalCount = 0;
     averageTransport = 1;

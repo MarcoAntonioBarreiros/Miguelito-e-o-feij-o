@@ -1,6 +1,7 @@
 import { W } from '../core/constants.js';
 import { createRandom } from './random.js';
 import { externalControlPressure } from './biological-audio-signals.js';
+import { narrate } from './narrator.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -27,7 +28,6 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
   let nextSiderophoreId = 1;
   let totalIronRecovered = 0;
   let fungiLimitedCount = 0;
-  let lastToastAt = -Infinity;
   let random = createRandom(`${state.campaign?.seed || 'pseudomonas'}:siderophores`);
 
   function resetRandom() {
@@ -40,13 +40,6 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
 
   function colonies() {
     return (inoculants.colonies || []).filter(colony => colony.type === 'pseudomonas');
-  }
-
-  function announce(text, seconds = 4.6) {
-    if (state.time - lastToastAt < 2.1) return;
-    state.toast = text;
-    state.toastTime = seconds;
-    lastToastAt = state.time;
   }
 
   function ensureDeposits() {
@@ -147,7 +140,6 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     nextSiderophoreId = 1;
     totalIronRecovered = 0;
     fungiLimitedCount = 0;
-    lastToastAt = -Infinity;
     resetRandom();
   }
 
@@ -160,7 +152,6 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     nextSiderophoreId = 1;
     totalIronRecovered = 0;
     fungiLimitedCount = 0;
-    lastToastAt = -Infinity;
     resetRandom();
     ensureDeposits();
   }
@@ -225,7 +216,7 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
 
     if (!target && !entry.noIronToast) {
       entry.noIronToast = true;
-      announce('Pseudomonas liberou sideróforos, mas não há Fe³⁺ acessível dentro da zona de exploração.');
+      narrate(state, 'pseudo.no-iron');
     }
   }
 
@@ -256,7 +247,7 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     // Só com ferro real: o retorno acima já descartou amount <= .02.
     entities?.audio?.play('pseudomonasIronBind', { x: deposit.x, y: deposit.y });
     entities.burst(deposit.x, deposit.y, '#ffad5f', 10, 66);
-    announce('Complexo sideróforo–Fe³⁺ formado: o ferro capturado está retornando à colônia de Pseudomonas.');
+    narrate(state, 'pseudo.chelate');
   }
 
   function deliverIron(particle, entry) {

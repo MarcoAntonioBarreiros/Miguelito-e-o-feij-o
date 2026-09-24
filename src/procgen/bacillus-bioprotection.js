@@ -1,6 +1,7 @@
 import { W } from '../core/constants.js';
 import { fxLanded } from '../game-audio.js';
 import { externalControlPressure } from './biological-audio-signals.js';
+import { narrate } from './narrator.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -23,17 +24,9 @@ function isMetabolicallyActive(entry) {
 export function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
   const colonyStates = new Map();
   let fungiUnderAntibiosis = 0;
-  let lastToastAt = -Infinity;
 
   function bacillusColonies() {
     return (inoculants.colonies || []).filter(colony => colony.type === 'bacillus');
-  }
-
-  function announce(text, seconds = 4.8) {
-    if (state.time - lastToastAt < 2) return;
-    state.toast = text;
-    state.toastTime = seconds;
-    lastToastAt = state.time;
   }
 
   function ensureBiofilm(colony) {
@@ -135,7 +128,6 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     }
     colonyStates.clear();
     fungiUnderAntibiosis = 0;
-    lastToastAt = -Infinity;
     state.player.bacillusResistance = 0;
   }
 
@@ -195,15 +187,15 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
 
     if (mode === 'mature' && !entry.announcedMature) {
       entry.announcedMature = true;
-      announce('Biofilme maduro de Bacillus: a matriz protege a raiz e sustenta a produção de metabólitos antimicrobianos.', 5.4);
+      narrate(state, 'bacillus.mature');
       entities.burst(colony.x, colony.y, '#a8ffe6', 30, 130);
     } else if (mode === 'spores' && !entry.announcedSpores) {
       entry.announcedSpores = true;
-      announce('Esporulação de Bacillus: com pouco carbono, a comunidade formou endósporos resistentes e entrou em dormência.', 5.5);
+      narrate(state, 'bacillus.sporulation');
       entities.burst(colony.x, colony.y, '#ffe5a0', 24, 95);
     } else if (mode === 'germinating' && !entry.announcedGermination) {
       entry.announcedGermination = true;
-      announce('Reativação de Bacillus: novos exsudatos estimularam a germinação dos endósporos e a reconstrução do biofilme.', 5.5);
+      narrate(state, 'bacillus.reactivation');
       entities.burst(colony.x, colony.y, '#d6ff94', 34, 125);
     }
   }

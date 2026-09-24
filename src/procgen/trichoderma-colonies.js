@@ -88,8 +88,6 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
     // ação — `inoculateNaturalAgent` não passa por aqui, e não deve: germinação
     // natural não é uso do inoculante carregado.
     entities.interactionFx?.('inoculationPlace', { gain: 1, rate: 1, instanceId: colony.id });
-    state.toast = `Trichoderma inoculado: ${followers.length} propágulo${followers.length > 1 ? 's' : ''} formaram uma colônia fixa com vigor persistente`;
-    state.toastTime = 5.2;
     colony.stage = 'ready';
     return true;
   }
@@ -226,11 +224,13 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
       ctx.strokeStyle = '#d6ff94';
       ctx.strokeRect(-width / 2 - 1, barY - 1, width + 2, 6);
     }
-    ctx.font = '700 9px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#effff5';
-    const label = colony.exhausted ? 'colônia exaurida' : colony.activeTargetId ? 'colônia ativa' : 'colônia inoculada';
-    ctx.fillText(label, 0, barY + 18);
+    // Só o estado que pede ação vira texto; o resto a barra já mostra.
+    if (colony.exhausted) {
+      ctx.font = '700 9px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#effff5';
+      ctx.fillText('colônia exausta', 0, barY + 18);
+    }
     ctx.restore();
   }
 

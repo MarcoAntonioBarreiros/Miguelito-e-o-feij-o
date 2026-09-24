@@ -3,6 +3,7 @@ import { getPhaseManifest } from './campaign-manifest.js';
 import { ensurePhaseObjectiveProgress } from './campaign-objective-progress.js';
 import { createRandom } from './random.js';
 import { getPrimaryTraversalPlatforms } from './traversal-route.js';
+import { narrate } from './narrator.js';
 import { getNitrogenAvailability } from './nitrogen-availability.js';
 import { synchronizeWorldBounds } from './world-bounds.js';
 import { fxLanded } from '../game-audio.js';
@@ -633,7 +634,6 @@ const MANDATORY_TOP_STEP_MARGIN = RUNTIME_TARGET_STEP_SPACING;
 const MANDATORY_TARGET_GAP = 70;
 
 export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
-  let lastToastAt = -Infinity;
   // Estado transitorio da travessia da prova obrigatoria (Fase 3).
   let mandatoryAttempt = { touchedLadder: false, doubleJumpAfter: false, lastDoubleJumpCount: 0 };
 
@@ -677,7 +677,6 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       .filter(platform => !platform.azospirillumStructure);
     state.level.azospirillumRootLadders = [];
     state.level.azospirillumRoots = [];
-    lastToastAt = -Infinity;
     resetMandatoryAttempt();
   }
 
@@ -709,14 +708,6 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       }
     }
     state.level.azospirillumRoots = ladders();
-    lastToastAt = -Infinity;
-  }
-
-  function announce(text, seconds = 4.6) {
-    if (state.time - lastToastAt < 1.6) return;
-    state.toast = text;
-    state.toastTime = seconds;
-    lastToastAt = state.time;
   }
 
   function activateStepCollider(ladder, step) {
@@ -925,7 +916,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       if (entregue) ladder.audioStarted = true;
     }
     if (ladder.progress === 0 && !ladder.knownSkill) {
-      announce('Azospirillum inoculado: fitormônios iniciaram a escada de ramificações radiculares.');
+      narrate(state, 'azo.ladder-start');
       entities?.burst?.(colony.x, ladder.host.y, '#72e8dd', 22, 90);
     }
     ladder.progress = clamp(
@@ -979,7 +970,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       state.player.soil += 4.5;
       state.player.hope += 3.2;
       entities?.burst?.(ladder.endX, ladder.endY, '#d7ba7d', 34, 140);
-      announce('Escada radicular madura: todos os degraus agora sustentam Miguelito.', 5.2);
+      narrate(state, 'azo.ladder-ready');
     }
   }
 

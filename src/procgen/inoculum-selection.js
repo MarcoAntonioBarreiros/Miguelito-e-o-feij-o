@@ -11,7 +11,6 @@ const LABELS = Object.freeze({
 export function createInoculumSelection({ state, input, inoculants, trichodermaColonies, entities = null }) {
   let index = 0;
   let cycleHeldLast = false;
-  let lastToastAt = -Infinity;
 
   function options() {
     const list = [];
@@ -31,7 +30,7 @@ export function createInoculumSelection({ state, input, inoculants, trichodermaC
         kind: 'phosphate-solubilization',
         type: 'phosphate-solubilization',
         count: `${Math.round(Math.min(1, reserve) * 100)}%`,
-        label: 'Solubilizacao P',
+        label: 'Solubilização P',
       });
     }
     return list;
@@ -51,19 +50,6 @@ export function createInoculumSelection({ state, input, inoculants, trichodermaC
     return selected.kind === kind;
   }
 
-  function announce(selected) {
-    if (state.time - lastToastAt < .5) return;
-    if (selected.kind === 'phosphate-solubilization') {
-      state.toast = 'Selecionado: Solubilizacao P — segure E perto da cepa solubilizadora e solte para disparar.';
-    } else if (selected.kind === 'exudate') {
-      state.toast = `Selecionado: exsudato (${selected.count}) — E lanca para capturar ou reforcar colonia.`;
-    } else {
-      state.toast = `Selecionado: ${selected.label} (${selected.count}) — E inocula na raiz.`;
-    }
-    state.toastTime = 2.4;
-    lastToastAt = state.time;
-  }
-
   function cycle() {
     const list = options();
     // Uma opção só: a seta não muda nada, então não há o que sinalizar.
@@ -71,8 +57,8 @@ export function createInoculumSelection({ state, input, inoculants, trichodermaC
     index = (index + 1) % list.length;
     // Depois da troca REAL do índice. `prepare` já filtra a tecla segurada, e
     // `options()` sozinho nunca chega aqui.
+    // Sem toast: o chip do HUD já mostra o item escolhido.
     entities?.interactionFx?.('uiSelectionCycle', { gain: 1, rate: 1 });
-    announce(list[index]);
     return true;
   }
 
@@ -86,7 +72,6 @@ export function createInoculumSelection({ state, input, inoculants, trichodermaC
   function reset() {
     index = 0;
     cycleHeldLast = false;
-    lastToastAt = -Infinity;
   }
 
   return {

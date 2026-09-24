@@ -1,4 +1,5 @@
 import { fxLanded } from '../game-audio.js';
+import { narrate } from './narrator.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
@@ -16,16 +17,8 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
   const maxActiveAttacks = 2;
   const detectionRadius = 640;
   let nextFocusId = 1;
-  let lastToastAt = -Infinity;
   let eliminatedCount = 0;
   let abortedCount = 0;
-
-  function announce(text, duration = 5, cooldown = 2.2) {
-    if (state.time - lastToastAt < cooldown) return;
-    state.toast = text;
-    state.toastTime = duration;
-    lastToastAt = state.time;
-  }
 
   function focusId(enemy) {
     if (!enemy.trichodermaRhizoId) enemy.trichodermaRhizoId = `rhizo-focus-${nextFocusId++}`;
@@ -137,11 +130,7 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
     enemy.trichodermaRhizoTargeted = true;
     enemy.trichodermaSuppression = Math.max(enemy.trichodermaSuppression || 0, .02);
     entities.burst(colony.x, colony.y, '#8df0a8', 18, 115);
-    announce(
-      'Trichoderma reconheceu um foco de Rhizoctonia: a hifa crescerá até a colônia, fará enovelamento e iniciará a lise.',
-      5.8,
-      .4,
-    );
+    narrate(state, 'tricho.rhizoc-detect');
   }
 
   function assignTargets() {
@@ -185,11 +174,7 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
     releaseColony(attack, { cooldown: exhausted ? 3 : 1.35, exhausted });
     abortedCount++;
     if (exhausted) {
-      announce(
-        'Ataque interrompido: a colônia de Trichoderma perdeu vigor antes de destruir a Rhizoctonia. Exsudatos próximos reduzem esse risco.',
-        5.4,
-        1.1,
-      );
+      narrate(state, 'tricho.exhausted');
     }
   }
 
@@ -230,7 +215,7 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
         if (entregue) attack.audioContacted = true;
       }
       entities.burst(point.x, point.y, '#baf66f', 16, 105);
-      announce('Contato estabelecido: Trichoderma iniciou o enovelamento sobre as hifas de Rhizoctonia.', 4.5, 1.2);
+      narrate(state, 'tricho.coil');
     }
   }
 
@@ -268,11 +253,7 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
     state.player.hope += 5.2;
     entities.burst(point.x, point.y, '#8df0a8', 46, 225);
     entities.burst(point.x, point.y, '#ff8297', 30, 175);
-    announce(
-      'Micoparasitismo concluído: Trichoderma desestruturou o foco de Rhizoctonia e reduziu a lesão radicular.',
-      5.2,
-      .5,
-    );
+    narrate(state, 'tricho.mycoparasitism-done');
   }
 
   function advanceMycoparasitism(attack, dt) {
@@ -488,7 +469,6 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
     }
     attacks.clear();
     nextFocusId = 1;
-    lastToastAt = -Infinity;
     eliminatedCount = 0;
     abortedCount = 0;
   }

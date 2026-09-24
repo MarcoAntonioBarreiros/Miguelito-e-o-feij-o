@@ -1,4 +1,5 @@
 import { fxLanded } from '../game-audio.js';
+import { narrate } from './narrator.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
@@ -15,17 +16,9 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
   const attacks = new Map();
   const maxActiveAttacks = 5;
   const detectionRadius = 560;
-  let lastToastAt = -Infinity;
   let eggsDestroyed = 0;
   let eggMassesNeutralized = 0;
   let juvenilesDestroyed = 0;
-
-  function announce(text, duration = 5, cooldown = 2.2) {
-    if (state.time - lastToastAt < cooldown) return;
-    state.toast = text;
-    state.toastTime = duration;
-    lastToastAt = state.time;
-  }
 
   function targetPosition(target, type) {
     if (type === 'egg') return { x: target.x, y: target.y - 4 };
@@ -124,13 +117,7 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     colony.activeTargetId = `melo-control:${id}`;
     colony.stage = assignment.type === 'egg' ? 'buscando massa de ovos' : 'interceptando J2';
     entities.burst(colony.x, colony.y, '#8df0a8', 16, 105);
-    announce(
-      assignment.type === 'egg'
-        ? 'Trichoderma detectou uma massa de ovos: a hifa crescerá até o alvo, interromperá a eclosão e inviabilizará os ovos gradualmente.'
-        : 'Trichoderma detectou um J2 livre: a hifa pode imobilizá-lo antes da penetração radicular.',
-      5.8,
-      .4,
-    );
+    narrate(state, assignment.type === 'egg' ? 'tricho.melo-detect-eggs' : 'tricho.melo-detect-j2');
   }
 
   function assignTargets() {
@@ -169,7 +156,7 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     }
     releaseColony(attack, { cooldown: exhausted ? 2.8 : 1.25, exhausted });
     if (exhausted) {
-      announce('Colônia de Trichoderma exaurida: libere exsudatos junto à colônia para recuperar vigor antes de outro ataque.', 5.3, 1.2);
+      narrate(state, 'tricho.exhausted');
     }
   }
 
@@ -198,7 +185,7 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     releaseColony(attack, { reward: .1, cooldown: 1.9 });
     entities.burst(mass.x, mass.y, '#8df0a8', 36, 185);
     entities.burst(mass.x, mass.y, '#ffe0a6', 24, 135);
-    announce('Massa de ovos neutralizada: Trichoderma inviabilizou os ovos e interrompeu uma futura geração de Meloidogyne.', 5.3, .5);
+    narrate(state, 'tricho.melo-eggs-done');
   }
 
   function completeJ2Attack(attack) {
@@ -216,7 +203,7 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     releaseColony(attack, { reward: .045, cooldown: 1.15 });
     entities.burst(point.x, point.y, '#8df0a8', 24, 155);
     entities.burst(point.x, point.y, '#fff0cf', 12, 95);
-    announce('J2 lisado por Trichoderma antes da penetração radicular.', 3.8, 1.2);
+    narrate(state, 'tricho.melo-j2-lysed');
   }
 
   function vigorDrain(attack, dt, contact = false) {
@@ -455,7 +442,6 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
       releaseColony(attack, { cooldown: 0 });
     }
     attacks.clear();
-    lastToastAt = -Infinity;
     eggsDestroyed = 0;
     eggMassesNeutralized = 0;
     juvenilesDestroyed = 0;

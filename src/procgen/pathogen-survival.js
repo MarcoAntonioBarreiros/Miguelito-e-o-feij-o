@@ -1,4 +1,5 @@
 import { cancelJetpack, resetJetpackRuntime } from '../player.js';
+import { narrate } from './narrator.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -151,17 +152,9 @@ export function createPathogenSurvival({ state, entities, ecology, audio = null 
   let criticalHealthAnnounced = false;
   let gameOverPlayed = false;
   const rootMemory = new WeakMap();
-  let lastToastAt = -Infinity;
   let attachToastShown = false;
   let transferToastAt = -Infinity;
   const dom = ensureDom();
-
-  function announce(text, seconds = 4.8, cooldown = 1.7) {
-    if (state.time - lastToastAt < cooldown) return;
-    state.toast = text;
-    state.toastTime = seconds;
-    lastToastAt = state.time;
-  }
 
   function updateDom() {
     if (!dom.hud) return;
@@ -247,8 +240,6 @@ export function createPathogenSurvival({ state, entities, ecology, audio = null 
       175 + damage * 40,
     );
 
-    announce(`${source}: Miguelito perdeu ${damage} ${damage === 1 ? 'coração' : 'corações'}.`, 3.6, .55);
-
     if (player.vitality <= 0 || options.fatal) {
       player.vitality = 0;
       player.alive = false;
@@ -266,7 +257,7 @@ export function createPathogenSurvival({ state, entities, ecology, audio = null 
       }
       state.gameState = 'respawning';
       state.respawnTimer = .72;
-      announce(`Miguelito foi vencido por ${source}. Retorno ao último biofilme ativo.`, 4.2, 0);
+      narrate(state, 'survival.defeated', { source });
     }
     return true;
   }
@@ -297,11 +288,7 @@ export function createPathogenSurvival({ state, entities, ecology, audio = null 
     juvenile.vy = 0;
     if (!attachToastShown) {
       attachToastShown = true;
-      announce(
-        'Transporte de J2: o juvenil aderiu à roupa de Miguelito. Ele não parasita o personagem, mas reduz sua mobilidade e pode ser levado até outra raiz.',
-        6.2,
-        0,
-      );
+      narrate(state, 'survival.j2-carried');
     }
   }
 
@@ -326,11 +313,7 @@ export function createPathogenSurvival({ state, entities, ecology, audio = null 
       for (const juvenile of carried) juvenile.alive = false;
       const removed = carried.length;
       carried = [];
-      announce(
-        `Biofilme de Bacillus repeliu ${removed} J2 transportado${removed > 1 ? 's' : ''}.`,
-        4.1,
-        .8,
-      );
+      narrate(state, 'bacillus.j2-repelled');
       entities.burst(center.x, center.y + 12, '#a8ffe6', 18, 120);
     }
 
@@ -362,7 +345,7 @@ export function createPathogenSurvival({ state, entities, ecology, audio = null 
         juvenile.y = root.y - 10;
         if (state.time - transferToastAt > 4) {
           transferToastAt = state.time;
-          announce('Dispersão passiva: um J2 transportado deixou Miguelito e começou a procurar entrada na raiz sob seus pés.', 5.2, 0);
+          narrate(state, 'survival.j2-dropped');
         }
       }
     });
@@ -448,7 +431,6 @@ export function createPathogenSurvival({ state, entities, ecology, audio = null 
       if (player.vitality < player.maxVitality && player.healCooldown <= 0) {
         player.vitality++;
         player.healCooldown = 4.2;
-        announce('Zona segura de Bacillus: um coração de Vitalidade foi recuperado.', 3.6, .7);
         entities.burst(player.x + 16, player.y + 24, '#a8ffe6', 16, 95);
       }
     }
@@ -472,7 +454,6 @@ export function createPathogenSurvival({ state, entities, ecology, audio = null 
   function clear() {
     clearCarriedJ2(false);
     attachToastShown = false;
-    lastToastAt = -Infinity;
     transferToastAt = -Infinity;
     updateDom();
   }

@@ -1,11 +1,11 @@
 import { organismVerticalBounds } from './world-bounds.js';
+import { narrate } from './narrator.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 export function createTrichodermaRecruitment({ state, ecology, entities }) {
   const followDuration = 32;
   const maxFollowers = 4;
-  let lastToastAt = -Infinity;
 
   function recruitedAgents() {
     return ecology.agents.filter(agent => (
@@ -28,7 +28,6 @@ export function createTrichodermaRecruitment({ state, ecology, entities }) {
 
   function reset() {
     clear();
-    lastToastAt = -Infinity;
   }
 
   function recruitFromClouds() {
@@ -70,11 +69,7 @@ export function createTrichodermaRecruitment({ state, ecology, entities }) {
             });
           }
           entities.discoverMicrobe?.('trichoderma', false, { sound: false });
-          if (state.time - lastToastAt > 2.5) {
-            state.toast = 'Trichoderma recrutado: a colônia seguirá o gradiente de Miguelito e poderá atacar novos alvos';
-            state.toastTime = 4.8;
-            lastToastAt = state.time;
-          }
+          narrate(state, 'inoculum.recruited');
         }
       }
     }

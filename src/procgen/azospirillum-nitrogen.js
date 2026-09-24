@@ -2,6 +2,7 @@ import {
   AZOSPIRILLUM_NITROGEN_DEFAULTS,
   getPhaseManifest,
 } from './campaign-manifest.js';
+import { narrate } from './narrator.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -110,8 +111,7 @@ export function createAzospirillumNitrogen({ state, inoculants }) {
       const pairId = `${partner.id}:${site.id}`;
       if (!announcedPairs.has(pairId)) {
         announcedPairs.add(pairId);
-        state.toast = 'Co-inoculação: FBN potencializada';
-        state.toastTime = 3.6;
+        narrate(state, 'azo.coinoculation');
       }
     }
   }

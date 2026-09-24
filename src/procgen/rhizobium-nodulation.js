@@ -1,4 +1,5 @@
 import { W } from '../core/constants.js';
+import { narrate } from './narrator.js';
 import { visibleRootRect } from '../render/rhizosphere-geometry.js';
 
 const TAU = Math.PI * 2;
@@ -50,7 +51,6 @@ function stageLabel(site, activity = 0) {
 export function createRhizobiumNodulation({ state, entities, inoculants }) {
   const sites = new Map();
   let totalFixation = 0;
-  let lastToastAt = -Infinity;
 
   function clear() {
     // Os fios de infecção e a FBN pertencem a esta fase: nenhum atravessa.
@@ -92,11 +92,7 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
     if (compatible) {
       entities?.audio?.play('rhizobiumRecognition', { x: site.x, y: site.surfaceY });
     }
-    if (!compatible && state.time - lastToastAt > 2.4) {
-      state.toast = 'Rhizobium sem hospedeiro: a colônia permanece na rizosfera, mas não forma nódulos em blocos de solo.';
-      state.toastTime = 5.2;
-      lastToastAt = state.time;
-    }
+    if (!compatible) narrate(state, 'rhizobium.no-host');
     return site;
   }
 
@@ -118,17 +114,9 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
     state.level.rhizobiumNodules = [...sites.values()];
   }
 
-  function announce(site, key, text, seconds = 4.8) {
-    if (site.announced.has(key)) return;
-    site.announced.add(key);
-    if (state.time - lastToastAt < 1.8) return;
-    state.toast = text;
-    state.toastTime = seconds;
-    lastToastAt = state.time;
-  }
-
   // Áudio e toast respondem à MESMA transição, mas um não depende do outro: o
-  // toast tem cooldown próprio (`announce`) e engoliria o som se fosse o gatilho.
+  // narrador pode segurar ou dispensar o toast (escopo de campanha: as cinco
+  // etapas só aparecem no primeiro nódulo), e o som toca sempre.
   function advanceStage(site) {
     const index = stageIndex(site.stage);
     const next = STAGES[Math.min(STAGES.length - 1, index + 1)];
@@ -139,27 +127,27 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
 
     if (next === 'root-hair-curl') {
       audio?.play('rhizobiumRootHairCurl', { x: site.x, y: site.surfaceY });
-      announce(site, next, 'Sinalização simbiótica: o pelo radicular começou a se curvar ao redor do Rhizobium.');
+      narrate(state, 'rhizobium.curl');
     } else if (next === 'infection-thread') {
       audio?.startLoop(threadKey, 'rhizobiumInfectionThread', {
         x: site.x, y: site.surfaceY, gain: .55,
       });
-      announce(site, next, 'Fio de infecção: as bactérias avançam de forma controlada para o interior da raiz.');
+      narrate(state, 'rhizobium.thread');
     } else if (next === 'primordium') {
       // O fio terminou: o loop sai antes de o primórdio soar.
       audio?.stopLoop(threadKey);
       audio?.play('rhizobiumPrimordium', { x: site.x, y: site.surfaceY + site.depth });
-      announce(site, next, 'Primórdio nodular: células da raiz começaram a formar o novo órgão simbiótico.');
+      narrate(state, 'rhizobium.primordium');
     } else if (next === 'young-nodule') {
       audio?.play('rhizobiumYoungNodule', { x: site.x, y: site.surfaceY + site.depth });
-      announce(site, next, 'Nódulo jovem: o Rhizobium começa a se diferenciar em bacteroides.');
+      narrate(state, 'rhizobium.young');
     } else if (next === 'mature-nodule') {
       site.mature = true;
       site.maturity = 1;
       // Única transição mature false → true de um sítio. Um nódulo restaurado já
       // maduro não passa por aqui e por isso não toca conclusão.
       audio?.play('rhizobiumMatureNodule', { x: site.x, y: site.surfaceY + site.depth });
-      announce(site, next, 'Nódulo maduro: leghemoglobina controla o oxigênio e a fixação biológica de nitrogênio foi ativada.', 5.6);
+      narrate(state, 'rhizobium.mature');
       entities.burst(site.x, site.surfaceY + site.depth, '#ff9db5', 36, 145);
     }
   }

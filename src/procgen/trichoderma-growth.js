@@ -1,6 +1,7 @@
 import { H, W } from '../core/constants.js';
 import { clamp, createHyphalNetwork, renderHyphalNetwork, TAU, updateHyphalNetwork } from './hyphal-growth.js';
 import { fxLanded } from '../game-audio.js';
+import { narrate } from './narrator.js';
 import { hyphalWorldBounds } from './world-bounds.js';
 
 function nearestPointOnRect(x, y, rect) {
@@ -192,8 +193,7 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
     const tip = [...network.tips].reverse().find(candidate => candidate.points.length) || network.tips[0];
     if (tip) entities.burst(tip.x, tip.y, '#8df0a8', 16, 80);
     if (state.time - lastExhaustionToastAt > 2.4) {
-      state.toast = 'Colônia exaurida: a hifa não alcançou o alvo. Libere exsudatos junto à colônia ou à frente de crescimento para reativá-la.';
-      state.toastTime = 5.4;
+      narrate(state, 'tricho.exhausted');
       lastExhaustionToastAt = state.time;
     }
   }
@@ -226,8 +226,7 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
     }
     entities.burst(target.x, target.y, '#8df0a8', 42, 230);
     entities.burst(target.x, target.y, '#ff8297', 24, 175);
-    state.toast = 'Micoparasitismo concluído: a colônia recuperou 14% de vigor e permanece inoculada para novos alvos';
-    state.toastTime = 4.8;
+    narrate(state, 'tricho.mycoparasitism-done');
   }
 
   function nearestTipDistance(network, target) {

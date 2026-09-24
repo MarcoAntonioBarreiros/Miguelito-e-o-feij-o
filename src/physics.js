@@ -23,9 +23,13 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
   const EXUDATE_PICKUP_TRACKS = ['exudatePickup01', 'exudatePickup02', 'exudatePickup03'];
   let nextExudatePickupVariant = 0;
 
-  function collectCampaignUnlock(ally, player) {
-    const feature = ally.unlockFeature
+  function campaignFeatureForAlly(ally) {
+    return ally.unlockFeature
       || (ally.id === 'power-jump' ? 'doubleJump' : ally.id === 'power-dash' ? 'dash' : ally.id === 'power-pulse' ? 'phosphateSolubilization' : ally.id === 'myco' ? 'mycorrhizaStructures' : ally.id === 'azo' ? 'azospirillumRoots' : null);
+  }
+
+  function collectCampaignUnlock(ally, player) {
+    const feature = campaignFeatureForAlly(ally);
     unlockCampaignFeature(state, feature);
 
     let color = '#72e8dd';
@@ -147,8 +151,11 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
         enemy.attackTime = .32;
         enemy.attackCooldown = 2.5;
         enemy.mode = 'lunge';
-        state.toast = 'Rhizoctonia formou uma almofada de infecção e lançou uma hifa de ataque.';
-        state.toastTime = 3.4;
+        if (hud.narrate) hud.narrate('rhizoc.attack');
+        else {
+          state.toast = 'Rhizoctonia formou uma almofada de infecção e lançou uma hifa de ataque.';
+          state.toastTime = 3.4;
+        }
       }
     } else {
       enemy.attackCharge = Math.max(0, enemy.attackCharge - dt * 1.5);
@@ -456,7 +463,11 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
         a.taken = true;
         const color = collectCampaignUnlock(a, player);
         entities.burst(a.x, a.y, color, 42, 250);
-        hud.showToast(a.name || 'Novo mecanismo desbloqueado', a.desc || 'Uma nova função do solo vivo foi liberada.', 4700);
+        // Na campanha procedural o narrador decide (o cartão do poder costuma
+        // cobrir o toast); o jogo não procedural continua com o toast antigo.
+        const feature = campaignFeatureForAlly(a);
+        if (hud.narrate && feature) hud.narrate(`unlock.${feature}`);
+        else hud.showToast(a.name || 'Novo mecanismo desbloqueado', a.desc || 'Uma nova função do solo vivo foi liberada.', 4700);
         hud.updateHud();
       }
     });
@@ -484,11 +495,15 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
         const first = !state.discoveredMicrobes.has('bacillus');
         // Sem som de descoberta: quem manda aqui é a ativação do checkpoint.
         if (first) entities.discoverMicrobe('bacillus', false, { sound: false });
-        hud.showToast(
-          first ? 'Colônia resistente de Bacillus' : 'Checkpoint de Bacillus ativado',
-          first ? 'Biofilme e endósporos estabilizam este ponto. No jogo, a colônia funciona como checkpoint.' : 'Esta microcolônia passa a ser seu novo ponto de retorno.',
-          4300,
-        );
+        // Procedural: só a primeira colônia narra; depois som e visual bastam.
+        if (hud.narrate) hud.narrate('bacillus.checkpoint');
+        else {
+          hud.showToast(
+            first ? 'Colônia resistente de Bacillus' : 'Checkpoint de Bacillus ativado',
+            first ? 'Biofilme e endósporos estabilizam este ponto. No jogo, a colônia funciona como checkpoint.' : 'Esta microcolônia passa a ser seu novo ponto de retorno.',
+            4300,
+          );
+        }
       }
     });
 
