@@ -18,4 +18,6 @@ As regras biológicas do protótipo são simplificações jogáveis. Elas devem 
 - Evitar prometer eliminação total de doenças ou substituição de manejo agronômico.
 - Usar linguagem de associação, contribuição e tendência.
 - Separar função biológica de poder de jogo quando necessário.
-- Manter os textos curtos dentro do HUD/toast.
+- Manter os textos curtos dentro do HUD/toast: a narração segue as regras de `narration.md` (≤ 60 caracteres, uma classe por mensagem, ciência 1× por campanha).
+- O medidor do vigor do Trichoderma é **Biocontrole**, não Antibiose: o jogo mostra micoparasitismo.
+- A solubilização de fósforo é da cepa solubilizadora (ácidos orgânicos microbianos), não de uma enzima liberada pela raiz.
