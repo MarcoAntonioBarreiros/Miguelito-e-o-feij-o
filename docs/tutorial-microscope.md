@@ -20,8 +20,16 @@ abrir a biblioteca. Trocar páginas não cria outro loop. A preferência por
 movimento reduzido desacelera o campo e remove a animação de entrada.
 
 O cartão tem altura determinada pelo conteúdo, sem reservar 600px. O ciclo
-fica em uma página própria, como um percurso gráfico com setas suaves, sem
-números ou caixas; sua ordem semântica permanece acessível. `tutorial-card-pages.js`
+fica em uma página própria, como um percurso orbital aberto com traços
+arredondados, gradiente âmbar–ciano, marcadores numerados selecionáveis e setas
+sólidas. O pontilhado se desloca suavemente e para com movimento reduzido.
+Sua ordem semântica permanece acessível. Em telas de até 400px, o percurso
+se distribui em duas colunas, preservando a ordem e os nomes completos.
+O destaque ciano contextualiza a etapa com uma página existente do catálogo;
+`tutorial-cycle.js` associa explicitamente cada etapa à sua página e só mostra
+conteúdo desbloqueado. Continuar/anterior navegam pelas etapas; o último passo
+conclui o cartão, sem reconectar ao início. Teclado e toque usam botões nativos.
+`tutorial-card-pages.js`
 divide tópicos extensos em páginas de até dois itens, conservando exatamente
 os textos. Essa paginação é apenas visual: IDs, índices persistidos, catálogo,
 desbloqueios e exports anteriores não mudam. Não se revela conteúdo bloqueado.

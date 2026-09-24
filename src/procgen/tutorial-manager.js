@@ -1,3 +1,4 @@
+import { createTutorialCycle } from './tutorial-cycle.js';
 import { tutorialDisplayPages, isTutorialGamePage } from './tutorial-card-pages.js';
 import { createTutorialMicroscope } from './tutorial-microscope.js';
 import { getTutorialCard, tutorialCardIds, tutorialCards } from './tutorial-registry.js';
@@ -128,9 +129,12 @@ export function createTutorialManager({ state }) {
                   <ul class="tutorial-page-points"></ul>
                 </aside>
                 <div class="tutorial-cycle-block">
-                  <span class="tutorial-cycle-label"></span>
-                  <svg class="tutorial-cycle-path" aria-hidden="true"></svg>
-                  <ol class="tutorial-cycle"></ol>
+                  <div class="tutorial-cycle-diagram">
+                    <svg class="tutorial-cycle-path" aria-hidden="true"></svg>
+                    <ol class="tutorial-cycle" aria-label="Etapas do ciclo"></ol>
+                    <span class="tutorial-cycle-caption" aria-live="polite"></span>
+                  </div>
+                  <aside class="tutorial-callout tutorial-cycle-detail" aria-live="polite"><strong></strong><span></span></aside>
                 </div>
               </div>
             </main>
@@ -176,8 +180,6 @@ export function createTutorialManager({ state }) {
   const title = mount.querySelector('.tutorial-title');
   const subtitle = mount.querySelector('.tutorial-subtitle');
   const microscope = createTutorialMicroscope(mount.querySelector('.tutorial-scope'));
-  const cycleLabel = mount.querySelector('.tutorial-cycle-label');
-  const cycle = mount.querySelector('.tutorial-cycle');
   const cycleBlock = mount.querySelector('.tutorial-cycle-block');
   const pageCounter = mount.querySelector('.tutorial-page-counter');
   const pageTitle = mount.querySelector('.tutorial-page-title');
@@ -188,6 +190,7 @@ export function createTutorialManager({ state }) {
   const calloutBody = mount.querySelector('.tutorial-callout-body');
   const pageDots = mount.querySelector('.tutorial-page-dots');
   const pageScroll = mount.querySelector('.tutorial-page-scroll');
+  const cycleView = createTutorialCycle(cycleBlock, updateNavigation);
   const previousButton = mount.querySelector('.tutorial-prev');
   const nextButton = mount.querySelector('.tutorial-next');
   const libraryGrid = mount.querySelector('.tutorial-library-grid');
@@ -281,80 +284,6 @@ export function createTutorialManager({ state }) {
     heldDuringTutorial.clear();
   }
 
-  function renderCycle(card) {
-    const steps = card.cycle || [];
-    if (cycleBlock) {
-      cycleBlock.hidden = steps.length === 0;
-    }
-    cycle.replaceChildren();
-    if (steps.length === 0) return;
-    setText(cycleLabel, card.cycleLabel || 'Ciclo ou etapas');
-    cycle.classList.toggle('tutorial-cycle--long', steps.length > 5);
-
-    const topCount = steps.length <= 3 ? steps.length : Math.ceil(steps.length / 2);
-    const bottomCount = steps.length - topCount;
-    const narrow = window.matchMedia('(max-width: 400px)').matches;
-    const height = narrow ? Math.ceil(steps.length / 2) * 90 : bottomCount ? 180 : 90;
-    cycleBlock.classList.toggle('tutorial-cycle-block--narrow', narrow);
-    cycleBlock.style.setProperty('--cycle-height', height + 'px');
-    const path = mount.querySelector('.tutorial-cycle-path');
-    path.setAttribute('viewBox', '0 0 420 ' + height);
-    path.setAttribute('preserveAspectRatio', 'none');
-    path.replaceChildren();
-    const svgElement = (name, attributes) => {
-      const element = document.createElementNS('http://www.w3.org/2000/svg', name);
-      for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
-      return element;
-    };
-    const defs = svgElement('defs', {});
-    const marker = svgElement('marker', { id: 'tutorial-cycle-arrow', markerWidth: 7, markerHeight: 7,
-      refX: 5, refY: 3, orient: 'auto', markerUnits: 'userSpaceOnUse' });
-    marker.appendChild(svgElement('path', { d: 'M1 1 L4 3 L1 5', fill: 'none', stroke: '#c99a62', 'stroke-width': 1 }));
-    defs.appendChild(marker); path.appendChild(defs);
-    const positions = steps.map((_, index) => {
-      if (narrow) {
-        const band = Math.floor(index / 2);
-        const column = band % 2 ? 1 - index % 2 : index % 2;
-        return { x: (column + .5) * 210, y: band * 90 + 70, lower: false, count: 2 };
-      }
-      const lower = index >= topCount;
-      const count = lower ? bottomCount : topCount;
-      const column = lower ? bottomCount - 1 - (index - topCount) : index;
-      return { x: (column + .5) / count * 420, y: lower ? 110 : 70, lower, count };
-    });
-    for (const [index, step] of steps.entries()) {
-      const position = positions[index];
-      const row = document.createElement('li');
-      row.className = 'tutorial-cycle-step' + (position.lower ? ' tutorial-cycle-step--lower' : '');
-      row.style.left = (position.x / 420 * 100) + '%';
-      row.style.width = (100 / position.count) + '%';
-      if (narrow) row.style.top = (position.y - 70) + 'px';
-      row.textContent = step;
-      cycle.appendChild(row);
-      const next = positions[index + 1];
-      if (!next) continue;
-      let d;
-      if (position.y === next.y) {
-        const direction = next.x > position.x ? 1 : -1;
-        d = 'M' + (position.x + direction * 10) + ' ' + position.y + ' H' + (next.x - direction * 12);
-      } else if (narrow) {
-        const right = position.x > 210;
-        const edge = right ? 406 : 14;
-        const bend = right ? 388 : 32;
-        const direction = right ? 1 : -1;
-        d = `M${position.x + direction * 10} ${position.y} H${bend} Q${edge} ${position.y} ${edge} ${position.y + 18} V${next.y - 18} Q${edge} ${next.y} ${bend} ${next.y} H${next.x + direction * 12}`;
-      } else {
-        d = 'M' + (position.x + 10) + ' 70 H388 Q406 70 406 88 V92 Q406 110 388 110 H' + (next.x + 12);
-      }
-      path.appendChild(svgElement('path', { d, fill: 'none', stroke: 'rgba(201,154,98,.5)',
-        'stroke-width': 1, 'marker-end': 'url(#tutorial-cycle-arrow)' }));
-    }
-  }
-
-  window.matchMedia('(max-width: 400px)').addEventListener('change', () => {
-    if (mode === 'card' && displayPages()[pageIndex]?.kind === 'cycle') renderCycle(getTutorialCard(activeId));
-  });
-
   function displayPages() {
     return tutorialDisplayPages(getTutorialCard(activeId), flow.pagesFor(activeId));
   }
@@ -413,7 +342,7 @@ export function createTutorialManager({ state }) {
     }
     pagePoints.hidden = !highlightedPoints.length;
 
-    renderCycle(currentPage.kind === 'cycle' ? card : { cycle: [] });
+    cycleView.show(currentPage.kind === 'cycle' ? card : null, flow.pagesFor(card.id));
     pageBody.hidden = !currentPage.body || gamePage;
     pageDots.parentElement.hidden = availablePages.length <= 1;
     pageDots.parentElement.classList.toggle('tutorial-pagination--many', availablePages.length > 6);
@@ -425,19 +354,26 @@ export function createTutorialManager({ state }) {
     // seguinte ja no meio do texto, sem nada acima indicando que havia mais.
     if (pageScroll) pageScroll.scrollTop = 0;
 
-    const finalPage = pagePosition >= availablePages.length - 1;
+    updateNavigation();
+  }
+
+  function updateNavigation() {
+    const availablePages = displayPages();
+    const finalStage = !cycleView.length || cycleView.index === cycleView.length - 1;
+    const finalPage = pageIndex >= availablePages.length - 1 && finalStage;
     const nextActionLabel = finalPage
       ? (returnToLibrary ? 'Voltar à biblioteca' : 'Continuar')
-      : 'Próxima página';
+      : (cycleView.length ? 'Próxima etapa' : 'Próxima página');
 
     nextButton.setAttribute('aria-label', nextActionLabel);
     nextButton.title = nextActionLabel;
     setText(nextButton.querySelector('.tutorial-button-label'), finalPage ? nextActionLabel : 'Continuar');
     nextButton.dataset.action = finalPage ? 'finish' : 'next';
 
-    previousButton.disabled = pagePosition === 0;
-    previousButton.setAttribute('aria-label', 'Página anterior');
-    previousButton.title = 'Página anterior';
+    previousButton.disabled = pageIndex === 0 && cycleView.index === 0;
+    const previousLabel = cycleView.length && cycleView.index > 0 ? 'Etapa anterior' : 'Página anterior';
+    previousButton.setAttribute('aria-label', previousLabel);
+    previousButton.title = previousLabel;
   }
 
   function openCard(id, {
@@ -485,6 +421,7 @@ export function createTutorialManager({ state }) {
   }
 
   function nextPage() {
+    if (cycleView.move(1)) return;
     const card = getTutorialCard(activeId);
     if (!card) return;
     const availablePages = displayPages();
@@ -497,6 +434,7 @@ export function createTutorialManager({ state }) {
   }
 
   function previousPage() {
+    if (cycleView.move(-1)) return;
     if (pageIndex <= 0) return;
     pageIndex--;
     renderCard();
