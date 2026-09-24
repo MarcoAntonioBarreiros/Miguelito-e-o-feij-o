@@ -2,6 +2,12 @@
 
 Este repositório contém o protótipo jogável 2D em Canvas de **Beans for a Living Soil**.
 
+## Fluxo de trabalho (obrigatório)
+
+- Este é o repositório de trabalho. Não trabalhe em outro repositório (nem no `Miguelito-Game` / `Miguelito-Game-Final`) sem pedido explícito.
+- Faça commit e publique direto no `main` (`git push origin main`). Não crie branches nem pull requests, e não entregue arquivos locais como resultado, a menos que o autor peça.
+- O jogo é em paisagem. Não mude orientação nem layout para retrato.
+
 ## Diretrizes para agentes
 
 - Preserve comportamento, controles, física, layout da fase, aparência, áudio, progressão e mecânicas quando fizer refatorações.
