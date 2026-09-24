@@ -55,6 +55,13 @@ export function createCameraView({ canvas, state }) {
   // cameraX/cameraY/zoom e a cinematica. `targetZoom` fica intacto: e a escolha
   // do jogador, e ela volta assim que o foco termina.
   let cinematic = null;
+  // Posição horizontal que ESTA câmera persegue. `physics.js` (do jogo antigo)
+  // ainda puxa state.cameraX para outro alvo a cada passo; partindo sempre do
+  // valor lido de state, as duas molas brigavam e o ponto de equilíbrio mudava
+  // com o tempo de cada quadro — a tela tremia sem nada acontecer. Guardando a
+  // própria posição, a escrita antiga é simplesmente sobrescrita.
+  let trackedX = null;
+  let trackedLevel = null;
   const readout = document.querySelector('[data-camera-readout]');
 
   state.cameraZoom = zoom;
@@ -87,6 +94,7 @@ export function createCameraView({ canvas, state }) {
     // Fase nova comeca sem resto de cinematica: se o foco vazasse, a fase
     // seguinte abriria com o zoom do afastamento e sem perseguir o jogador.
     cinematic = null;
+    trackedX = null;
     zoom = targetZoom;
     state.cameraZoom = zoom;
     state.cameraX = 0;
@@ -138,6 +146,7 @@ export function createCameraView({ canvas, state }) {
   function endCinematic() {
     if (!cinematic) return false;
     cinematic = null;
+    trackedX = null;
     zoom = targetZoom;
     state.cameraZoom = zoom;
     return true;
@@ -177,7 +186,12 @@ export function createCameraView({ canvas, state }) {
     );
 
     const horizontalBlend = 1 - Math.pow(.004, dt);
-    state.cameraX = lerp(state.cameraX || 0, targetCameraX, horizontalBlend);
+    if (trackedX === null || trackedLevel !== state.level) {
+      trackedX = state.cameraX || 0;
+      trackedLevel = state.level;
+    }
+    trackedX = lerp(trackedX, targetCameraX, horizontalBlend);
+    state.cameraX = trackedX;
 
     const verticalAnchor = coarsePointer ? .56 : .61;
     const geometryTop = Number(state.level.geometryTopY);
