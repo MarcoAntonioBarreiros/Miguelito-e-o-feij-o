@@ -145,7 +145,12 @@ export function createRhizosphereGeometry({ state, painters }) {
     const m = ctx.getTransform();
     const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * 2 * 4) / 4;
     let entry = drawCache.get(key);
-    if (!entry || entry.q !== q) {
+    // Só na cinemática do fim de fase (finalRootPulse existe enquanto ela
+    // roda): o afastamento atravessa uns 9 degraus de zoom seguidos e
+    // redesenhar tudo a cada um engasgava. Ali a imagem já guardada, com
+    // resolução de sobra, serve. No jogo o zoom continua como sempre foi.
+    const finale = state.level?.finalRootPulse !== undefined;
+    if (!entry || (finale ? entry.q < q : entry.q !== q)) {
       const cw = Math.max(1, Math.ceil(box.w * q));
       const ch = Math.max(1, Math.ceil(box.h * q));
       if (cw * ch > 12e6) { paint(ctx); return; }

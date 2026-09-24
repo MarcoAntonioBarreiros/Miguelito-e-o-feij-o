@@ -817,15 +817,28 @@ html.tutorial-open, html.tutorial-open body { touch-action: pan-y; }
 .tutorial-callout-body { display: inline; margin: 0; font-size: 1rem; }
 .tutorial-page-points { margin: .5rem 0 0; padding: 0 0 0 1rem; color: #dff7f2; line-height: 1.5; }
 .tutorial-page-points li + li { margin-top: .4rem; }
-.tutorial-cycle-block { position: relative; margin: 4px 0; height: var(--cycle-height); }
-.tutorial-cycle-label { display: none; }
-.tutorial-cycle { margin: 0; padding: 0; list-style: none; color: #f1dcc6; font-size: .9rem; line-height: 1.4; }
+.tutorial-cycle-block { margin: 4px 0; }
+.tutorial-cycle-diagram { position: relative; aspect-ratio: var(--cycle-ratio); margin-bottom: 12px; }
+.tutorial-cycle { margin: 0; padding: 0; list-style: none; }
 .tutorial-cycle-path { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.tutorial-cycle-step { position: absolute; top: 0; height: 70px; transform: translateX(-50%); display: flex; justify-content: center; align-items: flex-end; padding: 0 10px 16px; text-align: center; overflow-wrap: anywhere; }
-.tutorial-cycle-step::after { content: ''; position: absolute; width: 5px; height: 5px; border-radius: 50%; left: calc(50% - 2.5px); bottom: -2.5px; background: #c99a62; }
-.tutorial-cycle-step--lower { top: 110px; align-items: flex-start; padding: 16px 10px 0; }
-.tutorial-cycle-step--lower::after { top: -2.5px; bottom: auto; }
-.tutorial-cycle-block--narrow .tutorial-cycle-step { overflow-wrap: normal; }
+.tutorial-orbital-base { fill: none; stroke: #8d7141; stroke-width: 7; opacity: .1; }
+.tutorial-orbital-flow { fill: none; stroke: url(#tutorial-orbital-flow); stroke-width: 5.5; stroke-linecap: round; stroke-dasharray: 3 11; vector-effect: non-scaling-stroke; animation: tutorial-orbital-flow 5s linear infinite; }
+@keyframes tutorial-orbital-flow { to { stroke-dashoffset: -140; } }
+.tutorial-orbital-arrow { fill: #badd81; stroke: #2e1710; stroke-width: 5; paint-order: stroke; stroke-linejoin: round; }
+.tutorial-cycle-step { position: absolute; width: 32%; transform: translate(-50%,-19px); text-align: center; }
+.tutorial-cycle-stage { display: block; width: 100%; min-height: 44px; border: 0; padding: 0; background: none; color: var(--stage-color); font-family: var(--tutorial-body); cursor: pointer; }
+.tutorial-cycle-node { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; margin: auto; border: 2px solid currentColor; border-radius: 50%; background: #2e1912; font-size: 12px; font-weight: 700; box-shadow: 0 3px 10px #10070580; }
+.tutorial-cycle-stage[aria-pressed="true"] .tutorial-cycle-node { background: var(--stage-color); border-color: var(--stage-color); color: #29160c; outline: 3px solid #594632; outline-offset: 4px; }
+.tutorial-cycle-step-label { display: inline-block; max-width: 100%; margin-top: 8px; padding: 3px 6px; border: 1px solid #60412d70; border-radius: 10px; background: #2b160f; color: #f1dcc6; font-size: 12px; line-height: 1.25; font-weight: 700; overflow-wrap: normal; }
+.tutorial-cycle-stage[aria-pressed="true"] .tutorial-cycle-step-label { color: var(--stage-color); }
+.tutorial-cycle-caption { position: absolute; top: 51%; left: 0; width: 83%; text-align: center; color: #dcbfa3; font-size: 12px; pointer-events: none; }
+.tutorial-cycle-detail { margin-bottom: 0; }
+.tutorial-cycle-detail strong { color: var(--tutorial-cyan); }
+.tutorial-cycle-block--narrow .tutorial-cycle-step { width: 44%; }
+.tutorial-cycle-block--narrow .tutorial-cycle-caption { display: none; }
+.tutorial-cycle-block--narrow .tutorial-cycle-diagram { margin-bottom: 40px; }
+.tutorial-card-view[data-page-kind="cycle"] .tutorial-page-scroll { max-height: 480px; }
+@media (prefers-reduced-motion: reduce) { .tutorial-orbital-flow { animation: none; } }
 .tutorial-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 8px 10px 0; }
 .tutorial-button { color: var(--tutorial-ink); background: transparent; border: 1.5px solid var(--tutorial-line); border-radius: 999px; min-height: 44px; padding: .7rem 1rem; font: 700 .95rem/1.2 var(--tutorial-body); cursor: pointer; touch-action: manipulation; }
 .tutorial-next { display: inline-flex; align-items: center; justify-content: center; background: var(--tutorial-amber); color: #3a1608; border: 0; padding: .8rem 1.9rem; font: 800 1.2rem/1.2 var(--tutorial-display); text-align: center; box-shadow: 0 4px 0 #b3651f,0 12px 24px rgba(0,0,0,.35); transition: transform .08s; }
@@ -886,8 +899,6 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   .tutorial-page-dots { display: none; }
   .tutorial-page-counter { font-size: .8rem; padding: 0 10px; }
   .tutorial-footer { gap: 5px; }
-  .tutorial-cycle { font-size: .85rem; line-height: 1.3; }
-  .tutorial-cycle-step { padding-left: 6px; padding-right: 6px; }
   .tutorial-library-grid { grid-template-columns: 1fr; }
   .tutorial-library-header { display: block; }
   .tutorial-library-footer { flex-direction: column-reverse; }
@@ -955,7 +966,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"44a817c","subject":"Camera: guarda a propria posicao horizontal (fim do tremor)","builtAt":"2026-09-24 03:02"};
+window.__BEANS_BUILD__ = {"commit":"4b5c446","subject":"Cinematica final: reaproveita o cache do cenario ao afastar","builtAt":"2026-09-24 04:01"};
 (() => {
 'use strict';
 const __modules = {
@@ -17954,7 +17965,12 @@ function createRhizosphereGeometry({ state, painters }) {
     const m = ctx.getTransform();
     const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * 2 * 4) / 4;
     let entry = drawCache.get(key);
-    if (!entry || entry.q !== q) {
+    // Só na cinemática do fim de fase (finalRootPulse existe enquanto ela
+    // roda): o afastamento atravessa uns 9 degraus de zoom seguidos e
+    // redesenhar tudo a cada um engasgava. Ali a imagem já guardada, com
+    // resolução de sobra, serve. No jogo o zoom continua como sempre foi.
+    const finale = state.level?.finalRootPulse !== undefined;
+    if (!entry || (finale ? entry.q < q : entry.q !== q)) {
       const cw = Math.max(1, Math.ceil(box.w * q));
       const ch = Math.max(1, Math.ceil(box.h * q));
       if (cw * ch > 12e6) { paint(ctx); return; }
@@ -50662,7 +50678,7 @@ function ensureTutorialInterface() {
   if (!document.querySelector('[data-tutorial-styles]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = './src/procgen/tutorial-overlay.css?v=20260923-button-outline-4';
+    link.href = './src/procgen/tutorial-overlay.css?v=20260924-orbital-rounded-5';
     link.dataset.tutorialStyles = 'true';
     document.head.appendChild(link);
   }
@@ -50703,7 +50719,7 @@ function ensureTutorialInterface() {
 Object.assign(__exports, { ensureTutorialInterface });
 },
 "src/procgen/tutorial-manager.js": (__exports, __require) => {
-const { tutorialDisplayPages, isTutorialGamePage } = __require("src/procgen/tutorial-card-pages.js");const { createTutorialMicroscope } = __require("src/procgen/tutorial-microscope.js");const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");const { createAutomaticTutorialSafetyGate, createPendingTutorialQueue, platformHasActiveTutorialCollision, stabilizePlayerForAutomaticTutorial } = __require("src/procgen/tutorial-presentation.js");
+const { createTutorialCycle } = __require("src/procgen/tutorial-cycle.js");const { tutorialDisplayPages, isTutorialGamePage } = __require("src/procgen/tutorial-card-pages.js");const { createTutorialMicroscope } = __require("src/procgen/tutorial-microscope.js");const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");const { createAutomaticTutorialSafetyGate, createPendingTutorialQueue, platformHasActiveTutorialCollision, stabilizePlayerForAutomaticTutorial } = __require("src/procgen/tutorial-presentation.js");
 const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
   unlocked: 'miguelito:tutorial:unlocked:v3',
@@ -50821,9 +50837,12 @@ function createTutorialManager({ state }) {
                   <ul class="tutorial-page-points"></ul>
                 </aside>
                 <div class="tutorial-cycle-block">
-                  <span class="tutorial-cycle-label"></span>
-                  <svg class="tutorial-cycle-path" aria-hidden="true"></svg>
-                  <ol class="tutorial-cycle"></ol>
+                  <div class="tutorial-cycle-diagram">
+                    <svg class="tutorial-cycle-path" aria-hidden="true"></svg>
+                    <ol class="tutorial-cycle" aria-label="Etapas do ciclo"></ol>
+                    <span class="tutorial-cycle-caption" aria-live="polite"></span>
+                  </div>
+                  <aside class="tutorial-callout tutorial-cycle-detail" aria-live="polite"><strong></strong><span></span></aside>
                 </div>
               </div>
             </main>
@@ -50869,8 +50888,6 @@ function createTutorialManager({ state }) {
   const title = mount.querySelector('.tutorial-title');
   const subtitle = mount.querySelector('.tutorial-subtitle');
   const microscope = createTutorialMicroscope(mount.querySelector('.tutorial-scope'));
-  const cycleLabel = mount.querySelector('.tutorial-cycle-label');
-  const cycle = mount.querySelector('.tutorial-cycle');
   const cycleBlock = mount.querySelector('.tutorial-cycle-block');
   const pageCounter = mount.querySelector('.tutorial-page-counter');
   const pageTitle = mount.querySelector('.tutorial-page-title');
@@ -50881,6 +50898,7 @@ function createTutorialManager({ state }) {
   const calloutBody = mount.querySelector('.tutorial-callout-body');
   const pageDots = mount.querySelector('.tutorial-page-dots');
   const pageScroll = mount.querySelector('.tutorial-page-scroll');
+  const cycleView = createTutorialCycle(cycleBlock, updateNavigation);
   const previousButton = mount.querySelector('.tutorial-prev');
   const nextButton = mount.querySelector('.tutorial-next');
   const libraryGrid = mount.querySelector('.tutorial-library-grid');
@@ -50974,80 +50992,6 @@ function createTutorialManager({ state }) {
     heldDuringTutorial.clear();
   }
 
-  function renderCycle(card) {
-    const steps = card.cycle || [];
-    if (cycleBlock) {
-      cycleBlock.hidden = steps.length === 0;
-    }
-    cycle.replaceChildren();
-    if (steps.length === 0) return;
-    setText(cycleLabel, card.cycleLabel || 'Ciclo ou etapas');
-    cycle.classList.toggle('tutorial-cycle--long', steps.length > 5);
-
-    const topCount = steps.length <= 3 ? steps.length : Math.ceil(steps.length / 2);
-    const bottomCount = steps.length - topCount;
-    const narrow = window.matchMedia('(max-width: 400px)').matches;
-    const height = narrow ? Math.ceil(steps.length / 2) * 90 : bottomCount ? 180 : 90;
-    cycleBlock.classList.toggle('tutorial-cycle-block--narrow', narrow);
-    cycleBlock.style.setProperty('--cycle-height', height + 'px');
-    const path = mount.querySelector('.tutorial-cycle-path');
-    path.setAttribute('viewBox', '0 0 420 ' + height);
-    path.setAttribute('preserveAspectRatio', 'none');
-    path.replaceChildren();
-    const svgElement = (name, attributes) => {
-      const element = document.createElementNS('http://www.w3.org/2000/svg', name);
-      for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
-      return element;
-    };
-    const defs = svgElement('defs', {});
-    const marker = svgElement('marker', { id: 'tutorial-cycle-arrow', markerWidth: 7, markerHeight: 7,
-      refX: 5, refY: 3, orient: 'auto', markerUnits: 'userSpaceOnUse' });
-    marker.appendChild(svgElement('path', { d: 'M1 1 L4 3 L1 5', fill: 'none', stroke: '#c99a62', 'stroke-width': 1 }));
-    defs.appendChild(marker); path.appendChild(defs);
-    const positions = steps.map((_, index) => {
-      if (narrow) {
-        const band = Math.floor(index / 2);
-        const column = band % 2 ? 1 - index % 2 : index % 2;
-        return { x: (column + .5) * 210, y: band * 90 + 70, lower: false, count: 2 };
-      }
-      const lower = index >= topCount;
-      const count = lower ? bottomCount : topCount;
-      const column = lower ? bottomCount - 1 - (index - topCount) : index;
-      return { x: (column + .5) / count * 420, y: lower ? 110 : 70, lower, count };
-    });
-    for (const [index, step] of steps.entries()) {
-      const position = positions[index];
-      const row = document.createElement('li');
-      row.className = 'tutorial-cycle-step' + (position.lower ? ' tutorial-cycle-step--lower' : '');
-      row.style.left = (position.x / 420 * 100) + '%';
-      row.style.width = (100 / position.count) + '%';
-      if (narrow) row.style.top = (position.y - 70) + 'px';
-      row.textContent = step;
-      cycle.appendChild(row);
-      const next = positions[index + 1];
-      if (!next) continue;
-      let d;
-      if (position.y === next.y) {
-        const direction = next.x > position.x ? 1 : -1;
-        d = 'M' + (position.x + direction * 10) + ' ' + position.y + ' H' + (next.x - direction * 12);
-      } else if (narrow) {
-        const right = position.x > 210;
-        const edge = right ? 406 : 14;
-        const bend = right ? 388 : 32;
-        const direction = right ? 1 : -1;
-        d = `M${position.x + direction * 10} ${position.y} H${bend} Q${edge} ${position.y} ${edge} ${position.y + 18} V${next.y - 18} Q${edge} ${next.y} ${bend} ${next.y} H${next.x + direction * 12}`;
-      } else {
-        d = 'M' + (position.x + 10) + ' 70 H388 Q406 70 406 88 V92 Q406 110 388 110 H' + (next.x + 12);
-      }
-      path.appendChild(svgElement('path', { d, fill: 'none', stroke: 'rgba(201,154,98,.5)',
-        'stroke-width': 1, 'marker-end': 'url(#tutorial-cycle-arrow)' }));
-    }
-  }
-
-  window.matchMedia('(max-width: 400px)').addEventListener('change', () => {
-    if (mode === 'card' && displayPages()[pageIndex]?.kind === 'cycle') renderCycle(getTutorialCard(activeId));
-  });
-
   function displayPages() {
     return tutorialDisplayPages(getTutorialCard(activeId), flow.pagesFor(activeId));
   }
@@ -51106,7 +51050,7 @@ function createTutorialManager({ state }) {
     }
     pagePoints.hidden = !highlightedPoints.length;
 
-    renderCycle(currentPage.kind === 'cycle' ? card : { cycle: [] });
+    cycleView.show(currentPage.kind === 'cycle' ? card : null, flow.pagesFor(card.id));
     pageBody.hidden = !currentPage.body || gamePage;
     pageDots.parentElement.hidden = availablePages.length <= 1;
     pageDots.parentElement.classList.toggle('tutorial-pagination--many', availablePages.length > 6);
@@ -51118,19 +51062,26 @@ function createTutorialManager({ state }) {
     // seguinte ja no meio do texto, sem nada acima indicando que havia mais.
     if (pageScroll) pageScroll.scrollTop = 0;
 
-    const finalPage = pagePosition >= availablePages.length - 1;
+    updateNavigation();
+  }
+
+  function updateNavigation() {
+    const availablePages = displayPages();
+    const finalStage = !cycleView.length || cycleView.index === cycleView.length - 1;
+    const finalPage = pageIndex >= availablePages.length - 1 && finalStage;
     const nextActionLabel = finalPage
       ? (returnToLibrary ? 'Voltar à biblioteca' : 'Continuar')
-      : 'Próxima página';
+      : (cycleView.length ? 'Próxima etapa' : 'Próxima página');
 
     nextButton.setAttribute('aria-label', nextActionLabel);
     nextButton.title = nextActionLabel;
     setText(nextButton.querySelector('.tutorial-button-label'), finalPage ? nextActionLabel : 'Continuar');
     nextButton.dataset.action = finalPage ? 'finish' : 'next';
 
-    previousButton.disabled = pagePosition === 0;
-    previousButton.setAttribute('aria-label', 'Página anterior');
-    previousButton.title = 'Página anterior';
+    previousButton.disabled = pageIndex === 0 && cycleView.index === 0;
+    const previousLabel = cycleView.length && cycleView.index > 0 ? 'Etapa anterior' : 'Página anterior';
+    previousButton.setAttribute('aria-label', previousLabel);
+    previousButton.title = previousLabel;
   }
 
   function openCard(id, {
@@ -51178,6 +51129,7 @@ function createTutorialManager({ state }) {
   }
 
   function nextPage() {
+    if (cycleView.move(1)) return;
     const card = getTutorialCard(activeId);
     if (!card) return;
     const availablePages = displayPages();
@@ -51190,6 +51142,7 @@ function createTutorialManager({ state }) {
   }
 
   function previousPage() {
+    if (cycleView.move(-1)) return;
     if (pageIndex <= 0) return;
     pageIndex--;
     renderCard();
@@ -51450,6 +51403,152 @@ function createTutorialManager({ state }) {
   };
 }
 Object.assign(__exports, { TUTORIAL_STORAGE_KEYS, isHardReloadShortcut, isTutorialAdvanceShortcut, createTutorialManager });
+},
+"src/procgen/tutorial-cycle.js": (__exports, __require) => {
+// Contexto de cada etapa: índices das páginas existentes, nunca texto científico novo.
+const contextPages = {
+  'system-welcome': [0, 1, 2, 1],
+  'action-exudate': [0, 0, 1, 1],
+  'action-inoculation': [1, 1, 0, 2],
+  'power-double-jump': [1, 0, 1, 0],
+  'power-dash': [1, 0, 0, 2],
+  'power-jetpack': [1, 1, 1, 0],
+  'power-pulse': [0, 1, 2, 3, 3],
+  'process-root-health': [0, 1, 1, 1, 2],
+  'process-root-recovery': [1, 0, 2, 3],
+  'process-root-collapse': [1, 1, 0, 2, 3],
+  'organism-rhizobium': [1, 1, 1, 1, 2, 2],
+  'organism-azospirillum': [0, 1, 1, 2, 1, 3],
+  'organism-mycorrhiza': [0, 0, 2, 2, 1, 0],
+  'organism-bacillus': [1, 1, 2, 3, 0, 3],
+  'organism-pseudomonas': [0, 4, 0, 1, 2],
+  'organism-trichoderma': [0, 0, 1, 1, 1, 0],
+  'organism-phosphate-solubilizer': [0, 1, 1, 1, 4],
+  'organism-opportunistic-fungus': [1, 0, 1, 1, 1],
+  'organism-rhizoctonia': [0, 1, 1, 2, 1, 0],
+  'organism-ralstonia': [0, 0, 1, 2, 2, 4],
+  'organism-meloidogyne-j2': [0, 0, 0, 1, 1, 1],
+  'organism-meloidogyne-female': [0, 0, 0, 1, 2],
+  'structure-nodule': [0, 0, 0, 2, 1],
+  'process-fbn': [0, 1, 2, 2],
+  'structure-biofilm': [0, 0, 1, 2, 3],
+  'process-siderophore': [0, 1, 0, 1, 3],
+  'process-iron-competition': [0, 0, 1, 3],
+  'process-ralstonia-entry': [0, 1, 1, 1],
+  'process-vascular-obstruction': [0, 0, 0, 1],
+  'process-ralstonia-containment': [0, 1, 1, 2],
+  'process-ralstonia-spread': [0, 0, 2, 1],
+  'structure-arbuscule': [0, 0, 1, 3, 3],
+  'structure-mycorrhiza-path': [0, 0, 1, 3, 2],
+  'structure-lateral-root': [2, 0, 0, 1, 2],
+  'structure-egg-mass': [0, 1, 1, 1, 2],
+  'structure-gall': [3, 0, 0, 1, 2],
+  'process-mycoparasitism': [0, 1, 1, 1, 1, 2],
+};
+
+function tutorialCycleContext(card, index, unlocked) {
+  const sourceIndex = contextPages[card.id]?.[index];
+  if (!unlocked.includes(sourceIndex)) return null;
+  const page = card.pages[sourceIndex];
+  return page ? { sourceIndex, title: page.title, body: page.body } : null;
+}
+
+function tutorialCycleLayout(count, narrow = false) {
+  if (!count) return { height: 0, positions: [], path: '', arrows: [] };
+  const top = count <= 3 ? count : Math.ceil(count / 2);
+  const positions = Array.from({ length: count }, (_, index) => {
+    const row = narrow ? Math.floor(index / 2) : Number(index >= top);
+    const length = narrow ? Math.min(2, count - row * 2) : row ? count - top : top;
+    const local = narrow ? index % 2 : row ? index - top : index;
+    const column = row % 2 ? length - 1 - local : local;
+    return { x: length === 1 ? 175 : (narrow ? 90 : 58) + column / (length - 1) * (narrow ? 202 : 234), y: 64 + row * 156 };
+  });
+  let path = `M${positions[0].x} ${positions[0].y}`;
+  const arrows = [];
+  for (let index = 1; index < count; index++) {
+    const a = positions[index - 1], b = positions[index];
+    if (a.y === b.y) {
+      path += ` H${b.x}`;
+      arrows.push({ x: (a.x + b.x) / 2, y: a.y, angle: b.x > a.x ? 0 : 180 });
+    } else {
+      const right = a.x > 175;
+      const edge = right ? 366 : 12;
+      path += ` Q${edge} ${a.y} ${edge} ${a.y + 75} V${b.y - 75} Q${edge} ${b.y} ${b.x} ${b.y}`;
+      arrows.push({ x: edge, y: (a.y + b.y) / 2, angle: 90 });
+    }
+  }
+  return { height: positions.at(-1).y + 80, positions, path, arrows };
+}
+
+function createTutorialCycle(block, onChange) {
+  const svg = block.querySelector('svg'), list = block.querySelector('ol');
+  const caption = block.querySelector('.tutorial-cycle-caption');
+  const detail = block.querySelector('.tutorial-cycle-detail');
+  const detailTitle = detail.querySelector('strong'), detailBody = detail.querySelector('span');
+  const media = window.matchMedia('(max-width: 400px)');
+  let card = null, unlocked = [], selected = 0;
+  const colors = ['#ffc35a', '#e5d874', '#b9dd7e', '#a9dec3', '#86dfd1', '#6ce7df'];
+  const element = (tag, attrs) => {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    return node;
+  };
+  function select(index, notify = true) {
+    selected = index;
+    [...list.querySelectorAll('button')].forEach((button, i) => button.setAttribute('aria-pressed', i === selected));
+    caption.textContent = `Etapa ${selected + 1} de ${card.cycle.length}`;
+    const context = tutorialCycleContext(card, selected, unlocked);
+    detailTitle.textContent = context ? context.title + '. ' : card.cycle[selected] + '. ';
+    detailBody.textContent = context?.body || 'O conteúdo desta etapa será apresentado ao longo da descoberta.';
+    if (notify) onChange();
+  }
+  function render() {
+    const layout = tutorialCycleLayout(card.cycle.length, media.matches);
+    block.classList.toggle('tutorial-cycle-block--narrow', media.matches);
+    block.style.setProperty('--cycle-ratio', `400 / ${layout.height}`);
+    svg.setAttribute('viewBox', `0 0 400 ${layout.height}`);
+    svg.replaceChildren(); list.replaceChildren();
+    const defs = element('defs', {}), gradient = element('linearGradient', { id: 'tutorial-orbital-flow', x1: '0', y1: '0', x2: '.4', y2: '1' });
+    for (const [offset, color] of [['0', '#ffc35a'], ['.45', '#b9dd7e'], ['1', '#6ce7df']]) gradient.append(element('stop', { offset, 'stop-color': color }));
+    defs.append(gradient); svg.append(defs);
+    svg.append(element('path', { d: layout.path, class: 'tutorial-orbital-base' }), element('path', { d: layout.path, class: 'tutorial-orbital-flow' }));
+    for (const arrow of layout.arrows) svg.append(element('path', { d: 'M-4 -5 L4 0 L-4 5 Z', class: 'tutorial-orbital-arrow', transform: `translate(${arrow.x} ${arrow.y}) rotate(${arrow.angle})` }));
+    card.cycle.forEach((step, index) => {
+      const row = document.createElement('li'), button = document.createElement('button');
+      row.className = 'tutorial-cycle-step';
+      row.style.left = layout.positions[index].x / 4 + '%';
+      row.style.top = layout.positions[index].y / layout.height * 100 + '%';
+      row.style.setProperty('--stage-color', colors[Math.round(index / Math.max(1, card.cycle.length - 1) * 5)]);
+      button.type = 'button'; button.className = 'tutorial-cycle-stage';
+      button.setAttribute('aria-label', `Etapa ${index + 1}: ${step}`);
+      const node = document.createElement('span'), label = document.createElement('span');
+      node.className = 'tutorial-cycle-node'; node.textContent = String(index + 1).padStart(2, '0'); node.setAttribute('aria-hidden', 'true');
+      label.className = 'tutorial-cycle-step-label'; label.textContent = step;
+      button.append(node, label); row.append(button); list.append(row);
+      button.addEventListener('click', () => select(index));
+    });
+    select(selected, false);
+  }
+  media.addEventListener('change', () => { if (card && !block.hidden) render(); });
+  return {
+    show(nextCard, pages) {
+      block.hidden = !nextCard?.cycle?.length;
+      if (block.hidden) { card = null; selected = 0; return; }
+      if (card?.id !== nextCard.id) selected = 0;
+      card = nextCard; unlocked = pages;
+      render();
+    },
+    move(delta) {
+      if (!card || block.hidden || selected + delta < 0 || selected + delta >= card.cycle.length) return false;
+      select(selected + delta);
+      detail.scrollIntoView({ block: 'nearest' });
+      return true;
+    },
+    get index() { return selected; },
+    get length() { return card && !block.hidden ? card.cycle.length : 0; },
+  };
+}
+Object.assign(__exports, { tutorialCycleContext, tutorialCycleLayout, createTutorialCycle });
 },
 "src/procgen/tutorial-card-pages.js": (__exports, __require) => {
 // Paginação exclusivamente visual. Índices persistidos e desbloqueios do catálogo
