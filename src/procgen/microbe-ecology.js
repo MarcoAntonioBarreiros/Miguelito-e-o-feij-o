@@ -743,8 +743,11 @@ export function createMicrobeEcology({ state, entities }) {
     const px = state.player.x + state.player.w / 2;
     const py = state.player.y + state.player.h / 2;
     if (Math.hypot(cx - px, cy - py) > 230) return;
+    // Depois da apresentação o nome não volta: quem identifica o organismo é a
+    // forma dele e o chip do HUD. Só o sinal de algo ainda desconhecido fica.
     const known = state.discoveredMicrobes.has(zone.id);
-    const text = known ? catalog.name : 'Comunidade microbiana móvel';
+    if (known) return;
+    const text = 'Comunidade microbiana móvel';
     ctx.save();
     ctx.font = '700 12px Inter,system-ui';
     ctx.textAlign = 'center';

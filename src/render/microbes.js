@@ -153,13 +153,14 @@ export function createMicrobeRenderer({ ctx, state, entities }) {
     const px = player.x + 16;
     const py = player.y + 24;
     if (Math.hypot(z.x - px, z.y - py) > 220) return;
-    const m = microbeCatalog[z.id];
+    // Organismo já apresentado não ganha nome flutuante: só o sinal do
+    // desconhecido continua convidando a investigar.
     const known = state.discoveredMicrobes.has(z.id);
-    const label = known ? m.name : 'Sinal biológico';
-    drawWorldLabel(ctx, z.x, z.y + 42, label, {
-      color: known ? '#effff6' : '#c0d3cb',
+    if (known) return;
+    drawWorldLabel(ctx, z.x, z.y + 42, 'Sinal biológico', {
+      color: '#c0d3cb',
       font: '800 13px Inter,system-ui',
-      glow: known ? 12 : 7,
+      glow: 7,
     });
   }
 

@@ -65,6 +65,7 @@ import { createTrichodermaMeloidogyneControl } from './trichoderma-meloidogyne-c
 import { createTrichodermaRhizoctoniaControl } from './trichoderma-rhizoctonia-control.js';
 import { createRalstoniaVascularWilt } from './ralstonia-vascular-wilt.js';
 import { narrate } from './narrator.js';
+import { createPauseMenu } from './pause-menu.js';
 import { FEATURE_LABELS } from './narration-catalog.js';
 import {
   createPathogenArrival,
@@ -194,11 +195,36 @@ function hudIcon(name) {
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${HUD_ICONS[name] || ''}</svg>`;
 }
 
+// Retrato do organismo selecionado: o primeiro quadro do mesmo sprite que anda
+// no mundo. Com o nome flutuante removido depois da apresentação, é aqui que o
+// jogador confere qual organismo o E vai inocular.
+const ORGANISM_PORTRAITS = Object.freeze({
+  rhizobium: { src: 'assets/organisms/rhizobium.png', sheetW: 3840, sheetH: 400, frameX: 0, frameW: 320 },
+  azospirillum: { src: 'assets/organisms/azospirillum.png', sheetW: 3840, sheetH: 400, frameX: 0, frameW: 320 },
+  pseudomonas: { src: 'assets/organisms/pseudomonas.png', sheetW: 7680, sheetH: 400, frameX: 0, frameW: 320 },
+  trichoderma: { src: 'assets/organisms/trichoderma.png', sheetW: 3840, sheetH: 400, frameX: 0, frameW: 320 },
+  myco: { src: 'assets/organisms/micorriza.png', sheetW: 7680, sheetH: 400, frameX: 0, frameW: 320 },
+  bacillus: { src: 'assets/bacillus/bacillus.png', sheetW: 3660, sheetH: 104, frameX: 12, frameW: 63 },
+});
+const PORTRAIT_HEIGHT = 30;
+
+function hudPortrait(type) {
+  const portrait = ORGANISM_PORTRAITS[type];
+  if (!portrait) return null;
+  const scale = PORTRAIT_HEIGHT / portrait.sheetH;
+  const width = Math.round(portrait.frameW * scale);
+  return `<span class="icon portrait" aria-hidden="true" style="`
+    + `width:${width}px;height:${PORTRAIT_HEIGHT}px;`
+    + `background-image:url('${portrait.src}');`
+    + `background-size:${Math.round(portrait.sheetW * scale)}px ${PORTRAIT_HEIGHT}px;`
+    + `background-position:${-Math.round(portrait.frameX * scale)}px 0"></span>`;
+}
+
 function renderStockChips(chips) {
   if (!stockDiv) return;
   const markup = chips.map(chip => (
     `<div class="stock-chip${chip.kind === 'hand' ? ' hand' : ''}">`
-    + hudIcon(chip.icon)
+    + ((chip.organism && hudPortrait(chip.organism)) || hudIcon(chip.icon))
     + `<div class="read"><span class="label">${chip.label}</span>`
     + `<span class="value">${chip.value}</span></div>`
     + (chip.key ? `<span class="key">${chip.key}</span>` : '')
@@ -1703,7 +1729,20 @@ document.addEventListener('mouseup', event => {
 
 const keys = {};
 const tutorialInputGate = createTutorialInputGate({ keys, sim });
+const pauseMenu = createPauseMenu({
+  // O tutorial tem a própria pausa; os dois nunca se empilham.
+  canOpen: () => !window.miguelitoTutorial?.isOpen,
+  onChange: () => {
+    for (const code of Object.keys(keys)) keys[code] = false;
+    sim.setInputs({});
+  },
+});
 window.addEventListener('keydown', event => {
+  if (event.code === 'Escape' && !event.repeat && !window.miguelitoTutorial?.isOpen) {
+    event.preventDefault();
+    pauseMenu.toggle();
+    return;
+  }
   if (phaseLab.enabled && event.target instanceof Element && event.target.closest('.phase-lab')) return;
   if (!tutorialInputGate.acceptsKeyDown(event.code)) {
     event.preventDefault();
@@ -1909,7 +1948,8 @@ function loop(now) {
     const tutorialManager = window.miguelitoTutorial || null;
     const advanced = advanceGameplayFrame({
       state: sim.state,
-      manager: tutorialManager,
+      // Menu de pausa aberto congela o mundo pelo mesmo caminho do tutorial.
+      manager: pauseMenu.isOpen ? { isOpen: true } : tutorialManager,
       sim,
       dt,
       advance: frameDt => {
@@ -2000,6 +2040,7 @@ function loop(now) {
     if (selected) {
       chips.push({
         kind: 'hand', icon: selected.kind === 'exudate' ? 'exudate' : 'microbe',
+        organism: selected.kind === 'organism' || selected.kind === 'trichoderma' ? selected.type : null,
         label: selected.label, value: selected.count,
         key: 'E', swap: totalCarregado > 1 ? `↓ ${totalCarregado}` : '',
       });

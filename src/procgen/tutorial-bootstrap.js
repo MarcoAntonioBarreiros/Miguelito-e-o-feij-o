@@ -25,8 +25,12 @@ export function ensureTutorialInterface() {
     document.body.appendChild(desktopButton);
   }
 
+  // O ◈ do celular mora no menu de pausa, como a primeira opção. Sem o menu
+  // (página antiga), cai na barra de ferramentas como antes.
+  const pauseOptions = document.getElementById('pause-options');
   const tools = document.getElementById('mobile-tools');
-  if (tools && !tools.querySelector('[data-mobile-action="tutorial"]')) {
+  const host = pauseOptions || tools;
+  if (host && !document.querySelector('[data-mobile-action="tutorial"]')) {
     const mobileButton = document.createElement('button');
     mobileButton.className = 'mobile-tool';
     mobileButton.type = 'button';
@@ -34,8 +38,16 @@ export function ensureTutorialInterface() {
     mobileButton.setAttribute('aria-label', 'Abrir biblioteca didática');
     mobileButton.title = 'Biblioteca didática';
     mobileButton.textContent = '◈';
-    const debugButton = tools.querySelector('[data-mobile-action="debug"]');
-    tools.insertBefore(mobileButton, debugButton || tools.firstChild);
+    if (pauseOptions) {
+      const row = document.createElement('label');
+      row.className = 'pause-row';
+      row.append(mobileButton);
+      row.insertAdjacentHTML('beforeend', '<span>Guia didático <kbd>H</kbd></span>');
+      pauseOptions.prepend(row);
+    } else {
+      const debugButton = tools.querySelector('[data-mobile-action="debug"]');
+      tools.insertBefore(mobileButton, debugButton || tools.firstChild);
+    }
   }
 
   return { root, desktopButton };

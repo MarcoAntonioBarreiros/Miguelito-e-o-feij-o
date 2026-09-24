@@ -76,6 +76,16 @@ abre o cartão no GUIA (`window.miguelitoTutorial.openCard`).
 Sem narrador registrado (testes unitários com `state` literal), `narrate`
 escreve o texto direto no toast, como antes.
 
+## Nomes dos organismos
+
+O nome de um organismo só aparece no mundo **antes** da apresentação dele, como
+sinal a investigar ("Sinal biológico", "Comunidade microbiana móvel"). Depois
+que o organismo foi descoberto, nem as comunidades móveis, nem as cenas de
+encontro, nem as colônias inoculadas voltam a mostrar o nome. Quem identifica o
+organismo é a forma dele e o chip do HUD: o item selecionado para o E mostra o
+retrato do organismo (primeiro quadro do mesmo sprite do mundo), com nome e
+quantidade.
+
 ## Rótulos no mundo
 
 Rótulos desenhados no canvas são classe **Estado**: não passam pelo narrador e

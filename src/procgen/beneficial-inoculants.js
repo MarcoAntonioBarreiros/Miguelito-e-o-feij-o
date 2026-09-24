@@ -645,14 +645,8 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     }
     ctx.globalAlpha = 1;
 
-    // A barra de vigor foi removida (poluicao): o estado agora vive no halo.
-    // Mantemos so o rotulo de identidade do organismo — o estagio tambem ja
-    // esta no halo.
-    const labelY = radius + 14;
-    ctx.font = '700 9px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#effff5';
-    ctx.fillText(profile.short, 0, labelY + 8);
+    // Sem barra e sem nome: o estado vive no halo, e o organismo foi o próprio
+    // jogador que inoculou — a forma dele basta para identificá-lo.
     ctx.restore();
   }
 

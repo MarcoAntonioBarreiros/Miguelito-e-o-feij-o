@@ -229,6 +229,12 @@
       backdrop-filter: blur(5px);
     }
     .stock-chip .icon { width: 20px; height: 20px; flex: none; }
+    .stock-chip .icon.portrait {
+      display: block;
+      margin: -6px 0;
+      background-repeat: no-repeat;
+      filter: drop-shadow(0 0 4px rgba(108,231,223,.55));
+    }
     .stock-chip .read { display: grid; line-height: 1; }
     .stock-chip .label {
       font-size: 8.5px;
@@ -572,6 +578,70 @@
       width: 50px;
       font-size: 10px;
       letter-spacing: -.2px;
+    }
+    /* Menu de pausa: os ajustes que antes ficavam presos na tela. */
+    #pause-menu {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      background: rgba(1,10,14,.62);
+      backdrop-filter: blur(3px);
+    }
+    #pause-menu[hidden] { display: none; }
+    #pause-menu .pause-panel {
+      width: min(360px, 100%);
+      max-height: calc(100dvh - 32px);
+      overflow: auto;
+      padding: 18px 18px 14px;
+      border: 1px solid rgba(112,229,214,.28);
+      border-radius: 16px;
+      background: rgba(4,22,28,.94);
+      color: #e9fffb;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    #pause-menu h2 { margin: 0 0 12px; font-size: 20px; font-weight: 800; }
+    #pause-menu .pause-resume {
+      width: 100%;
+      min-height: 42px;
+      margin-bottom: 12px;
+      border: 0;
+      border-radius: 11px;
+      background: #70e5d6;
+      color: #052128;
+      font: 800 15px Inter, system-ui, sans-serif;
+      cursor: pointer;
+    }
+    #pause-options { display: grid; gap: 6px; }
+    #pause-menu .pause-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 40px;
+      font-size: 14px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    #pause-menu .pause-row .mobile-tool { flex: none; width: 38px; height: 34px; }
+    #pause-menu kbd {
+      margin-left: 4px;
+      padding: 0 4px;
+      border-radius: 4px;
+      background: rgba(255,255,255,.08);
+      color: rgba(233,255,251,.6);
+      font: 600 10px Inter, system-ui, sans-serif;
+    }
+    .touch-device #pause-menu kbd { display: none; }
+    /* Celular deitado: tela baixa, então as opções vão em duas colunas e cabem
+       sem rolar. */
+    @media (max-height: 520px) {
+      #pause-menu .pause-panel { width: min(600px, 100%); padding: 12px 14px 10px; }
+      #pause-menu h2 { margin-bottom: 8px; font-size: 17px; }
+      #pause-menu .pause-resume { min-height: 38px; margin-bottom: 8px; }
+      #pause-options { grid-template-columns: 1fr 1fr; column-gap: 12px; gap: 4px 12px; }
+      #pause-menu .pause-row { min-height: 38px; font-size: 13px; }
     }
     .mobile-tool.active, .mobile-tool[aria-pressed="true"] {
       background: rgba(112,229,214,.74);
@@ -967,19 +1037,34 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
 
   <div id="objective-list" aria-live="polite"></div>
 
+  <!-- Na tela ficam so pausa, tela cheia e zoom. Os ajustes moram no menu de
+       pausa: presos na tela o tempo todo, eram so poluicao. -->
   <div id="mobile-tools" aria-label="Ferramentas do jogo">
-    <button class="mobile-tool" data-mobile-action="reset" aria-label="Gerar nova fase">↻</button>
-    <button class="mobile-tool" data-mobile-action="debug" aria-label="Mostrar informações técnicas" aria-pressed="false">ⓘ</button>
+    <button class="mobile-tool" data-mobile-action="pause" aria-label="Pausar e abrir ajustes (Esc)" title="Pausa e ajustes — Esc" aria-expanded="false">Ⅱ</button>
     <button class="mobile-tool" data-mobile-action="fullscreen" aria-label="Tela cheia">⛶</button>
-    <button class="mobile-tool" data-mobile-action="toggle-recovery" aria-label="Ligar/desligar plataformas de segurança (tecla T)" aria-pressed="false">⛨</button>
-    <button class="mobile-tool" data-mobile-action="toggle-parallax" aria-label="Ligar/desligar paralaxe biológico (tecla P)" aria-pressed="true">P</button>
-    <button class="mobile-tool" data-mobile-action="toggle-lighting" aria-label="Ligar/desligar luz e atmosfera (tecla L)" aria-pressed="true">☀</button>
-    <button class="mobile-tool" data-mobile-action="toggle-sound" aria-label="Ligar ou desligar o som (tecla M)" aria-pressed="false" title="Clique para ativar o som">♪</button>
     <button class="mobile-tool zoom-step" data-camera-action="out" aria-label="Afastar câmera">−</button>
     <!-- Sem valor fixo no HTML: quem escreve e `refreshReadout()`, com o padrao do
          perfil ativo (1,45x no computador, 1,60x no celular). -->
     <button class="mobile-tool zoom-value" data-camera-action="reset" data-camera-readout aria-label="Restaurar zoom padrão"></button>
     <button class="mobile-tool zoom-step" data-camera-action="in" aria-label="Aproximar câmera">+</button>
+  </div>
+
+  <div id="pause-menu" hidden role="dialog" aria-modal="true" aria-labelledby="pause-menu-title">
+    <div class="pause-panel">
+      <h2 id="pause-menu-title">Pausa</h2>
+      <button type="button" class="pause-resume" data-pause-action="resume">Continuar</button>
+      <!-- Cada linha e um <label> em volta do botao original: os atributos
+           data-mobile-action e os handlers de sempre continuam valendo, e tocar
+           no nome aciona o botao. -->
+      <div id="pause-options">
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-sound" aria-label="Ligar ou desligar o som (tecla M)" aria-pressed="false" title="Clique para ativar o som">♪</button><span>Som <kbd>M</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-lighting" aria-label="Ligar/desligar luz e atmosfera (tecla L)" aria-pressed="true">☀</button><span>Luz e atmosfera <kbd>L</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-parallax" aria-label="Ligar/desligar paralaxe biológico (tecla P)" aria-pressed="true">P</button><span>Paralaxe biológico <kbd>P</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-recovery" aria-label="Ligar/desligar plataformas de segurança (tecla T)" aria-pressed="false">⛨</button><span>Plataformas de segurança <kbd>T</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="debug" aria-label="Mostrar informações técnicas" aria-pressed="false">ⓘ</button><span>Informações técnicas <kbd>Tab</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="reset" aria-label="Gerar nova fase">↻</button><span>Recomeçar campanha <kbd>R</kbd></span></label>
+      </div>
+    </div>
   </div>
 
   <div id="touch-controls" hidden aria-label="Controles touch">
@@ -1002,7 +1087,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"cb686bc","subject":"Add files via upload","builtAt":"2026-09-24 14:07"};
+window.__BEANS_BUILD__ = {"commit":"43ad377","subject":"Reverte a alteração no AGENTS.md","builtAt":"2026-09-24 15:28"};
 (() => {
 'use strict';
 const __modules = {
@@ -1050,6 +1135,7 @@ const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoder
 const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");
 const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");
 const { narrate } = __require("src/procgen/narrator.js");
+const { createPauseMenu } = __require("src/procgen/pause-menu.js");
 const { FEATURE_LABELS } = __require("src/procgen/narration-catalog.js");
 const { createPathogenArrival, PATHOGEN_ARRIVAL_DEFAULTS } = __require("src/procgen/pathogen-arrival.js");
 const { createPhaseFinale, phaseFinaleSeconds } = __require("src/procgen/phase-finale.js");
@@ -1167,11 +1253,36 @@ function hudIcon(name) {
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${HUD_ICONS[name] || ''}</svg>`;
 }
 
+// Retrato do organismo selecionado: o primeiro quadro do mesmo sprite que anda
+// no mundo. Com o nome flutuante removido depois da apresentação, é aqui que o
+// jogador confere qual organismo o E vai inocular.
+const ORGANISM_PORTRAITS = Object.freeze({
+  rhizobium: { src: 'assets/organisms/rhizobium.png', sheetW: 3840, sheetH: 400, frameX: 0, frameW: 320 },
+  azospirillum: { src: 'assets/organisms/azospirillum.png', sheetW: 3840, sheetH: 400, frameX: 0, frameW: 320 },
+  pseudomonas: { src: 'assets/organisms/pseudomonas.png', sheetW: 7680, sheetH: 400, frameX: 0, frameW: 320 },
+  trichoderma: { src: 'assets/organisms/trichoderma.png', sheetW: 3840, sheetH: 400, frameX: 0, frameW: 320 },
+  myco: { src: 'assets/organisms/micorriza.png', sheetW: 7680, sheetH: 400, frameX: 0, frameW: 320 },
+  bacillus: { src: 'assets/bacillus/bacillus.png', sheetW: 3660, sheetH: 104, frameX: 12, frameW: 63 },
+});
+const PORTRAIT_HEIGHT = 30;
+
+function hudPortrait(type) {
+  const portrait = ORGANISM_PORTRAITS[type];
+  if (!portrait) return null;
+  const scale = PORTRAIT_HEIGHT / portrait.sheetH;
+  const width = Math.round(portrait.frameW * scale);
+  return `<span class="icon portrait" aria-hidden="true" style="`
+    + `width:${width}px;height:${PORTRAIT_HEIGHT}px;`
+    + `background-image:url('${portrait.src}');`
+    + `background-size:${Math.round(portrait.sheetW * scale)}px ${PORTRAIT_HEIGHT}px;`
+    + `background-position:${-Math.round(portrait.frameX * scale)}px 0"></span>`;
+}
+
 function renderStockChips(chips) {
   if (!stockDiv) return;
   const markup = chips.map(chip => (
     `<div class="stock-chip${chip.kind === 'hand' ? ' hand' : ''}">`
-    + hudIcon(chip.icon)
+    + ((chip.organism && hudPortrait(chip.organism)) || hudIcon(chip.icon))
     + `<div class="read"><span class="label">${chip.label}</span>`
     + `<span class="value">${chip.value}</span></div>`
     + (chip.key ? `<span class="key">${chip.key}</span>` : '')
@@ -2676,7 +2787,20 @@ document.addEventListener('mouseup', event => {
 
 const keys = {};
 const tutorialInputGate = createTutorialInputGate({ keys, sim });
+const pauseMenu = createPauseMenu({
+  // O tutorial tem a própria pausa; os dois nunca se empilham.
+  canOpen: () => !window.miguelitoTutorial?.isOpen,
+  onChange: () => {
+    for (const code of Object.keys(keys)) keys[code] = false;
+    sim.setInputs({});
+  },
+});
 window.addEventListener('keydown', event => {
+  if (event.code === 'Escape' && !event.repeat && !window.miguelitoTutorial?.isOpen) {
+    event.preventDefault();
+    pauseMenu.toggle();
+    return;
+  }
   if (phaseLab.enabled && event.target instanceof Element && event.target.closest('.phase-lab')) return;
   if (!tutorialInputGate.acceptsKeyDown(event.code)) {
     event.preventDefault();
@@ -2882,7 +3006,8 @@ function loop(now) {
     const tutorialManager = window.miguelitoTutorial || null;
     const advanced = advanceGameplayFrame({
       state: sim.state,
-      manager: tutorialManager,
+      // Menu de pausa aberto congela o mundo pelo mesmo caminho do tutorial.
+      manager: pauseMenu.isOpen ? { isOpen: true } : tutorialManager,
       sim,
       dt,
       advance: frameDt => {
@@ -2973,6 +3098,7 @@ function loop(now) {
     if (selected) {
       chips.push({
         kind: 'hand', icon: selected.kind === 'exudate' ? 'exudate' : 'microbe',
+        organism: selected.kind === 'organism' || selected.kind === 'trichoderma' ? selected.type : null,
         label: selected.label, value: selected.count,
         key: 'E', swap: totalCarregado > 1 ? `↓ ${totalCarregado}` : '',
       });
@@ -10112,8 +10238,11 @@ function createMicrobeEcology({ state, entities }) {
     const px = state.player.x + state.player.w / 2;
     const py = state.player.y + state.player.h / 2;
     if (Math.hypot(cx - px, cy - py) > 230) return;
+    // Depois da apresentação o nome não volta: quem identifica o organismo é a
+    // forma dele e o chip do HUD. Só o sinal de algo ainda desconhecido fica.
     const known = state.discoveredMicrobes.has(zone.id);
-    const text = known ? catalog.name : 'Comunidade microbiana móvel';
+    if (known) return;
+    const text = 'Comunidade microbiana móvel';
     ctx.save();
     ctx.font = '700 12px Inter,system-ui';
     ctx.textAlign = 'center';
@@ -15767,14 +15896,8 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
     }
     ctx.globalAlpha = 1;
 
-    // A barra de vigor foi removida (poluicao): o estado agora vive no halo.
-    // Mantemos so o rotulo de identidade do organismo — o estagio tambem ja
-    // esta no halo.
-    const labelY = radius + 14;
-    ctx.font = '700 9px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#effff5';
-    ctx.fillText(profile.short, 0, labelY + 8);
+    // Sem barra e sem nome: o estado vive no halo, e o organismo foi o próprio
+    // jogador que inoculou — a forma dele basta para identificá-lo.
     ctx.restore();
   }
 
@@ -44001,13 +44124,14 @@ function createMicrobeRenderer({ ctx, state, entities }) {
     const px = player.x + 16;
     const py = player.y + 24;
     if (Math.hypot(z.x - px, z.y - py) > 220) return;
-    const m = microbeCatalog[z.id];
+    // Organismo já apresentado não ganha nome flutuante: só o sinal do
+    // desconhecido continua convidando a investigar.
     const known = state.discoveredMicrobes.has(z.id);
-    const label = known ? m.name : 'Sinal biológico';
-    drawWorldLabel(ctx, z.x, z.y + 42, label, {
-      color: known ? '#effff6' : '#c0d3cb',
+    if (known) return;
+    drawWorldLabel(ctx, z.x, z.y + 42, 'Sinal biológico', {
+      color: '#c0d3cb',
       font: '800 13px Inter,system-ui',
-      glow: known ? 12 : 7,
+      glow: 7,
     });
   }
 
@@ -50684,6 +50808,70 @@ function ralstoniaArrivalProtection({
 }
 Object.assign(__exports, { RALSTONIA_SPREAD_STATES, canRalstoniaFocusSpread, isRalstoniaSpreadTargetEligible, ralstoniaSpreadOpening, chooseRalstoniaSpreadTarget, ralstoniaArrivalProtection });
 },
+"src/procgen/pause-menu.js": (__exports, __require) => {
+// Menu de pausa: os ajustes (som, luz, paralaxe, plataformas de segurança,
+// informações técnicas, guia, recomeçar) saíram da tela de jogo e moram aqui.
+// Na tela ficam só pausa, tela cheia e zoom.
+//
+// Pausar não mexe em `state.gameState`: o loop consulta `isOpen` e deixa de
+// avançar o mundo, pelo mesmo caminho que o tutorial usa para congelar a
+// partida (advanceGameplayFrame).
+function createPauseMenu({
+  root = document.getElementById('pause-menu'),
+  toggleButton = document.querySelector('[data-mobile-action="pause"]'),
+  canOpen = () => true,
+  onChange = () => {},
+} = {}) {
+  let open = false;
+
+  function setOpen(next) {
+    if (!root || next === open) return open;
+    if (next && !canOpen()) return open;
+    open = next;
+    root.hidden = !open;
+    document.documentElement.classList.toggle('pause-open', open);
+    toggleButton?.setAttribute('aria-expanded', String(open));
+    toggleButton?.classList.toggle('active', open);
+    if (open) root.querySelector('[data-pause-action="resume"]')?.focus();
+    else if (root.contains(document.activeElement)) document.activeElement.blur();
+    onChange(open);
+    return open;
+  }
+
+  toggleButton?.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleButton.blur();
+    setOpen(!open);
+  });
+  // O toque no botão não pode virar pulo nem desbloqueio de áudio no listener
+  // global do jogo.
+  for (const type of ['pointerdown', 'touchstart']) {
+    toggleButton?.addEventListener(type, event => event.stopPropagation(), { passive: true });
+    root?.addEventListener(type, event => event.stopPropagation(), { passive: true });
+  }
+
+  root?.querySelector('[data-pause-action="resume"]')?.addEventListener('click', event => {
+    event.preventDefault();
+    setOpen(false);
+  });
+  // Tocar no fundo escuro, fora do painel, também continua o jogo.
+  root?.addEventListener('click', event => {
+    if (event.target === root) setOpen(false);
+  });
+  // Recomeçar e abrir o guia saem do menu: o guia pausa o jogo sozinho.
+  root?.querySelector('[data-mobile-action="reset"]')?.addEventListener('click', () => setOpen(false));
+  window.addEventListener('miguelito:tutorial-open', () => setOpen(false));
+
+  return {
+    get isOpen() { return open; },
+    open: () => setOpen(true),
+    close: () => setOpen(false),
+    toggle: () => setOpen(!open),
+  };
+}
+Object.assign(__exports, { createPauseMenu });
+},
 "src/procgen/phase-finale.js": (__exports, __require) => {
 // FIM DE FASE — CONTINUAÇÃO DA FASE, NÃO UMA SEGUNDA CENA
 // =======================================================
@@ -51306,8 +51494,12 @@ function ensureTutorialInterface() {
     document.body.appendChild(desktopButton);
   }
 
+  // O ◈ do celular mora no menu de pausa, como a primeira opção. Sem o menu
+  // (página antiga), cai na barra de ferramentas como antes.
+  const pauseOptions = document.getElementById('pause-options');
   const tools = document.getElementById('mobile-tools');
-  if (tools && !tools.querySelector('[data-mobile-action="tutorial"]')) {
+  const host = pauseOptions || tools;
+  if (host && !document.querySelector('[data-mobile-action="tutorial"]')) {
     const mobileButton = document.createElement('button');
     mobileButton.className = 'mobile-tool';
     mobileButton.type = 'button';
@@ -51315,8 +51507,16 @@ function ensureTutorialInterface() {
     mobileButton.setAttribute('aria-label', 'Abrir biblioteca didática');
     mobileButton.title = 'Biblioteca didática';
     mobileButton.textContent = '◈';
-    const debugButton = tools.querySelector('[data-mobile-action="debug"]');
-    tools.insertBefore(mobileButton, debugButton || tools.firstChild);
+    if (pauseOptions) {
+      const row = document.createElement('label');
+      row.className = 'pause-row';
+      row.append(mobileButton);
+      row.insertAdjacentHTML('beforeend', '<span>Guia didático <kbd>H</kbd></span>');
+      pauseOptions.prepend(row);
+    } else {
+      const debugButton = tools.querySelector('[data-mobile-action="debug"]');
+      tools.insertBefore(mobileButton, debugButton || tools.firstChild);
+    }
   }
 
   return { root, desktopButton };

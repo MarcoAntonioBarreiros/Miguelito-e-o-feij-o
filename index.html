@@ -229,6 +229,12 @@
       backdrop-filter: blur(5px);
     }
     .stock-chip .icon { width: 20px; height: 20px; flex: none; }
+    .stock-chip .icon.portrait {
+      display: block;
+      margin: -6px 0;
+      background-repeat: no-repeat;
+      filter: drop-shadow(0 0 4px rgba(108,231,223,.55));
+    }
     .stock-chip .read { display: grid; line-height: 1; }
     .stock-chip .label {
       font-size: 8.5px;
@@ -573,6 +579,70 @@
       font-size: 10px;
       letter-spacing: -.2px;
     }
+    /* Menu de pausa: os ajustes que antes ficavam presos na tela. */
+    #pause-menu {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      background: rgba(1,10,14,.62);
+      backdrop-filter: blur(3px);
+    }
+    #pause-menu[hidden] { display: none; }
+    #pause-menu .pause-panel {
+      width: min(360px, 100%);
+      max-height: calc(100dvh - 32px);
+      overflow: auto;
+      padding: 18px 18px 14px;
+      border: 1px solid rgba(112,229,214,.28);
+      border-radius: 16px;
+      background: rgba(4,22,28,.94);
+      color: #e9fffb;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    #pause-menu h2 { margin: 0 0 12px; font-size: 20px; font-weight: 800; }
+    #pause-menu .pause-resume {
+      width: 100%;
+      min-height: 42px;
+      margin-bottom: 12px;
+      border: 0;
+      border-radius: 11px;
+      background: #70e5d6;
+      color: #052128;
+      font: 800 15px Inter, system-ui, sans-serif;
+      cursor: pointer;
+    }
+    #pause-options { display: grid; gap: 6px; }
+    #pause-menu .pause-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 40px;
+      font-size: 14px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    #pause-menu .pause-row .mobile-tool { flex: none; width: 38px; height: 34px; }
+    #pause-menu kbd {
+      margin-left: 4px;
+      padding: 0 4px;
+      border-radius: 4px;
+      background: rgba(255,255,255,.08);
+      color: rgba(233,255,251,.6);
+      font: 600 10px Inter, system-ui, sans-serif;
+    }
+    .touch-device #pause-menu kbd { display: none; }
+    /* Celular deitado: tela baixa, então as opções vão em duas colunas e cabem
+       sem rolar. */
+    @media (max-height: 520px) {
+      #pause-menu .pause-panel { width: min(600px, 100%); padding: 12px 14px 10px; }
+      #pause-menu h2 { margin-bottom: 8px; font-size: 17px; }
+      #pause-menu .pause-resume { min-height: 38px; margin-bottom: 8px; }
+      #pause-options { grid-template-columns: 1fr 1fr; column-gap: 12px; gap: 4px 12px; }
+      #pause-menu .pause-row { min-height: 38px; font-size: 13px; }
+    }
     .mobile-tool.active, .mobile-tool[aria-pressed="true"] {
       background: rgba(112,229,214,.74);
       color: #052128;
@@ -789,19 +859,34 @@
 
   <div id="objective-list" aria-live="polite"></div>
 
+  <!-- Na tela ficam so pausa, tela cheia e zoom. Os ajustes moram no menu de
+       pausa: presos na tela o tempo todo, eram so poluicao. -->
   <div id="mobile-tools" aria-label="Ferramentas do jogo">
-    <button class="mobile-tool" data-mobile-action="reset" aria-label="Gerar nova fase">↻</button>
-    <button class="mobile-tool" data-mobile-action="debug" aria-label="Mostrar informações técnicas" aria-pressed="false">ⓘ</button>
+    <button class="mobile-tool" data-mobile-action="pause" aria-label="Pausar e abrir ajustes (Esc)" title="Pausa e ajustes — Esc" aria-expanded="false">Ⅱ</button>
     <button class="mobile-tool" data-mobile-action="fullscreen" aria-label="Tela cheia">⛶</button>
-    <button class="mobile-tool" data-mobile-action="toggle-recovery" aria-label="Ligar/desligar plataformas de segurança (tecla T)" aria-pressed="false">⛨</button>
-    <button class="mobile-tool" data-mobile-action="toggle-parallax" aria-label="Ligar/desligar paralaxe biológico (tecla P)" aria-pressed="true">P</button>
-    <button class="mobile-tool" data-mobile-action="toggle-lighting" aria-label="Ligar/desligar luz e atmosfera (tecla L)" aria-pressed="true">☀</button>
-    <button class="mobile-tool" data-mobile-action="toggle-sound" aria-label="Ligar ou desligar o som (tecla M)" aria-pressed="false" title="Clique para ativar o som">♪</button>
     <button class="mobile-tool zoom-step" data-camera-action="out" aria-label="Afastar câmera">−</button>
     <!-- Sem valor fixo no HTML: quem escreve e `refreshReadout()`, com o padrao do
          perfil ativo (1,45x no computador, 1,60x no celular). -->
     <button class="mobile-tool zoom-value" data-camera-action="reset" data-camera-readout aria-label="Restaurar zoom padrão"></button>
     <button class="mobile-tool zoom-step" data-camera-action="in" aria-label="Aproximar câmera">+</button>
+  </div>
+
+  <div id="pause-menu" hidden role="dialog" aria-modal="true" aria-labelledby="pause-menu-title">
+    <div class="pause-panel">
+      <h2 id="pause-menu-title">Pausa</h2>
+      <button type="button" class="pause-resume" data-pause-action="resume">Continuar</button>
+      <!-- Cada linha e um <label> em volta do botao original: os atributos
+           data-mobile-action e os handlers de sempre continuam valendo, e tocar
+           no nome aciona o botao. -->
+      <div id="pause-options">
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-sound" aria-label="Ligar ou desligar o som (tecla M)" aria-pressed="false" title="Clique para ativar o som">♪</button><span>Som <kbd>M</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-lighting" aria-label="Ligar/desligar luz e atmosfera (tecla L)" aria-pressed="true">☀</button><span>Luz e atmosfera <kbd>L</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-parallax" aria-label="Ligar/desligar paralaxe biológico (tecla P)" aria-pressed="true">P</button><span>Paralaxe biológico <kbd>P</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-recovery" aria-label="Ligar/desligar plataformas de segurança (tecla T)" aria-pressed="false">⛨</button><span>Plataformas de segurança <kbd>T</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="debug" aria-label="Mostrar informações técnicas" aria-pressed="false">ⓘ</button><span>Informações técnicas <kbd>Tab</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="reset" aria-label="Gerar nova fase">↻</button><span>Recomeçar campanha <kbd>R</kbd></span></label>
+      </div>
+    </div>
   </div>
 
   <div id="touch-controls" hidden aria-label="Controles touch">

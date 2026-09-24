@@ -43,3 +43,5 @@ Camada em `src/render/rhizosphere-lighting.js`, desenhada no fim do `renderWorld
 - Não trocar layout, escala, iluminação ou composição sem tarefa explícita de design.
 - Não substituir microrganismos proceduralmente desenhados por sprites estáticos sem decisão de direção de arte.
 - Manter a leitura dos poderes no HUD igual à versão canônica.
+- Ajustes (som, luz e atmosfera, paralaxe, plataformas de segurança, informações técnicas, guia, recomeçar) ficam no menu de pausa (botão Ⅱ ou Esc). Na tela de jogo ficam só pausa, tela cheia e zoom.
+- Nome de organismo não fica flutuando no mundo depois da apresentação; o chip do item selecionado mostra o retrato do organismo.
