@@ -955,7 +955,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"f2a04c8","subject":"Tela de titulo com JOGAR e descida controlada pelo jogador","builtAt":"2026-09-24 00:05"};
+window.__BEANS_BUILD__ = {"commit":"905e1b3","subject":"Paralaxe: filamentos profundos a 1/3 da opacidade","builtAt":"2026-09-24 02:13"};
 (() => {
 'use strict';
 const __modules = {
@@ -43972,6 +43972,9 @@ function traceFilament(ctx, geometry) {
 
 function drawFilament(ctx, filament, elapsed, motionScale) {
   const geometry = calculateFilamentGeometry(filament, elapsed, motionScale);
+  // Um terço da opacidade: verticais como as raízes, competiam com elas.
+  const previousAlpha = ctx.globalAlpha;
+  ctx.globalAlpha *= .33;
   ctx.strokeStyle = filament.stroke;
   ctx.lineWidth = filament.width;
   ctx.lineCap = 'round';
@@ -43981,6 +43984,7 @@ function drawFilament(ctx, filament, elapsed, motionScale) {
   ctx.lineWidth = Math.max(1, filament.width * 0.16);
   traceFilament(ctx, geometry);
   ctx.stroke();
+  ctx.globalAlpha = previousAlpha;
 }
 
 function buildDeepCache(ctx, seed, height) {

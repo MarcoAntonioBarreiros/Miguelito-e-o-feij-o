@@ -158,6 +158,9 @@ function traceFilament(ctx, geometry) {
 
 function drawFilament(ctx, filament, elapsed, motionScale) {
   const geometry = calculateFilamentGeometry(filament, elapsed, motionScale);
+  // Um terço da opacidade: verticais como as raízes, competiam com elas.
+  const previousAlpha = ctx.globalAlpha;
+  ctx.globalAlpha *= .33;
   ctx.strokeStyle = filament.stroke;
   ctx.lineWidth = filament.width;
   ctx.lineCap = 'round';
@@ -167,6 +170,7 @@ function drawFilament(ctx, filament, elapsed, motionScale) {
   ctx.lineWidth = Math.max(1, filament.width * 0.16);
   traceFilament(ctx, geometry);
   ctx.stroke();
+  ctx.globalAlpha = previousAlpha;
 }
 
 function buildDeepCache(ctx, seed, height) {
