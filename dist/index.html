@@ -955,7 +955,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"1ee9857","subject":"Cena de entrada da Fase 1: Miguelito cai na rizosfera pelo tunel de minh","builtAt":"2026-09-23 23:55"};
+window.__BEANS_BUILD__ = {"commit":"f2a04c8","subject":"Tela de titulo com JOGAR e descida controlada pelo jogador","builtAt":"2026-09-24 00:05"};
 (() => {
 'use strict';
 const __modules = {
@@ -1698,6 +1698,8 @@ let levelData = null;
 let renderer = null;
 let platformVisuals = null;
 let lighting = null;
+// Tela de título da cena de entrada (criada sob demanda em showTitleScreen).
+let titleScreen = null;
 // Luz e atmosfera: `?luz=0` desliga ao abrir; a tecla L alterna durante o jogo.
 let lightingEnabled = readLightingPreference(window.location);
 let biologicalParallaxEnabled = true;
@@ -2245,7 +2247,8 @@ function initGame({ announce = false } = {}) {
     const surface = finalRootCollar(introGoal).y;
     const player = sim.state.player;
     // A boca do túnel fica sobre a primeira raiz (onde ele pousa); ele começa
-    // um pouco à esquerda e anda até ela, como no protótipo.
+    // um pouco à esquerda. Depois do JOGAR, quem o leva até o buraco é o
+    // jogador, como no protótipo.
     sim.state.level.introBurrowX = 230;
     player.x = 60;
     player.y = surface - player.h;
@@ -2253,13 +2256,12 @@ function initGame({ announce = false } = {}) {
     player.vy = 0;
     player.facing = 1;
     sim.state.introFall = {
-      stage: 'wait',
+      stage: 'title',
       surface,
-      walkAt: (sim.state.time || 0) + .7,
-      releaseAt: Infinity,
       card: () => showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText()),
     };
     cameraView.resetTracking();
+    showTitleScreen();
   } else if (announce) showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText());
 }
 
@@ -2633,42 +2635,82 @@ function maybeAnnounceTraversalEncounter() {
   sim.state.toastTime = 3.2;
 }
 
+// Largura da boca do túnel (a partir do centro do Miguelito).
+const BURROW_MOUTH = 16;
+
 function updateIntroFall() {
   const intro = sim.state.introFall;
   if (!intro) return;
   const player = sim.state.player;
-  const time = sim.state.time || 0;
   const burrow = sim.state.level.introBurrowX;
-  if (intro.stage === 'wait' || intro.stage === 'walk') {
-    // Na superfície: parado um instante, depois caminha até a boca do túnel.
-    if (intro.stage === 'wait' && time >= intro.walkAt) intro.stage = 'walk';
-    player.y = intro.surface - player.h;
-    player.vy = 0;
-    player.onGround = true;
-    player.facing = 1;
-    player.vx = intro.stage === 'walk' ? 120 : 0;
-    if (player.x + player.w / 2 >= burrow) {
-      intro.stage = 'stand';
-      intro.releaseAt = time + .3;
-    }
-    return;
-  }
-  if (intro.stage === 'stand') {
-    // Na beira do túnel, um instante antes de cair.
-    player.x = burrow - player.w / 2;
+  const feet = player.y + player.h;
+  if (intro.stage === 'title') {
+    // Tela de título: parado na superfície, esperando o JOGAR.
     player.y = intro.surface - player.h;
     player.vx = 0;
     player.vy = 0;
     player.onGround = true;
-    if ((sim.state.time || 0) >= intro.releaseAt) {
+    return;
+  }
+  if (intro.stage === 'surface') {
+    // O jogador controla o Miguelito na superfície. O chão vale em toda parte,
+    // menos na boca do túnel: passando por ela, ele cai.
+    if (player.x < 0) { player.x = 0; player.vx = Math.max(0, player.vx); }
+    const overMouth = Math.abs(player.x + player.w / 2 - burrow) < BURROW_MOUTH;
+    if (overMouth && feet >= intro.surface - 1) {
       intro.stage = 'fall';
-      player.onGround = false;
       intro.card();
+      return;
+    }
+    if (!overMouth && feet >= intro.surface && player.vy >= 0) {
+      player.y = intro.surface - player.h;
+      player.vy = 0;
+      player.onGround = true;
     }
     return;
   }
   // Pousou lá embaixo: a cena acaba.
   if (player.onGround && player.y > intro.surface + 120) sim.state.introFall = null;
+}
+
+// TELA DE TÍTULO (início da campanha): a cena da superfície ao vivo faz o papel
+// de ilustração, como no protótipo. JOGAR (ou Enter) passa o controle ao
+// jogador, que leva o Miguelito até o túnel.
+function showTitleScreen() {
+  if (!titleScreen) {
+    titleScreen = document.createElement('section');
+    titleScreen.id = 'title-screen';
+    titleScreen.setAttribute('aria-labelledby', 'title-screen-heading');
+    titleScreen.style.cssText = 'position:absolute;inset:0;z-index:40;display:flex;align-items:flex-end;'
+      + 'padding:0 6vw 9vh;background:linear-gradient(180deg,rgba(1,10,14,0) 38%,rgba(1,10,14,.72) 76%,rgba(1,10,14,.9));';
+    titleScreen.innerHTML = `
+      <div style="max-width:36rem">
+        <p style="margin:0 0 .5rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:clamp(12px,1.5vw,15px);color:#6ce7df;text-shadow:0 2px 10px rgba(0,0,0,.8)">Beans for a Living Soil</p>
+        <h1 id="title-screen-heading" style="margin:0 0 .35em;font-weight:900;font-size:clamp(38px,6.4vw,74px);line-height:.95;letter-spacing:-.02em;color:#f4fffd;text-shadow:0 3px 16px rgba(0,0,0,.9),0 0 36px rgba(108,231,223,.45)">Miguelito e o feijão</h1>
+        <p style="margin:0 0 1.4rem;max-width:32rem;font-size:clamp(14px,1.8vw,18px);line-height:1.5;font-weight:600;color:rgba(222,250,245,.92);text-shadow:0 2px 12px rgba(0,0,0,.95)">O feijoeiro precisa de ajuda. Desça à rizosfera pelo túnel de minhoca, recrute aliados microbianos e leve vida de volta à raiz.</p>
+        <button type="button" id="title-play" style="cursor:pointer;border:0;border-radius:999px;padding:.8rem 2.2rem;font:inherit;font-weight:900;font-size:clamp(18px,2.2vw,22px);letter-spacing:.08em;color:#062326;background:#6ce7df;box-shadow:0 4px 0 #2e9c95,0 12px 26px rgba(0,0,0,.4)">JOGAR</button>
+        <p style="margin:1.1rem 0 0;font-size:13px;font-weight:600;color:rgba(222,250,245,.75);text-shadow:0 1px 8px rgba(0,0,0,.9)">← → andar &nbsp; Espaço saltar &nbsp; entre no túnel para descer</p>
+      </div>`;
+    const host = canvas.parentElement || document.body;
+    host.appendChild(titleScreen);
+    titleScreen.querySelector('#title-play').addEventListener('click', startFromTitle);
+    window.addEventListener('keydown', event => {
+      if (event.code === 'Enter' && sim.state.introFall?.stage === 'title') {
+        event.preventDefault();
+        startFromTitle();
+      }
+    });
+  }
+  titleScreen.hidden = false;
+  titleScreen.style.display = 'flex';
+  titleScreen.querySelector('#title-play').focus({ preventScroll: true });
+}
+
+function startFromTitle() {
+  if (sim.state.introFall?.stage !== 'title') return;
+  sim.state.introFall.stage = 'surface';
+  if (titleScreen) { titleScreen.hidden = true; titleScreen.style.display = 'none'; }
+  canvas.focus?.({ preventScroll: true });
 }
 
 function renderWorld() {
@@ -2747,7 +2789,7 @@ function loop(now) {
         rhizoctoniaControl.prepare(frameDt);
         trichodermaRhizoctoniaControl.update(0);
         trichodermaMeloidogyneControl.update(0);
-        sim.setInputs(keys);
+        sim.setInputs(sim.state.introFall?.stage === 'title' ? {} : keys);
         sim.step(frameDt);
         fixedBlockRuntime.update(frameDt);
         updateIntroFall();
