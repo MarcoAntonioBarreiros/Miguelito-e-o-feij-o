@@ -377,7 +377,7 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
       ctx.fillStyle = '#f4e6ff';
       ctx.shadowBlur = 10;
       ctx.shadowColor = '#d6afff';
-      const stage = network.germination < .18 ? 'Esporo de micorriza arbuscular' : 'Hifas extrarradiculares com tropismo';
+      const stage = network.germination < .18 ? 'Esporo de micorriza' : 'Hifas de micorriza';
       ctx.fillText(stage, network.x, network.y - 28);
       ctx.shadowBlur = 0;
     }

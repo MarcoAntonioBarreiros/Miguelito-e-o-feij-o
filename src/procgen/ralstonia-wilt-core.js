@@ -23,6 +23,14 @@ export const RALSTONIA_STATES = Object.freeze([
   'surface', 'entering', 'vascular', 'obstructed', 'critical', 'contained', 'neutralized',
 ]);
 
+// Cor de cada leitura da porta de entrada. O painel contextual e o rótulo de
+// estágio no mundo usam as mesmas, para falarem a mesma língua.
+export const RALSTONIA_DOOR_COLORS = Object.freeze({
+  'Entrada bloqueada': '#8ef0c6',
+  'Porta fechando': '#7ed6cd',
+  'Porta aberta': '#ff966e',
+});
+
 export const RALSTONIA_STATE_LABELS = Object.freeze({
   surface: 'contaminação superficial',
   entering: 'entrando no tecido',

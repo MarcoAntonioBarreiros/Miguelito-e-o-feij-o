@@ -1510,7 +1510,7 @@ test('foco pendente desenha marcador de região quando o jogador se aproxima', (
   b.system.render(perto.ctx);
   const textosPerto = perto.chamadas.filter(c => c[0] === 'fillText').map(c => c[1]);
   assert.ok(
-    textosPerto.some(t => String(t).includes('Infecção vascular adiante')),
+    textosPerto.some(t => String(t).includes('Ralstonia adiante')),
     'o segundo foco deixa de ser invisível sem explicação',
   );
   assert.equal(perto.profundidade, 0);

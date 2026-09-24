@@ -1,3 +1,4 @@
+import { RALSTONIA_DOOR_COLORS } from './ralstonia-wilt-core.js';
 import { getPhaseManifest, PHOSPHATE_SOLUBILIZATION_DEFAULTS } from './campaign-manifest.js';
 import { getNitrogenAvailability } from './nitrogen-availability.js';
 
@@ -85,9 +86,7 @@ function ralstoniaContextMarkup(sim, nearbyRoot) {
       </div>
     `;
 
-  const portaCor = snapshot.doorLabel === 'Entrada bloqueada' ? '#8ef0c6'
-    : snapshot.doorLabel === 'Porta fechando' ? '#7ed6cd'
-    : '#ff966e';
+  const portaCor = RALSTONIA_DOOR_COLORS[snapshot.doorLabel] || RALSTONIA_DOOR_COLORS['Porta aberta'];
   html += `
       <div class="context-item">
         <span>Porta de entrada: <strong>${pct(snapshot.opening)}</strong>
@@ -222,17 +221,18 @@ export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
       mobileGaugesHtml += circularGaugeMarkup({ label: 'Fósforo na raiz (P)', symbol: 'P', valueText: `${Math.round(pPct)}%`, pct: pPct, color: '#c9a5ff' });
     }
 
-    // Antibiosis
+    // Biocontrole: vigor das colônias de Trichoderma. O mecanismo que o jogo
+    // mostra é micoparasitismo (enovelamento e lise), não antibiose.
     const vigor = sim.trichodermaColonies?.vigorAverage || 0;
     if (phase >= 6 || vigor > 0) {
       const aPct = Math.min(100, vigor * 100);
       html += `
         <div class="context-item">
-          <span>Antibiose: <strong>${Math.round(aPct)}%</strong></span>
+          <span>Biocontrole: <strong>${Math.round(aPct)}%</strong></span>
           <div class="context-bar"><div class="context-bar-fill" style="width: ${aPct}%; background: #b9f36f;"></div></div>
         </div>
       `;
-      mobileGaugesHtml += circularGaugeMarkup({ label: 'Antibiose', symbol: 'A', valueText: `${Math.round(aPct)}%`, pct: aPct, color: '#b9f36f' });
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Biocontrole', symbol: 'T', valueText: `${Math.round(aPct)}%`, pct: aPct, color: '#b9f36f' });
     }
 
     // Qualidade Ecologica e o objetivo do ecossistema integrado, que agora e a

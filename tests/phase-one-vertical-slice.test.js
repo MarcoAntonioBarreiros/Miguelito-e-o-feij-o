@@ -159,7 +159,7 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
   }, { get: (target, key) => target[key] || (() => {}) });
   runtime.render(ctx);
   assert.deepEqual(translations, [[-480, 0]], 'portão e marcador usam a câmera horizontal');
-  assert.ok(renderedLabels.some(label => label.includes('ALVO DA FASE')));
+  assert.ok(renderedLabels.some(label => label.includes('INOCULE BACILLUS AQUI')));
 
   gameplay.deployedCloudCount = 1;
   state.level.biofilms.push({ functional: true, platform: { objectiveTarget: 'qualquer-outra-raiz' } });
@@ -184,7 +184,7 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
   renderedLabels.length = 0;
   runtime.render(ctx);
   assert.equal(
-    renderedLabels.some(label => label.includes('ALVO DA FASE')),
+    renderedLabels.some(label => label.includes('INOCULE BACILLUS AQUI')),
     false,
     'a instrução desaparece quando o biofilme é confirmado',
   );
