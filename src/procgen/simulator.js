@@ -29,6 +29,7 @@ import { DISCOVERABLE_MICROBE_IDS } from '../audio-manifest.js';
 import { createNoopBiologicalAudio } from './biological-audio.js';
 import { createInoculumSelection } from './inoculum-selection.js';
 import { createPhosphateSolubilization } from './phosphate-solubilization.js';
+import { createNarrator, narrate, registerNarrator } from './narrator.js';
 import {
   createEmptyObjectiveProgress,
   resetPhaseObjectiveProgress,
@@ -126,6 +127,13 @@ export function createSimulator({
     },
   };
 
+  // Árbitro único do toast (ver narrator.js). O gerenciador de tutoriais nasce
+  // depois do simulador, por isso é lido sob demanda.
+  const narrator = registerNarrator(state, createNarrator({
+    state,
+    getTutorial: () => (typeof window !== 'undefined' ? window.miguelitoTutorial : null),
+  }));
+
   // Audio injetado pelo app; nos testes Node entra o adaptador silencioso. O
   // simulador nunca toca em `window` ou `document` — quem faz isso e o
   // controlador, criado no app. Precisa nascer ANTES de `entities` porque a
@@ -178,8 +186,7 @@ export function createSimulator({
     // coleta a parte. Ver o comentario em microbe-ecology.js.
     unlockCampaignFeature: (feature, zone) => {
       if (!unlockCampaignFeature(state, feature)) return;
-      state.toast = zone?.unlockDesc || 'Uma nova função do solo vivo foi liberada.';
-      state.toastTime = 5.2;
+      narrate(state, `unlock.${feature}`);
     },
     respawn: reason => {
       const player = state.player;
@@ -213,10 +220,6 @@ export function createSimulator({
       player.tutorialUnsafeUntil = state.time + .1;
       state.respawnTimer = 0;
       state.gameState = 'play';
-      state.toast = reason === 'death'
-        ? 'Respawn no último biofilme: Vitalidade restaurada.'
-        : 'Retorno ao último ponto seguro.';
-      state.toastTime = 4.2;
     },
   };
 
@@ -226,6 +229,9 @@ export function createSimulator({
       state.toast = `${title}: ${desc}`;
       state.toastTime = 4.7;
     },
+    // physics.js é compartilhado com o jogo não procedural; lá não há narrador
+    // e ele continua usando showToast.
+    narrate: (id, params) => narrate(state, id, params),
     updateHud: () => {},
     showEnd: () => {},
   };
@@ -446,11 +452,13 @@ export function createSimulator({
     pathogenPressure.update(dt);
     goal.update(dt);
     if (state.toastTime > 0) state.toastTime -= dt;
+    narrator.update(dt);
   }
 
   const simulator = {
     audio,
     biologicalAudio: entities.audio,
+    narrator,
     state, input, entities, ecology, mycorrhiza, mycorrhizaStructures,
     trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
     pseudomonasSiderophores, opportunisticFungus, bacillusBioprotection, bacillusBioprotectionSafety,

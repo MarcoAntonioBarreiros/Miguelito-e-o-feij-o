@@ -1,5 +1,6 @@
 import { W } from '../core/constants.js';
 import { PHASE_VICTORY_TRANSITION_SECONDS } from '../audio-manifest.js';
+import { narrate } from './narrator.js';
 import { drawFinalRoot } from '../render/final-root-visual.js';
 
 const TAU = Math.PI * 2;
@@ -31,8 +32,6 @@ export function createGoalSystem({ state, entities }) {
     state.player.vy = 0;
     state.gameState = state.campaign ? 'transition' : 'end';
     state.mission = 'Raiz principal alcançada — preparando a próxima fase';
-    state.toast = `Fase ${state.campaign?.phase || 1} concluída: o sistema radicular atual será substituído`;
-    state.toastTime = 6;
     // O tremor da chegada era .5, mais forte que o do dano (.3 a .42): somado
     // ao jogador congelado, vencer a fase parecia levar um golpe. A comemoracao
     // agora e dita pela animacao do personagem, entao aqui basta um baque leve,
@@ -67,8 +66,7 @@ export function createGoalSystem({ state, entities }) {
       state.player.vx = Math.min(0, state.player.vx);
       if (state.time - lastBlockedAt > 2.4) {
         lastBlockedAt = state.time;
-        state.toast = guard?.message || 'A prova final ainda não foi concluída.';
-        state.toastTime = 4.2;
+        narrate(state, 'goal.blocked', { message: guard?.message || 'Faltam objetivos: veja a lista' });
       }
       return;
     }
@@ -121,7 +119,7 @@ export function createGoalSystem({ state, entities }) {
       ctx.fillText(goal.completed ? 'FASE CONCLUÍDA' : 'RAIZ PRINCIPAL', goal.x, goal.y - 226);
       ctx.font = '600 11px Inter,system-ui';
       ctx.fillStyle = 'rgba(235,255,244,.82)';
-      ctx.fillText(goal.completed ? 'Gerando um novo sistema radicular' : 'Alcance o córtex luminoso', goal.x, goal.y - 207);
+      if (!goal.completed) ctx.fillText('Alcance o córtex luminoso', goal.x, goal.y - 207);
       ctx.shadowBlur = 0;
     }
 

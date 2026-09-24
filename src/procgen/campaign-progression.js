@@ -74,7 +74,13 @@ function blankCampaign(seed) {
     victoryAudioDeadline: 0,
     transitionCaptured: false,
     pendingReport: null,
+    // Ids de narração de escopo de campanha já ditos (ver narrator.js).
+    narrationSeen: [],
   };
+}
+
+function narrationSeenList(source) {
+  return Array.isArray(source) ? source.filter(id => typeof id === 'string') : [];
 }
 
 function readStoredCampaign(storage) {
@@ -95,6 +101,7 @@ export function campaignSnapshot(campaign) {
     totalScore: Number.isFinite(campaign.totalScore) ? campaign.totalScore : 0,
     history: Array.isArray(campaign.history) ? campaign.history : [],
     pendingReport: campaign.pendingReport ?? null,
+    narrationSeen: narrationSeenList(campaign.narrationSeen),
   };
 }
 
@@ -119,6 +126,7 @@ export function createCampaign(seed = randomCampaignSeed(), { storage = null } =
     campaign.totalScore = Number.isFinite(saved.totalScore) ? saved.totalScore : 0;
     campaign.history = Array.isArray(saved.history) ? saved.history : [];
     campaign.pendingReport = saved.pendingReport ?? null;
+    campaign.narrationSeen = narrationSeenList(saved.narrationSeen);
   }
   if (storage) campaignStorage.set(campaign, storage);
   return campaign;
@@ -259,35 +267,16 @@ export function campaignPhaseSeed(campaign) {
   return `${campaign.seed}:fase-${campaign.phase}`;
 }
 
+// Só o nome: o desbloqueio é narrado pelo catálogo (`unlock.<feature>`) e
+// explicado pelo cartão do GUIA. As descrições longas que viviam aqui deixaram
+// de ser exibidas — e a do pulso atribuía à raiz e a uma enzima o que, na
+// mecânica, é a cepa solubilizadora liberando ácidos orgânicos.
 function featurePresentation(feature) {
-  if (feature === 'doubleJump') {
-    return {
-      name: 'Fitohormônio de crescimento',
-      desc: 'A raiz saudável libera um fitohormônio que impulsiona o salto duplo. Pressione salto novamente enquanto estiver no ar.',
-    };
-  }
-  if (feature === 'dash') {
-    return {
-      name: 'Impulso da Rizósfera',
-      desc: 'A energia do solo vivo libera o dash. Use Shift ou o botão DASH para atravessar vãos rapidamente.',
-    };
-  }
-  if (feature === 'mycorrhizaStructures') {
-    return {
-      name: 'Mira, a Micorriza',
-      desc: 'A rede micorrízica agora pode orientar hifas finas horizontalmente e formar pontes laterais dirigidas por exsudatos.',
-    };
-  }
-  if (feature === 'phosphateSolubilization') {
-    return {
-      name: 'Enzima de solubilização',
-      desc: 'A raiz saudável libera a enzima do pulso: selecione Solubilização P, segure E perto da cepa de Bacillus para carregar, solte para guardar e toque E de novo para disparar no depósito.',
-    };
-  }
-  return {
-    name: 'Ari, o Azospirillum',
-    desc: 'A sinalização hormonal do Azospirillum agora pode formar escadas de ramificações em raízes hospedeiras.',
-  };
+  if (feature === 'doubleJump') return { name: 'Fitohormônio de crescimento' };
+  if (feature === 'dash') return { name: 'Impulso da Rizósfera' };
+  if (feature === 'mycorrhizaStructures') return { name: 'Mira, a Micorriza' };
+  if (feature === 'phosphateSolubilization') return { name: 'Solubilização de fosfato' };
+  return { name: 'Ari, o Azospirillum' };
 }
 
 export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile(campaign)) {
@@ -393,7 +382,6 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
     ally.unlockFeature = event.feature;
     const presentation = featurePresentation(event.feature);
     ally.name = presentation.name;
-    ally.desc = presentation.desc;
   }
 
   // Onde existe o organismo de verdade, o ally e removido — nao escondido.
@@ -415,7 +403,6 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
     if (encounter && ally.unlockFeature) {
       encounter.unlockFeature = ally.unlockFeature;
       encounter.unlockName = ally.name;
-      encounter.unlockDesc = ally.desc;
     }
     // Some mesmo sem encontro autoral: quando o organismo e vagante, quem
     // carrega o cartao e o desbloqueio e a estreia criada por

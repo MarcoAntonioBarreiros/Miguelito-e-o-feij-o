@@ -40,7 +40,6 @@ import { createGameAudio } from '../game-audio.js';
 import { createBiologicalAudio } from './biological-audio.js';
 import {
   biologicalGroupsForProgress,
-  PHASE_VICTORY_TOAST_SECONDS,
   VICTORY_AUDIO_FALLBACK_SECONDS,
 } from '../audio-manifest.js';
 import {
@@ -65,6 +64,8 @@ import { createRhizoctoniaControl } from './rhizoctonia-control.js';
 import { createTrichodermaMeloidogyneControl } from './trichoderma-meloidogyne-control.js';
 import { createTrichodermaRhizoctoniaControl } from './trichoderma-rhizoctonia-control.js';
 import { createRalstoniaVascularWilt } from './ralstonia-vascular-wilt.js';
+import { narrate } from './narrator.js';
+import { FEATURE_LABELS } from './narration-catalog.js';
 import {
   createPathogenArrival,
   PATHOGEN_ARRIVAL_DEFAULTS,
@@ -96,6 +97,28 @@ const hudBar = document.getElementById('hud-bar');
 const stockDiv = document.getElementById('hud-stock');
 const alertsDiv = document.getElementById('hud-alerts');
 const toastDiv = document.getElementById('toast');
+// Texto e ◈ separados: o botão abre no GUIA o cartão que explica a mensagem.
+const toastTextSpan = document.createElement('span');
+toastTextSpan.className = 'toast-text';
+const toastCardButton = document.createElement('button');
+toastCardButton.type = 'button';
+toastCardButton.className = 'toast-card';
+toastCardButton.textContent = '\u25c8';
+toastCardButton.setAttribute('aria-label', 'Abrir no GUIA');
+toastCardButton.title = 'Abrir no GUIA';
+toastCardButton.hidden = true;
+toastDiv?.replaceChildren(toastTextSpan, toastCardButton);
+for (const type of ['pointerdown', 'touchstart']) {
+  // Não pode virar pulo nem desbloqueio de áudio no listener global.
+  toastCardButton.addEventListener(type, event => event.stopPropagation(), { passive: true });
+}
+toastCardButton.addEventListener('click', event => {
+  event.preventDefault();
+  event.stopPropagation();
+  const cardId = toastCardButton.dataset.cardId;
+  if (cardId) window.miguelitoTutorial?.openCard?.(cardId);
+  toastCardButton.blur();
+});
 
 // Icones do HUD. Desenhados em vez de emoji porque emoji muda de forma e de cor
 // conforme o sistema, e aqui a cor carrega significado.
@@ -810,8 +833,8 @@ sim.goal.setCompletionGuard(() => {
   return {
     passed: result.passed,
     message: campaign.phase === 5
-      ? 'A raiz final exige a reserva mínima de ferro e o controle funcional do vigor fúngico.'
-      : 'A raiz final aguarda a conclusão do objetivo ecológico indicado.',
+      ? 'Falta ferro e controlar o fungo'
+      : 'Faltam objetivos: veja a lista',
   };
 });
 let profile = null;
@@ -1259,18 +1282,10 @@ function anchorPowerPickups(level) {
   }
 }
 
-const FEATURE_LABELS = {
-  doubleJump: 'salto duplo',
-  dash: 'Dash',
-  phosphateSolubilization: 'Solubilizacao de fosfato',
-  mycorrhizaStructures: 'pontes micorrízicas horizontais',
-  azospirillumRoots: 'escadas radiculares de Azospirillum',
-};
-
 function phaseIntroText() {
   if (!profile.unlockEvents.length) return profile.mission;
   const names = profile.unlockEvents.map(event => FEATURE_LABELS[event.feature] || event.feature).join(' e ');
-  return `Desbloqueios desta fase: ${names}. Cada poder só será exigido depois do chunk de aquisição.`;
+  return `Nesta fase: ${names}`;
 }
 
 function updateTouchAbilityVisibility() {
@@ -1330,6 +1345,8 @@ function initGame({ announce = false } = {}) {
     entities: sim.entities,
     parallaxSeed: seed || `campaign-phase-${campaign.phase}`,
   });
+  // Instruções e perigos voltam a valer na fase nova; ciência não (campanha).
+  sim.narrator.resetPhase();
   renderer.parallaxBackground.setEnabled(biologicalParallaxEnabled);
   platformVisuals = createPlatformVisuals({ state: sim.state });
   lighting = createRhizosphereLighting({
@@ -1476,15 +1493,13 @@ async function toggleGameAudio() {
     const ok = await gameAudio.unlock();
     if (ok && estado.muted) await gameAudio.setMuted(false);
     updateSoundButton();
-    sim.state.toast = ok ? 'Som ativado' : 'Não foi possível ativar o som';
-    sim.state.toastTime = 1.8;
+    narrate(sim.state, ok ? 'system.sound-on' : 'system.sound-failed');
     return gameAudio.isMuted();
   }
 
   const muted = await gameAudio.toggleMute();
   updateSoundButton();
-  sim.state.toast = muted ? 'Som desativado' : 'Som ativado';
-  sim.state.toastTime = 1.6;
+  narrate(sim.state, muted ? 'system.sound-off' : 'system.sound-on');
   return muted;
 }
 
@@ -1569,9 +1584,7 @@ function maybeAdvanceCampaign() {
     campaign.victoryAudioDeadline = tocou
       ? sim.state.time + VICTORY_AUDIO_FALLBACK_SECONDS
       : 0;
-    const vascular = report.phase >= 4 ? ` · transporte ${report.vascularTransport}%` : '';
-    sim.state.toast = `Fase ${report.phase}: ${report.score} pontos · saúde ${report.rootHealth}% · infestação ${report.infestation}%${vascular}`;
-    sim.state.toastTime = PHASE_VICTORY_TOAST_SECONDS;
+    // O placar não vira toast: a cinemática final (phase-finale.js) já o mostra.
   }
 
   // A revelacao do feijoeiro faz parte do fim da fase, entao a troca espera ela
@@ -1628,10 +1641,7 @@ function toggleRecoveryPlatforms() {
   const disabled = !sim.state.recoveryPlatformsDisabled;
   sim.state.recoveryPlatformsDisabled = disabled;
   recoveryToggleButton?.setAttribute('aria-pressed', String(disabled));
-  sim.state.toast = disabled
-    ? 'Plataformas de segurança desligadas: sem os degraus de recuperação.'
-    : 'Plataformas de segurança religadas.';
-  sim.state.toastTime = 3.2;
+  narrate(sim.state, disabled ? 'system.recovery-off' : 'system.recovery-on');
 }
 // Botao de som: um unico listener, chamando a mesma API da tecla M.
 const soundToggleButton = document.querySelector('[data-mobile-action="toggle-sound"]');
@@ -1659,10 +1669,7 @@ function toggleBiologicalParallax() {
   if (!renderer?.parallaxBackground || sim.state.gameState !== 'play') return;
   biologicalParallaxEnabled = renderer.parallaxBackground.toggle();
   parallaxToggleButton?.setAttribute('aria-pressed', String(biologicalParallaxEnabled));
-  sim.state.toast = biologicalParallaxEnabled
-    ? 'Paralaxe biológico ativado'
-    : 'Paralaxe biológico desativado';
-  sim.state.toastTime = 3.2;
+  narrate(sim.state, biologicalParallaxEnabled ? 'system.parallax-on' : 'system.parallax-off');
 }
 parallaxToggleButton?.addEventListener('click', event => {
   event.preventDefault();
@@ -1676,8 +1683,7 @@ function toggleLighting() {
   if (!lighting || sim.state.gameState !== 'play') return;
   lightingEnabled = lighting.toggle();
   lightingToggleButton?.setAttribute('aria-pressed', String(lightingEnabled));
-  sim.state.toast = lightingEnabled ? 'Luz e atmosfera ativadas' : 'Luz e atmosfera desativadas';
-  sim.state.toastTime = 3.2;
+  narrate(sim.state, lightingEnabled ? 'system.lighting-on' : 'system.lighting-off');
 }
 lightingToggleButton?.addEventListener('click', event => {
   event.preventDefault();
@@ -1753,8 +1759,7 @@ function maybeAnnounceTraversalEncounter() {
   });
   if (!nearby) return;
   levelData.traversalRouteHintShown = true;
-  sim.state.toast = 'Rotas altas podem esconder recursos extras.';
-  sim.state.toastTime = 3.2;
+  narrate(sim.state, 'route.high');
 }
 
 // Largura da boca do túnel (a partir do centro do Miguelito).
@@ -1965,10 +1970,17 @@ function loop(now) {
         : `Fase ${campaign.phase}`;
     }
 
-    if (sim.state.toastTime > 0 && sim.state.toast && sim.state.toast !== lastToast) {
-      toastDiv.textContent = sim.state.toast;
+    // Mesmo com o jogo pausado: um cartão que acabou de abrir cobre a
+    // mensagem de ciência correspondente.
+    sim.narrator.observeTutorial();
+    const toastKey = `${sim.state.toast}|${sim.state.toastCardId || ''}|${sim.state.toastSerial || 0}`;
+    if (sim.state.toastTime > 0 && sim.state.toast && toastKey !== lastToast) {
+      toastTextSpan.textContent = sim.state.toast;
+      const cardId = sim.state.toastCardId || '';
+      toastCardButton.hidden = !cardId;
+      toastCardButton.dataset.cardId = cardId;
       toastDiv.className = 'show';
-      lastToast = sim.state.toast;
+      lastToast = toastKey;
     }
     if (sim.state.toastTime <= 0 && toastDiv.className === 'show') {
       toastDiv.className = '';
@@ -2019,18 +2031,11 @@ function loop(now) {
     if (rhizoctoniaControl.activeCount) {
       alerts.push({ text: `Rhizoctonia ${rhizoctoniaControl.controlledCount}/${rhizoctoniaControl.activeCount} contida${rhizoctoniaControl.activeCount > 1 ? 's' : ''}` });
     }
-    // Aviso de disseminacao vem primeiro: e o unico que tem contagem regressiva.
-    const disseminacao = ralstoniaControl.activeSpreadEvents[0];
-    if (disseminacao) {
-      const restante = disseminacao.state === 'warning'
-        ? disseminacao.warningRemaining
-        : (1 - disseminacao.travelProgress) * ralstoniaControl.config.spreadTravelSeconds;
-      alerts.push({
-        text: `Disseminação para raiz adiante · ${restante.toFixed(1)} s`,
-        grave: true,
-      });
-    }
-    if (ralstoniaControl.focusCount) {
+    // A disseminação não tem chip: a contagem regressiva já aparece no mundo,
+    // sobre a raiz-alvo. No celular o resumo da Ralstonia também sai — a lista
+    // de objetivos já cobre, e a tela é pequena.
+    const touchLayout = document.documentElement.classList.contains('touch-device');
+    if (ralstoniaControl.focusCount && !touchLayout) {
       const contidos = ralstoniaControl.containedCount;
       alerts.push({
         text: `Ralstonia: ${ralstoniaControl.focusCount} foco${ralstoniaControl.focusCount > 1 ? 's' : ''}`
@@ -2126,8 +2131,7 @@ function loop(now) {
     debugDiv.textContent = `ERRO (${loopErrorCount}): ${error.message}\n${error.stack}`;
     if (loopErrorCount === 1) {
       console.error('Erro no loop principal:', error);
-      sim.state.toast = 'Um sistema falhou neste quadro. A partida continua; Tab mostra o erro.';
-      sim.state.toastTime = 5;
+      narrate(sim.state, 'system.loop-error');
     }
     // Uma falha que se repete a cada quadro nao deve inundar o console nem
     // impedir de jogar, mas tambem nao pode ser escondida.
