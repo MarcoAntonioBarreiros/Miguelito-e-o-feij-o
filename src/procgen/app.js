@@ -70,7 +70,7 @@ import {
   PATHOGEN_ARRIVAL_DEFAULTS,
 } from './pathogen-arrival.js';
 import { createPhaseFinale, phaseFinaleSeconds } from './phase-finale.js';
-import { finalRootCollar } from '../render/final-root-visual.js';
+import { rhizosphereSurfaceY } from '../render/rhizosphere-geometry.js';
 import { GEOMETRY_ENABLED } from '../render/geometry-preference.js';
 import { celebrationCycleSeconds, resolvePlayerSkin } from '../render/player-skins.js';
 import {
@@ -1366,7 +1366,7 @@ function initGame({ announce = false } = {}) {
   sim.state.level.introBurrowX = undefined;
   const introGoal = sim.state.level.goal;
   if (announce && campaign.phase === 1 && GEOMETRY_ENABLED && introGoal && Number.isFinite(Number(introGoal.y))) {
-    const surface = finalRootCollar(introGoal).y;
+    const surface = rhizosphereSurfaceY(sim.state.level, sim.state.campaign?.unlocks);
     const player = sim.state.player;
     // A boca do túnel fica sobre a primeira raiz (onde ele pousa); ele começa
     // um pouco à esquerda. Depois do JOGAR, quem o leva até o buraco é o

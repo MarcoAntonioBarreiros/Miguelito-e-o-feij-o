@@ -955,12 +955,12 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"905e1b3","subject":"Paralaxe: filamentos profundos a 1/3 da opacidade","builtAt":"2026-09-24 02:13"};
+window.__BEANS_BUILD__ = {"commit":"cf5ef58","subject":"Teto da rizosfera sobe conforme o bloco mais alto da fase","builtAt":"2026-09-24 02:46"};
 (() => {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel, auditTraversableRoute } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { ensureAzospirillumBeforeAscentGates, generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { createRouteAnchorRegistry, recordRouteGeometryStage } = __require("src/procgen/route-geometry.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry, createPhosphateDepositAt, finalizePhosphateStockCapacity } = __require("src/procgen/phosphate-solubilization.js");const { createPhaseTenOptionalDetour } = __require("src/procgen/optional-detour-composer.js");const { createPhaseTenTopologyDetour } = __require("src/procgen/optional-detour-topology-synthesizer.js");const { validateOptionalDetour } = __require("src/procgen/optional-detour-validator.js");const { getNitrogenAvailability } = __require("src/procgen/nitrogen-availability.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, campaignManifest, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { updateContextPanel } = __require("src/procgen/hud-context.js");const { computeEcologicalScore } = __require("src/procgen/ecological-score.js");const { JETPACK_CONFIG, jetpackRechargeBonuses } = __require("src/player-jetpack.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createGameAudio } = __require("src/game-audio.js");const { createBiologicalAudio } = __require("src/procgen/biological-audio.js");const { biologicalGroupsForProgress, PHASE_VICTORY_TOAST_SECONDS, VICTORY_AUDIO_FALLBACK_SECONDS } = __require("src/audio-manifest.js");const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");const { createRenderer } = __require("src/render/renderer.js");const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createRhizosphereLighting, readLightingPreference } = __require("src/render/rhizosphere-lighting.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");const { ROUTE_GATE_KINDS, ROUTE_GATE_REQUIRED_ABILITY, ROUTE_GATE_REQUIRED_ORGANISM } = __require("src/procgen/phase-vertical-plan.js");const { synchronizeWorldBounds } = __require("src/procgen/world-bounds.js");const { validateAndRepairAzospirillumGates } = __require("src/procgen/azospirillum-gate-integrity.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { createPathogenArrival, PATHOGEN_ARRIVAL_DEFAULTS } = __require("src/procgen/pathogen-arrival.js");const { createPhaseFinale, phaseFinaleSeconds } = __require("src/procgen/phase-finale.js");const { finalRootCollar } = __require("src/render/final-root-visual.js");const { GEOMETRY_ENABLED } = __require("src/render/geometry-preference.js");const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
+const { generateLevel, auditTraversableRoute } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { ensureAzospirillumBeforeAscentGates, generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { createRouteAnchorRegistry, recordRouteGeometryStage } = __require("src/procgen/route-geometry.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry, createPhosphateDepositAt, finalizePhosphateStockCapacity } = __require("src/procgen/phosphate-solubilization.js");const { createPhaseTenOptionalDetour } = __require("src/procgen/optional-detour-composer.js");const { createPhaseTenTopologyDetour } = __require("src/procgen/optional-detour-topology-synthesizer.js");const { validateOptionalDetour } = __require("src/procgen/optional-detour-validator.js");const { getNitrogenAvailability } = __require("src/procgen/nitrogen-availability.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, campaignManifest, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { updateContextPanel } = __require("src/procgen/hud-context.js");const { computeEcologicalScore } = __require("src/procgen/ecological-score.js");const { JETPACK_CONFIG, jetpackRechargeBonuses } = __require("src/player-jetpack.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createGameAudio } = __require("src/game-audio.js");const { createBiologicalAudio } = __require("src/procgen/biological-audio.js");const { biologicalGroupsForProgress, PHASE_VICTORY_TOAST_SECONDS, VICTORY_AUDIO_FALLBACK_SECONDS } = __require("src/audio-manifest.js");const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");const { createRenderer } = __require("src/render/renderer.js");const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createRhizosphereLighting, readLightingPreference } = __require("src/render/rhizosphere-lighting.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");const { ROUTE_GATE_KINDS, ROUTE_GATE_REQUIRED_ABILITY, ROUTE_GATE_REQUIRED_ORGANISM } = __require("src/procgen/phase-vertical-plan.js");const { synchronizeWorldBounds } = __require("src/procgen/world-bounds.js");const { validateAndRepairAzospirillumGates } = __require("src/procgen/azospirillum-gate-integrity.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { createPathogenArrival, PATHOGEN_ARRIVAL_DEFAULTS } = __require("src/procgen/pathogen-arrival.js");const { createPhaseFinale, phaseFinaleSeconds } = __require("src/procgen/phase-finale.js");const { rhizosphereSurfaceY } = __require("src/render/rhizosphere-geometry.js");const { GEOMETRY_ENABLED } = __require("src/render/geometry-preference.js");const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
   // alcançadas, não só da atual.
 
   createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
@@ -2244,7 +2244,7 @@ function initGame({ announce = false } = {}) {
   sim.state.level.introBurrowX = undefined;
   const introGoal = sim.state.level.goal;
   if (announce && campaign.phase === 1 && GEOMETRY_ENABLED && introGoal && Number.isFinite(Number(introGoal.y))) {
-    const surface = finalRootCollar(introGoal).y;
+    const surface = rhizosphereSurfaceY(sim.state.level, sim.state.campaign?.unlocks);
     const player = sim.state.player;
     // A boca do túnel fica sobre a primeira raiz (onde ele pousa); ele começa
     // um pouco à esquerda. Depois do JOGAR, quem o leva até o buraco é o
@@ -17837,7 +17837,12 @@ Object.assign(__exports, { createRhizobiumNodulation });
 // forma desenhada fica exatamente em `platform.y` — é onde o pé pousa.
 //
 // As texturas (células da raiz, agregados/poros/grãos do solo) são as do
-// autor e chegam prontas por `painters`; este módulo só decide a forma.const { drawBeanPlant } = __require("src/render/bean-plant-visual.js");const { drawRootTube, growPlantRoots, seededRandom } = __require("src/render/root-architecture.js");const { GEOMETRY_ENABLED } = __require("src/render/geometry-preference.js");const { FINAL_ROOT_SCALE, finalRootCollar } = __require("src/render/final-root-visual.js");const { LINK_ROOT_PALETTE, MUTED_ROOT_PALETTE, ROOT_PALETTE, clamp, paintRootCondition, paintRootTissue, pseudo, setTissueCull } = __require("src/render/root-tissue.js");
+// autor e chegam prontas por `painters`; este módulo só decide a forma.
+const { drawBeanPlant } = __require("src/render/bean-plant-visual.js");
+const { drawRootTube, growPlantRoots, seededRandom } = __require("src/render/root-architecture.js");
+const { GEOMETRY_ENABLED } = __require("src/render/geometry-preference.js");
+const { FINAL_ROOT_COLLAR_OFFSET, FINAL_ROOT_SCALE } = __require("src/render/final-root-visual.js");
+const { LINK_ROOT_PALETTE, MUTED_ROOT_PALETTE, ROOT_PALETTE, clamp, paintRootCondition, paintRootTissue, pseudo, setTissueCull } = __require("src/render/root-tissue.js");
 const TAU = Math.PI * 2;
 
 function hash2(x, y) {
@@ -17907,6 +17912,33 @@ const CEILING_REACH = 300;
 const CEILING_STEP = 36;
 // Espaço livre mínimo acima de uma plataforma que está embaixo de outra massa.
 const UNDER_HEADROOM = 170;
+
+// Superfície mínima acima do teto: a faixa de solo tem pelo menos 40 px
+// (topLimit) e o relevo do teto oscila ~16 px.
+const SURFACE_HEADROOM = 70;
+
+// SUPERFÍCIE DA FASE (colo das plantas). Parte do colo da raiz-objetivo, mas
+// sobe o quanto for preciso para o teto ficar a `clearance` do bloco mais alto
+// — os blocos nunca descem. Calculada uma vez por fase (e por alcance de pulo),
+// para não se mexer quando blocos crescem. Grava `goal.collarY`, e a raiz final
+// e a cinemática acompanham.
+function rhizosphereSurfaceY(level, unlocks) {
+  const goal = level?.goal;
+  if (!goal || !Number.isFinite(Number(goal.y))) return null;
+  const clearance = CEILING_CLEARANCE + (unlocks?.doubleJump ? DOUBLE_JUMP_EXTRA : 0);
+  const memo = level.rhizosphereSurface;
+  if (memo && memo.clearance === clearance) return memo.y;
+  let top = Infinity;
+  for (const platform of level.platforms || []) {
+    if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
+    top = Math.min(top, Number(platform.y));
+  }
+  const base = Number(goal.y) + FINAL_ROOT_COLLAR_OFFSET;
+  const y = Number.isFinite(top) ? Math.min(base, top - clearance - SURFACE_HEADROOM) : base;
+  level.rhizosphereSurface = { clearance, y };
+  goal.collarY = y;
+  return y;
+}
 
 function createRhizosphereGeometry({ state, painters }) {
   const { paintSoilTexture, soilPalette, rootPalette } = painters;
@@ -18343,7 +18375,7 @@ function createRhizosphereGeometry({ state, painters }) {
 
   function surfaceLine(platforms) {
     const goal = state.level?.goal;
-    if (goal && Number.isFinite(Number(goal.y))) return finalRootCollar(goal).y;
+    if (goal && Number.isFinite(Number(goal.y))) return rhizosphereSurfaceY(state.level, state.campaign?.unlocks);
     let top = Infinity;
     for (const platform of platforms) top = Math.min(top, platform.y);
     return Number.isFinite(top) ? top - 360 : 0;
@@ -18917,7 +18949,7 @@ function createRhizosphereGeometry({ state, painters }) {
     get lastRenderMs() { return lastRenderMs; },
   };
 }
-Object.assign(__exports, { geometryEnabled, currentCeilingLine, rootBandThickness, visibleRootRect, rootEffectY, createRhizosphereGeometry });
+Object.assign(__exports, { geometryEnabled, currentCeilingLine, rootBandThickness, visibleRootRect, rootEffectY, rhizosphereSurfaceY, createRhizosphereGeometry });
 },
 "src/render/bean-plant-visual.js": (__exports, __require) => {
 // O FEIJOEIRO — MORFOLOGIA DO PROTÓTIPO APROVADO
@@ -19955,8 +19987,26 @@ const branchWidthLocal = index => 24 - index * 2;
 function finalRootCollar(goal) {
   return {
     x: Number(goal?.x) || 0,
-    y: (Number(goal?.y) || 0) + FINAL_ROOT_COLLAR_OFFSET,
+    // `collarY` é a superfície da fase quando ela precisou subir para dar
+    // espaço ao bloco mais alto (ver rhizosphereSurfaceY).
+    y: Number.isFinite(goal?.collarY) ? goal.collarY : (Number(goal?.y) || 0) + FINAL_ROOT_COLLAR_OFFSET,
   };
+}
+
+// Onde o desenho da raiz fica ancorado: sempre `goal.y + OFFSET`, para o córtex
+// luminoso continuar em cima do alvo. Quando a superfície (colo) sobe, o tronco
+// se estica do colo até aqui — a raiz não sobe junto.
+function finalRootAnchorY(goal) {
+  return (Number(goal?.y) || 0) + FINAL_ROOT_COLLAR_OFFSET;
+}
+
+// Trecho reto do colo até a âncora, em coordenadas locais (null se não há).
+function finalRootExtension(goal, scale) {
+  const gap = finalRootAnchorY(goal) - finalRootCollar(goal).y;
+  if (!(gap > 1)) return null;
+  const length = gap / scale;
+  const count = Math.max(2, Math.ceil(length / 40));
+  return Array.from({ length: count + 1 }, (_, i) => ({ x: 0, y: -length + length * i / count }));
 }
 
 /**
@@ -19965,12 +20015,13 @@ function finalRootCollar(goal) {
  */
 function finalRootBounds(goal, scale = FINAL_ROOT_SCALE) {
   const collar = finalRootCollar(goal);
+  const anchorY = Math.max(collar.y, finalRootAnchorY(goal));
   let minX = collar.x;
   let maxX = collar.x;
   let maxY = collar.y;
   const consider = point => {
     const x = collar.x + point.x * scale;
-    const y = collar.y + point.y * scale;
+    const y = anchorY + point.y * scale;
     if (x < minX) minX = x;
     if (x > maxX) maxX = x;
     if (y > maxY) maxY = y;
@@ -20072,9 +20123,9 @@ function traceTube(ctx, samples, widthAt) {
 
 // A raiz-objetivo com a MESMA textura celular das outras raízes (faixas do
 // autor: epiderme verde, camada cinza, córtex) e o brilho por cima.
-function drawTexturedMain(ctx, points, baseWidth) {
+function drawTexturedMain(ctx, points, baseWidth, taper = .62) {
   const samples = sampleSpline(points);
-  const widthAt = t => baseWidth * (1 - t * .62);
+  const widthAt = t => baseWidth * (1 - t * taper);
   ctx.save();
   traceTube(ctx, samples, widthAt);
   ctx.fillStyle = ROOT_PALETTE.innerBase;
@@ -20162,12 +20213,18 @@ function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, time = 
   if (!goal) return false;
   const collar = finalRootCollar(goal);
   const glow = Math.max(0, Math.min(1, Number(pulse) || 0));
+  const extension = finalRootExtension(goal, scale);
 
   ctx.save();
-  ctx.translate(collar.x, collar.y);
+  ctx.translate(collar.x, Math.max(collar.y, finalRootAnchorY(goal)));
   ctx.scale(scale, scale);
 
   if (GEOMETRY_ENABLED) {
+    // Tronco do colo até a âncora, na largura do topo da raiz (sem afinar).
+    if (extension) {
+      drawTexturedMain(ctx, extension, MAIN_WIDTH_LOCAL, 0);
+      drawObjectiveGlow(ctx, extension, MAIN_WIDTH_LOCAL, glow * .6);
+    }
     FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => drawTexturedBranch(ctx, branch, branchWidthLocal(index)));
     drawTexturedMain(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL);
     FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => (
@@ -20178,6 +20235,7 @@ function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, time = 
     FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => {
       drawRootPath(ctx, branch, branchWidthLocal(index), glow * 0.4);
     });
+    if (extension) drawRootPath(ctx, extension, MAIN_WIDTH_LOCAL, glow * 0.6);
     drawRootPath(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL, glow * 0.6);
   }
 

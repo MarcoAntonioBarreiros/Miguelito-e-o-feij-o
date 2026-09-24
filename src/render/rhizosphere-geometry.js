@@ -24,7 +24,7 @@
 import { drawBeanPlant } from './bean-plant-visual.js';
 import { drawRootTube, growPlantRoots, seededRandom } from './root-architecture.js';
 import { GEOMETRY_ENABLED } from './geometry-preference.js';
-import { FINAL_ROOT_SCALE, finalRootCollar } from './final-root-visual.js';
+import { FINAL_ROOT_COLLAR_OFFSET, FINAL_ROOT_SCALE } from './final-root-visual.js';
 import {
   LINK_ROOT_PALETTE, MUTED_ROOT_PALETTE, ROOT_PALETTE, clamp, paintRootCondition, paintRootTissue, pseudo, setTissueCull,
 } from './root-tissue.js';
@@ -98,6 +98,33 @@ const CEILING_REACH = 300;
 const CEILING_STEP = 36;
 // Espaço livre mínimo acima de uma plataforma que está embaixo de outra massa.
 const UNDER_HEADROOM = 170;
+
+// Superfície mínima acima do teto: a faixa de solo tem pelo menos 40 px
+// (topLimit) e o relevo do teto oscila ~16 px.
+const SURFACE_HEADROOM = 70;
+
+// SUPERFÍCIE DA FASE (colo das plantas). Parte do colo da raiz-objetivo, mas
+// sobe o quanto for preciso para o teto ficar a `clearance` do bloco mais alto
+// — os blocos nunca descem. Calculada uma vez por fase (e por alcance de pulo),
+// para não se mexer quando blocos crescem. Grava `goal.collarY`, e a raiz final
+// e a cinemática acompanham.
+export function rhizosphereSurfaceY(level, unlocks) {
+  const goal = level?.goal;
+  if (!goal || !Number.isFinite(Number(goal.y))) return null;
+  const clearance = CEILING_CLEARANCE + (unlocks?.doubleJump ? DOUBLE_JUMP_EXTRA : 0);
+  const memo = level.rhizosphereSurface;
+  if (memo && memo.clearance === clearance) return memo.y;
+  let top = Infinity;
+  for (const platform of level.platforms || []) {
+    if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
+    top = Math.min(top, Number(platform.y));
+  }
+  const base = Number(goal.y) + FINAL_ROOT_COLLAR_OFFSET;
+  const y = Number.isFinite(top) ? Math.min(base, top - clearance - SURFACE_HEADROOM) : base;
+  level.rhizosphereSurface = { clearance, y };
+  goal.collarY = y;
+  return y;
+}
 
 export function createRhizosphereGeometry({ state, painters }) {
   const { paintSoilTexture, soilPalette, rootPalette } = painters;
@@ -534,7 +561,7 @@ export function createRhizosphereGeometry({ state, painters }) {
 
   function surfaceLine(platforms) {
     const goal = state.level?.goal;
-    if (goal && Number.isFinite(Number(goal.y))) return finalRootCollar(goal).y;
+    if (goal && Number.isFinite(Number(goal.y))) return rhizosphereSurfaceY(state.level, state.campaign?.unlocks);
     let top = Infinity;
     for (const platform of platforms) top = Math.min(top, platform.y);
     return Number.isFinite(top) ? top - 360 : 0;

@@ -66,8 +66,26 @@ const branchWidthLocal = index => 24 - index * 2;
 export function finalRootCollar(goal) {
   return {
     x: Number(goal?.x) || 0,
-    y: (Number(goal?.y) || 0) + FINAL_ROOT_COLLAR_OFFSET,
+    // `collarY` é a superfície da fase quando ela precisou subir para dar
+    // espaço ao bloco mais alto (ver rhizosphereSurfaceY).
+    y: Number.isFinite(goal?.collarY) ? goal.collarY : (Number(goal?.y) || 0) + FINAL_ROOT_COLLAR_OFFSET,
   };
+}
+
+// Onde o desenho da raiz fica ancorado: sempre `goal.y + OFFSET`, para o córtex
+// luminoso continuar em cima do alvo. Quando a superfície (colo) sobe, o tronco
+// se estica do colo até aqui — a raiz não sobe junto.
+function finalRootAnchorY(goal) {
+  return (Number(goal?.y) || 0) + FINAL_ROOT_COLLAR_OFFSET;
+}
+
+// Trecho reto do colo até a âncora, em coordenadas locais (null se não há).
+function finalRootExtension(goal, scale) {
+  const gap = finalRootAnchorY(goal) - finalRootCollar(goal).y;
+  if (!(gap > 1)) return null;
+  const length = gap / scale;
+  const count = Math.max(2, Math.ceil(length / 40));
+  return Array.from({ length: count + 1 }, (_, i) => ({ x: 0, y: -length + length * i / count }));
 }
 
 /**
@@ -76,12 +94,13 @@ export function finalRootCollar(goal) {
  */
 export function finalRootBounds(goal, scale = FINAL_ROOT_SCALE) {
   const collar = finalRootCollar(goal);
+  const anchorY = Math.max(collar.y, finalRootAnchorY(goal));
   let minX = collar.x;
   let maxX = collar.x;
   let maxY = collar.y;
   const consider = point => {
     const x = collar.x + point.x * scale;
-    const y = collar.y + point.y * scale;
+    const y = anchorY + point.y * scale;
     if (x < minX) minX = x;
     if (x > maxX) maxX = x;
     if (y > maxY) maxY = y;
@@ -183,9 +202,9 @@ function traceTube(ctx, samples, widthAt) {
 
 // A raiz-objetivo com a MESMA textura celular das outras raízes (faixas do
 // autor: epiderme verde, camada cinza, córtex) e o brilho por cima.
-function drawTexturedMain(ctx, points, baseWidth) {
+function drawTexturedMain(ctx, points, baseWidth, taper = .62) {
   const samples = sampleSpline(points);
-  const widthAt = t => baseWidth * (1 - t * .62);
+  const widthAt = t => baseWidth * (1 - t * taper);
   ctx.save();
   traceTube(ctx, samples, widthAt);
   ctx.fillStyle = ROOT_PALETTE.innerBase;
@@ -273,12 +292,18 @@ export function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, 
   if (!goal) return false;
   const collar = finalRootCollar(goal);
   const glow = Math.max(0, Math.min(1, Number(pulse) || 0));
+  const extension = finalRootExtension(goal, scale);
 
   ctx.save();
-  ctx.translate(collar.x, collar.y);
+  ctx.translate(collar.x, Math.max(collar.y, finalRootAnchorY(goal)));
   ctx.scale(scale, scale);
 
   if (GEOMETRY_ENABLED) {
+    // Tronco do colo até a âncora, na largura do topo da raiz (sem afinar).
+    if (extension) {
+      drawTexturedMain(ctx, extension, MAIN_WIDTH_LOCAL, 0);
+      drawObjectiveGlow(ctx, extension, MAIN_WIDTH_LOCAL, glow * .6);
+    }
     FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => drawTexturedBranch(ctx, branch, branchWidthLocal(index)));
     drawTexturedMain(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL);
     FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => (
@@ -289,6 +314,7 @@ export function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, 
     FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => {
       drawRootPath(ctx, branch, branchWidthLocal(index), glow * 0.4);
     });
+    if (extension) drawRootPath(ctx, extension, MAIN_WIDTH_LOCAL, glow * 0.6);
     drawRootPath(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL, glow * 0.6);
   }
 
