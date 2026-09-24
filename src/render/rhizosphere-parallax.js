@@ -401,6 +401,7 @@ function drawTiledFilaments(
   const lastTile = Math.ceil((effectiveX + viewportWidth) / TILE_WIDTH) + 1;
   ctx.save();
   resetCanvasState(ctx);
+  ctx.globalAlpha = 0.33;
   ctx.translate(motion.x, cameraY + verticalOffset + motion.y);
   for (let tile = firstTile; tile <= lastTile; tile++) {
     const tileX = tile * TILE_WIDTH - effectiveX;
