@@ -28,8 +28,8 @@ motor atual.
   ~38–41 fps, sem diferença visível. São duas linhas a levar para a versão publicada.
 - **Menu de pausa → "Efeitos 2,5D" (tecla G):** desligado por padrão; ao ligar, o
   Three.js é baixado sob demanda e o jogo segue do mesmo ponto. Escolha salva no
-  navegador (`miguelito:vfx-25d`). Se o jogo rodar abaixo de **20 fps** por duas
-  janelas seguidas de 2 s (fora de pausa/cartões), volta sozinho ao 2D e avisa.
+  navegador (`miguelito:vfx-25d`). Sem desligamento automático por FPS (foi
+  testado e retirado: desligar sozinho no meio da partida atrapalhava).
   A "Luz e atmosfera" do 2D fica desativada enquanto o 2,5D estiver ligado.
 - O painel de calibração só aparece com `?painel=1` (e na demonstração publicada).
 - Testado e descartado: interceptar as chamadas do Canvas para mandar as imagens
