@@ -221,7 +221,36 @@ export function createRenderer({
     ctx.restore();
   }
 
-  function drawWorld() {
+  // Zona necrotica (liquido do fundo). Separada para o modo 2,5D poder
+  // desenha-la na camada do terreno, onde recebe brilho na superficie e
+  // escurece por camadas para baixo, como os blocos de solo.
+  function drawNecroticZone() {
+    const { cameraX, level } = state;
+    if (!level.hazards.length) return;
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const hazard of level.hazards) {
+      top = Math.min(top, hazard.y);
+      bottom = Math.max(bottom, hazard.y + hazard.h);
+    }
+    necroticView.cameraX = cameraX;
+    necroticView.cameraY = state.cameraY || 0;
+    necroticView.zoom = state.cameraZoom || 1;
+    necroticView.viewportWidth = canvas.width || W;
+    necroticView.viewportHeight = canvas.height || H;
+    necroticView.top = top;
+    necroticView.bottom = bottom;
+    necroticZone.render(ctx, necroticView);
+  }
+
+  function drawHazardsLayer() {
+    ctx.save();
+    ctx.translate(-(state.cameraX || 0), 0);
+    drawNecroticZone();
+    ctx.restore();
+  }
+
+  function drawWorld(options = {}) {
     const { time, cameraX, level } = state;
     const player = state.player;
     ctx.save();
@@ -244,22 +273,7 @@ export function createRenderer({
       // A geometria e colisao fisica em level.platforms permanecem 100% ativas para o personagem.
     });
 
-    if (level.hazards.length) {
-      let top = Infinity;
-      let bottom = -Infinity;
-      for (const hazard of level.hazards) {
-        top = Math.min(top, hazard.y);
-        bottom = Math.max(bottom, hazard.y + hazard.h);
-      }
-      necroticView.cameraX = cameraX;
-      necroticView.cameraY = state.cameraY || 0;
-      necroticView.zoom = state.cameraZoom || 1;
-      necroticView.viewportWidth = canvas.width || W;
-      necroticView.viewportHeight = canvas.height || H;
-      necroticView.top = top;
-      necroticView.bottom = bottom;
-      necroticZone.render(ctx, necroticView);
-    }
+    if (!options.skipHazards) drawNecroticZone();
 
     if (level.endX === undefined) {
       ctx.strokeStyle = '#cfaa72';
@@ -800,7 +814,7 @@ export function createRenderer({
   }
 
   return {
-    render, prepareFrame, drawBackground, drawWorld, drawPlayer,
+    render, prepareFrame, drawBackground, drawWorld, drawPlayer, drawHazardsLayer,
     necroticZone,
     rhizosphereBackdrop,
     parallaxBackground,

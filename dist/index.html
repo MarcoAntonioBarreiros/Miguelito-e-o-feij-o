@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"a80d8cf","subject":"Efeitos 2,5D no menu de pausa (tecla G): desligado por padrao, Three.js ","builtAt":"2026-10-17 20:54"};
+window.__BEANS_BUILD__ = {"commit":"8469853","subject":"2,5D: remove as hifas decorativas (a micorriza visivel e so a da simulac","builtAt":"2026-10-17 21:06"};
 (() => {
 'use strict';
 const __modules = {
@@ -2970,6 +2970,8 @@ function drawWorldLayers25D(layer) {
     layerSwitch.target(layer.bg);
     withCamera(layer.bg, () => renderer.drawBackground());
     layerSwitch.target(layer.terrain);
+    // o liquido do fundo vai junto com o solo: mesma luz por camadas
+    withCamera(layer.terrain, () => renderer.drawHazardsLayer());
     withCamera(layer.terrain, terrain => {
       phaseFinale.renderWorldLayer(terrain);
       sim.state.level.traversalDebugVisible = showDebug;
@@ -2977,7 +2979,7 @@ function drawWorldLayers25D(layer) {
     });
     layerSwitch.target(layer.fx);
     withCamera(layer.fx, fx => {
-      renderer.drawWorld();
+      renderer.drawWorld({ skipHazards: true });
       rhizoctoniaControl.render(fx);
       ralstoniaControl.render(fx);
       sim.pseudomonasSiderophores.renderDeposits(fx);
@@ -43670,7 +43672,36 @@ function createRenderer({
     ctx.restore();
   }
 
-  function drawWorld() {
+  // Zona necrotica (liquido do fundo). Separada para o modo 2,5D poder
+  // desenha-la na camada do terreno, onde recebe brilho na superficie e
+  // escurece por camadas para baixo, como os blocos de solo.
+  function drawNecroticZone() {
+    const { cameraX, level } = state;
+    if (!level.hazards.length) return;
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const hazard of level.hazards) {
+      top = Math.min(top, hazard.y);
+      bottom = Math.max(bottom, hazard.y + hazard.h);
+    }
+    necroticView.cameraX = cameraX;
+    necroticView.cameraY = state.cameraY || 0;
+    necroticView.zoom = state.cameraZoom || 1;
+    necroticView.viewportWidth = canvas.width || W;
+    necroticView.viewportHeight = canvas.height || H;
+    necroticView.top = top;
+    necroticView.bottom = bottom;
+    necroticZone.render(ctx, necroticView);
+  }
+
+  function drawHazardsLayer() {
+    ctx.save();
+    ctx.translate(-(state.cameraX || 0), 0);
+    drawNecroticZone();
+    ctx.restore();
+  }
+
+  function drawWorld(options = {}) {
     const { time, cameraX, level } = state;
     const player = state.player;
     ctx.save();
@@ -43693,22 +43724,7 @@ function createRenderer({
       // A geometria e colisao fisica em level.platforms permanecem 100% ativas para o personagem.
     });
 
-    if (level.hazards.length) {
-      let top = Infinity;
-      let bottom = -Infinity;
-      for (const hazard of level.hazards) {
-        top = Math.min(top, hazard.y);
-        bottom = Math.max(bottom, hazard.y + hazard.h);
-      }
-      necroticView.cameraX = cameraX;
-      necroticView.cameraY = state.cameraY || 0;
-      necroticView.zoom = state.cameraZoom || 1;
-      necroticView.viewportWidth = canvas.width || W;
-      necroticView.viewportHeight = canvas.height || H;
-      necroticView.top = top;
-      necroticView.bottom = bottom;
-      necroticZone.render(ctx, necroticView);
-    }
+    if (!options.skipHazards) drawNecroticZone();
 
     if (level.endX === undefined) {
       ctx.strokeStyle = '#cfaa72';
@@ -44249,7 +44265,7 @@ function createRenderer({
   }
 
   return {
-    render, prepareFrame, drawBackground, drawWorld, drawPlayer,
+    render, prepareFrame, drawBackground, drawWorld, drawPlayer, drawHazardsLayer,
     necroticZone,
     rhizosphereBackdrop,
     parallaxBackground,

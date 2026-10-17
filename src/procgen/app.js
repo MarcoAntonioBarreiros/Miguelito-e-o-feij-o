@@ -1910,6 +1910,8 @@ function drawWorldLayers25D(layer) {
     layerSwitch.target(layer.bg);
     withCamera(layer.bg, () => renderer.drawBackground());
     layerSwitch.target(layer.terrain);
+    // o liquido do fundo vai junto com o solo: mesma luz por camadas
+    withCamera(layer.terrain, () => renderer.drawHazardsLayer());
     withCamera(layer.terrain, terrain => {
       phaseFinale.renderWorldLayer(terrain);
       sim.state.level.traversalDebugVisible = showDebug;
@@ -1917,7 +1919,7 @@ function drawWorldLayers25D(layer) {
     });
     layerSwitch.target(layer.fx);
     withCamera(layer.fx, fx => {
-      renderer.drawWorld();
+      renderer.drawWorld({ skipHazards: true });
       rhizoctoniaControl.render(fx);
       ralstoniaControl.render(fx);
       sim.pseudomonasSiderophores.renderDeposits(fx);
