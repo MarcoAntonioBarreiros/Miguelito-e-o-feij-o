@@ -595,13 +595,14 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
 
   let W = 0, H = 0;
   // Resolucao da GPU (o canvas e esticado pelo CSS). O custo do 2,5D e por
-  // pixel: em GPU integrada 75% quase dobra o FPS sem perder muito detalhe.
+  // pixel; o painel permite reduzir para testar.
   let GW = 0, GH = 0;
   const glInfo = renderer.getContext();
   const dbgInfo = glInfo.getExtension('WEBGL_debug_renderer_info');
   const gpuName = dbgInfo ? glInfo.getParameter(dbgInfo.UNMASKED_RENDERER_WEBGL) : 'desconhecida';
   const integratedGpu = /intel|uhd|iris|arc\(tm\) graphics|microsoft basic|swiftshader|llvmpipe/i.test(gpuName);
-  let renderScale = integratedGpu ? .75 : 1;
+  // Resolucao cheia por padrao. So muda se for escolhida no painel (?painel=1).
+  let renderScale = 1;
   try { const v = Number(localStorage.getItem('miguelito:25d:scale')); if (v >= .4 && v <= 1) renderScale = v; } catch (_) {}
   let builtScale = renderScale;
   let layers = null;
