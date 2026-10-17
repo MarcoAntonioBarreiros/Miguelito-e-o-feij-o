@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#081718">
+  <title>Miguelito · Sob a superfície</title>
+  <base href="../../">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="experiments/rhizosphere-2-5d/style.css">
+  <script type="importmap">{"imports":{"three":"./experiments/rhizosphere-2-5d/vendor/three.module.js","three/addons/":"./experiments/rhizosphere-2-5d/vendor/addons/"}}</script>
+</head>
+<body>
+  <main id="app">
+    <div id="stage" aria-label="Cena interativa da rizosfera. Use A e D para andar e espaço para saltar."></div>
+    <div class="shade"></div>
+    <header><a class="brand" href="#"><span class="seed">m</span><span>MIGUELITO<small>ESTUDOS DA RIZOSFERA</small></span></a><div class="edition"><i></i> EXPERIMENTO VISUAL <b>01 / WEBGL</b></div></header>
+    <section class="intro"><div class="eyebrow">UM MUNDO VIVO, LOGO ABAIXO DOS NOSSOS PÉS</div><h1>Sob a<br><em>superfície.</em></h1><p>Raízes que procuram. Hifas que conectam.<br>Uma nova luz sobre o universo de Miguelito.</p><div class="tags"><span>ARTE ORIGINAL</span><span>FÍSICA ORIGINAL</span><span>THREE.JS</span></div></section>
+    <aside class="panel" aria-label="Controles visuais"><div class="panel-title">DIREÇÃO DE LUZ <span>AO VIVO</span></div><div class="presets"><button data-preset="cinema" class="active">Âmbar</button><button data-preset="moon">Lunar</button><button data-preset="bio">Biolume</button></div><label>Intensidade <input id="light" type="range" min="0.4" max="2" step="0.05" value="1"></label><label class="check"><span>Sombras dinâmicas</span><input id="shadows" type="checkbox" checked></label><label class="check"><span>Materiais / normal maps</span><input id="normals" type="checkbox" checked></label><label class="check"><span>Paralaxe / profundidade</span><input id="parallax" type="checkbox" checked></label><label class="check"><span>Partículas / atmosfera</span><input id="particles" type="checkbox" checked></label><button id="growth" class="grow">↗ &nbsp; Reiniciar crescimento <kbd>R</kbd></button><div class="panel-foot">FASE 04 · MICORRIZAS <span id="growth-readout">conectando…</span></div></aside>
+    <div class="world-note"><i></i><span>REDE MICORRÍZICA<small>Trocas invisíveis. Conexões essenciais.</small></span></div>
+    <div id="loading" role="status">Preparando a vida no solo…</div>
+    <footer><div class="keys"><span><kbd>A</kbd><kbd>D</kbd> mover</span><span><kbd>ESPAÇO</kbd> saltar</span><span><kbd>E</kbd> inocular</span><button id="pause"><kbd>P</kbd> pausar</button><button id="compare"><kbd>B</kbd> comparar luz</button></div><div class="stats"><span id="fps">— FPS</span><span id="draws">— draws</span><button id="quality">QUALIDADE ALTA ▾</button><button id="clean" title="Ocultar interface (H)">↗ CENA</button></div></footer>
+    <div class="touch"><button data-key="KeyA">←</button><button data-key="KeyD">→</button><button data-key="Space">↑</button><button data-key="KeyE">E</button></div>
+  </main>
+  <script type="module" src="experiments/rhizosphere-2-5d/scene.js"></script>
+</body>
+</html>

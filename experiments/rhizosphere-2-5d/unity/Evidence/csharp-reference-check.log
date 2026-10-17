@@ -1,0 +1,4 @@
+PASS: Runtime and editor C# sources compile against installed Unity 2022.3.44f1 managed assemblies and its Universal-2D template's cached URP assemblies.
+Scope: syntax, types and referenced managed API compatibility only.
+This is NOT a Unity Editor import, package resolution, shader compilation, player build or GPU render test.
+The actual Unity Editor batchmode attempt stopped at invalid licensing; see unity-batchmode-license.log.

@@ -1,0 +1,47 @@
+[
+  {
+    "asset": "Assets\\Resources\\Original\\backgrounds\\miguelito-rhizosphere.png",
+    "bytes": 3860550,
+    "sha256": "61e16495d0de23554aca6261880d6daa21968d8605a2a914824bb6797ef34d0c"
+  },
+  {
+    "asset": "Assets\\Resources\\Original\\miguelito\\celebrate.png",
+    "bytes": 669092,
+    "sha256": "adc4064b9dc686c9c6e1c41d1477b89850306b1c258afb571750b88aee45d16d"
+  },
+  {
+    "asset": "Assets\\Resources\\Original\\miguelito\\hurt.png",
+    "bytes": 688648,
+    "sha256": "0deda4ce7eafb0b460946da47ca051f7e02ab7c3afdfaeb67189da17ab17759f"
+  },
+  {
+    "asset": "Assets\\Resources\\Original\\miguelito\\idle.png",
+    "bytes": 353123,
+    "sha256": "e6cccdabc0262311ae667af9729ad8baa8b9600440d49721ce3d051a70135849"
+  },
+  {
+    "asset": "Assets\\Resources\\Original\\miguelito\\run.png",
+    "bytes": 767058,
+    "sha256": "331fdb9ba6c49693e6ef3996a837cfdb6aeabe430944c693fbb906a298228269"
+  },
+  {
+    "asset": "Assets\\Resources\\Original\\organisms\\micorriza.png",
+    "bytes": 3116092,
+    "sha256": "1b0d4300b3cdd570795135ff968c93bccda749915c82aa65ccedb688462e1093"
+  },
+  {
+    "asset": "Assets\\Resources\\Original\\organisms\\pseudomonas.png",
+    "bytes": 3850825,
+    "sha256": "8968c613fd2bcd3d0b07eb32ad7e6a5a2cbdf235f2b05e91012f9a1974439040"
+  },
+  {
+    "asset": "Assets\\Resources\\Original\\organisms\\rhizobium.png",
+    "bytes": 845989,
+    "sha256": "24fbd7d5e8096e846f23390bc461ffe13926aebcb036d93adef2b166b09b9950"
+  },
+  {
+    "asset": "Assets\\Resources\\Original\\organisms\\trichoderma.png",
+    "bytes": 974570,
+    "sha256": "97c264e790c17fc7f6f16101d068a3e73d50879b684be600761fc808d21d3d90"
+  }
+]

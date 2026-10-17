@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-17",
+  "editor": "2022.3.44f1",
+  "urpTarget": "14.0.11",
+  "csharpManagedReferenceCompilation": "passed",
+  "unityEditorImport": "blocked: invalid license",
+  "unityPlayerBuild": "not produced",
+  "unityGpuRender": "not executed",
+  "unityScreenshot": "not produced",
+  "unityFps": null,
+  "originalAssetByteIdentity": {
+    "checked": 9,
+    "identical": 9
+  },
+  "configuredScene": {
+    "animatedOriginalSpriteInstances": 5,
+    "rootAndHyphaRibbonMeshes": 47,
+    "pointsPerRibbon": 65,
+    "organicParticles": 95,
+    "shadowCaster2DObjects": 7,
+    "localLight2DObjects": 3,
+    "globalLight2DObjects": 1
+  },
+  "limitations": [
+    "Configured object counts are source-derived, not runtime measurements.",
+    "Roslyn reference compilation is not a Unity player build or shader test.",
+    "No mechanics, phase layout, procedural generator or microbiology systems were ported."
+  ]
+}

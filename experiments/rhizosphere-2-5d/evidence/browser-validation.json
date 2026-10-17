@@ -1,0 +1,150 @@
+{
+  "date": "2026-10-17",
+  "status": "passed",
+  "checks": [
+    "WebGL2 ready; phase 4 native bridge matures",
+    "original 32x48 collider; 109 native microbial agents",
+    "keyboard movement delegates to native physics",
+    "jump keyboard path works",
+    "pause freezes simulation",
+    "shadow and normal-map controls update scene",
+    "three light directions/palettes and flat-light comparison",
+    "low quality renders with smaller shadow map and no bloom",
+    "growth replay rebuilds native bridge and colliders",
+    "390x844 layout has touch controls, no horizontal overflow (desktop GPU emulation)"
+  ],
+  "errors": [],
+  "reports": {
+    "desktopHigh": {
+      "ready": true,
+      "errors": [],
+      "renderer": "Three.js r186 / WebGL2",
+      "assetFiles": [
+        "assets/miguelito/run.png",
+        "assets/miguelito/idle.png",
+        "assets/miguelito/hurt.png",
+        "assets/miguelito/celebrate.png",
+        "assets/organisms/rhizobium.png",
+        "assets/organisms/azospirillum.png",
+        "assets/organisms/ralstonia.png",
+        "assets/organisms/rhizoctonia.png",
+        "assets/organisms/micorriza.png",
+        "assets/organisms/oportunista.png",
+        "assets/organisms/pseudomonas.png",
+        "assets/organisms/nematoide.png",
+        "assets/organisms/trichoderma.png",
+        "assets/bacillus/bacillus.png"
+      ],
+      "adapter": "original createSimulator / phase 4",
+      "maxTextureSize": 16384,
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "pixelRatio": 1
+      },
+      "gpu": "ANGLE (Intel, Intel(R) Arc(TM) Graphics (0x00007D55) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "drawCalls": 264,
+      "triangles": 59298,
+      "gpuMemory": {
+        "geometries": 75,
+        "textures": 30
+      },
+      "meanFrameMs": 16.66644518272425,
+      "p95FrameMs": 16.80000000000109,
+      "meanFps": 60.00079735278875,
+      "quality": "high",
+      "cinematic": true,
+      "webgl": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0"
+    },
+    "desktopLow": {
+      "ready": true,
+      "errors": [],
+      "renderer": "Three.js r186 / WebGL2",
+      "assetFiles": [
+        "assets/miguelito/run.png",
+        "assets/miguelito/idle.png",
+        "assets/miguelito/hurt.png",
+        "assets/miguelito/celebrate.png",
+        "assets/organisms/rhizobium.png",
+        "assets/organisms/azospirillum.png",
+        "assets/organisms/ralstonia.png",
+        "assets/organisms/rhizoctonia.png",
+        "assets/organisms/micorriza.png",
+        "assets/organisms/oportunista.png",
+        "assets/organisms/pseudomonas.png",
+        "assets/organisms/nematoide.png",
+        "assets/organisms/trichoderma.png",
+        "assets/bacillus/bacillus.png"
+      ],
+      "adapter": "original createSimulator / phase 4",
+      "maxTextureSize": 16384,
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "pixelRatio": 1
+      },
+      "gpu": "ANGLE (Intel, Intel(R) Arc(TM) Graphics (0x00007D55) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "drawCalls": 259,
+      "triangles": 59549,
+      "gpuMemory": {
+        "geometries": 75,
+        "textures": 31
+      },
+      "meanFrameMs": 16.666999999999994,
+      "p95FrameMs": 16.80000000000291,
+      "meanFps": 59.99880002399954,
+      "quality": "low",
+      "cinematic": true,
+      "webgl": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0"
+    },
+    "mobileLayout": {
+      "ready": true,
+      "errors": [],
+      "renderer": "Three.js r186 / WebGL2",
+      "assetFiles": [
+        "assets/miguelito/run.png",
+        "assets/miguelito/idle.png",
+        "assets/miguelito/hurt.png",
+        "assets/miguelito/celebrate.png",
+        "assets/organisms/rhizobium.png",
+        "assets/organisms/azospirillum.png",
+        "assets/organisms/ralstonia.png",
+        "assets/organisms/rhizoctonia.png",
+        "assets/organisms/micorriza.png",
+        "assets/organisms/oportunista.png",
+        "assets/organisms/pseudomonas.png",
+        "assets/organisms/nematoide.png",
+        "assets/organisms/trichoderma.png",
+        "assets/bacillus/bacillus.png"
+      ],
+      "adapter": "original createSimulator / phase 4",
+      "maxTextureSize": 16384,
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "pixelRatio": 1
+      },
+      "gpu": "ANGLE (Intel, Intel(R) Arc(TM) Graphics (0x00007D55) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "drawCalls": 191,
+      "triangles": 29362,
+      "gpuMemory": {
+        "geometries": 75,
+        "textures": 31
+      },
+      "meanFrameMs": 16.722166666666666,
+      "p95FrameMs": 16.799999999999272,
+      "meanFps": 59.80086312579112,
+      "quality": "high",
+      "cinematic": true,
+      "webgl": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0"
+    }
+  },
+  "notes": [
+    "Frame intervals from requestAnimationFrame, including unclamped stalls; no isolated GPU timer.",
+    "5s samples after warmup; headless desktop Edge, Intel GPU. These are not physical mobile results.",
+    "Unity has no visual benchmark because license prevented Editor import/build."
+  ]
+}

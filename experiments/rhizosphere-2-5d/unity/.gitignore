@@ -1,0 +1,12 @@
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Ll]ogs/
+UserSettings/
+Builds/
+.vs/
+*.csproj
+*.sln
+
+# Copied locally from repository assets; never duplicate originals in this experiment.
+/Assets/Resources/Original/

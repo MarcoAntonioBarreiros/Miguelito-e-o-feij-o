@@ -1,0 +1,17 @@
+{
+  "name": "rhizosphere-2-5d",
+  "version": "1.0.0",
+  "description": "Rizosfera 2,5D experimental usando física e sprites originais",
+  "scripts": {
+    "start": "node server.cjs",
+    "test": "node --test simulation.test.mjs",
+    "vendor": "node prepare-vendor.cjs",
+    "postinstall": "node prepare-vendor.cjs"
+  },
+  "keywords": [],
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "dependencies": {
+    "three": "0.186.1"
+  }
+}
