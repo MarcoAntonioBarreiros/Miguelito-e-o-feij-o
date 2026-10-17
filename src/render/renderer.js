@@ -766,7 +766,10 @@ export function createRenderer({
     ctx.restore();
   }
 
-  function render() {
+  // Avanca o que e animado pelo relogio (zona necrotica, paralaxe biologica).
+  // Separado do desenho para o modo 2,5D, que desenha fundo e mundo em camadas
+  // diferentes; no 2D `render()` continua chamando os dois na mesma ordem.
+  function prepareFrame() {
     const necroticTime = Number.isFinite(state.time) ? state.time : lastNecroticTime;
     const necroticDt = necroticTime >= lastNecroticTime
       ? Math.min(.1, necroticTime - lastNecroticTime)
@@ -779,6 +782,10 @@ export function createRenderer({
     parallaxViewport.height = canvas.height || H;
     parallaxBackground.update(necroticDt, parallaxCamera, state.player);
     lastNecroticTime = necroticTime;
+  }
+
+  function render() {
+    prepareFrame();
     const sx = state.shake ? (Math.random() - .5) * state.shake * 24 : 0;
     const sy = state.shake ? (Math.random() - .5) * state.shake * 16 : 0;
     ctx.save();
@@ -792,7 +799,7 @@ export function createRenderer({
   }
 
   return {
-    render, drawBackground, drawWorld, drawPlayer,
+    render, prepareFrame, drawBackground, drawWorld, drawPlayer,
     necroticZone,
     rhizosphereBackdrop,
     parallaxBackground,

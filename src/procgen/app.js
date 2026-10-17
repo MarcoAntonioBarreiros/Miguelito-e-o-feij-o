@@ -47,6 +47,7 @@ import {
   createTutorialInputGate,
 } from './tutorial-pause.js';
 import { createRenderer } from '../render/renderer.js';
+import { createLayerSwitch, read25DPreference } from '../../experimental/2_5d/gl/layer-switch.js';
 import { BIOLOGICAL_PARALLAX_KEY } from '../render/rhizosphere-parallax.js';
 import { createPlatformVisuals } from './platform-visuals.js';
 import { createRhizosphereLighting, readLightingPreference } from '../render/rhizosphere-lighting.js';
@@ -91,6 +92,16 @@ import {
 const canvas = document.querySelector('canvas');
 const responsiveCanvas = createResponsiveCanvas({ canvas, windowObject: window });
 const ctx = canvas.getContext('2d');
+// EXPERIMENTAL (branch experimental/visual-2_5d): renderizador 2,5D em WebGL.
+// So existe com ?render=25d na URL. Sem o parametro nada abaixo roda e o jogo
+// desenha exatamente como na main. Com ele, o renderizador recebe um canvas
+// "comutavel" para que fundo, terreno e efeitos possam ir a camadas separadas;
+// o Three.js e carregado sob demanda e, se falhar, o 2D continua no comando.
+const render25DRequested = read25DPreference(window.location);
+const layerSwitch = render25DRequested ? createLayerSwitch(canvas) : null;
+let renderer25D = null;
+let render25DActive = render25DRequested;
+const load25DRenderer = () => import('../../experimental/2_5d/gl/renderer-25d.js');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
 const phaseCardDiv = document.getElementById('phase-card');
@@ -1366,7 +1377,7 @@ function initGame({ announce = false } = {}) {
   sim.resetBiology();
   ralstoniaControl.initialize();
   renderer = createRenderer({
-    canvas,
+    canvas: layerSwitch ? layerSwitch.canvas : canvas,
     state: sim.state,
     entities: sim.entities,
     parallaxSeed: seed || `campaign-phase-${campaign.phase}`,
@@ -1879,7 +1890,107 @@ function startFromTitle() {
   canvas.focus?.({ preventScroll: true });
 }
 
+// Mesma lista e mesma ordem de renderWorld, distribuida em tres camadas. O
+// que muda e so o destino de cada desenho: a luz, a sombra e a profundidade
+// passam a ser responsabilidade do renderizador 2,5D.
+function drawWorldLayers25D(layer) {
+  const withCamera = (target, draw) => {
+    target.save();
+    try { cameraView.apply(target); draw(target); } finally { target.restore(); }
+  };
+  try {
+    renderer.prepareFrame();
+    layerSwitch.target(layer.bg);
+    withCamera(layer.bg, () => renderer.drawBackground());
+    layerSwitch.target(layer.terrain);
+    withCamera(layer.terrain, terrain => {
+      phaseFinale.renderWorldLayer(terrain);
+      sim.state.level.traversalDebugVisible = showDebug;
+      platformVisuals.drawWorld(terrain);
+    });
+    layerSwitch.target(layer.fx);
+    withCamera(layer.fx, fx => {
+      renderer.drawWorld();
+      rhizoctoniaControl.render(fx);
+      ralstoniaControl.render(fx);
+      sim.pseudomonasSiderophores.renderDeposits(fx);
+      sim.ecology.render(fx);
+      sim.meloidogyneLifecycle.render(fx);
+      sim.beneficialInoculants.render(fx);
+      sim.pseudomonasSiderophores.render(fx);
+      sim.opportunisticFungus.render(fx);
+      sim.azospirillumRootGrowth.render(fx);
+      sim.rhizobiumNodulation.render(fx);
+      sim.nitrogenRootDevelopment.render(fx);
+      sim.trichodermaColonies.render(fx);
+      sim.trichoderma.render(fx);
+      trichodermaRhizoctoniaControl.render(fx);
+      trichodermaMeloidogyneControl.render(fx);
+      sim.mycorrhizaStructures.render(fx);
+      sim.mycorrhiza.render(fx);
+      sim.goal.render(fx);
+      sim.gameplay.render(fx);
+      sim.bacillusBioprotection.render(fx);
+      sim.phosphateSolubilization.render(fx);
+      fixedBlockRuntime.render(fx);
+      platformVisuals.renderLabel(fx);
+    });
+  } finally {
+    layerSwitch.target(null);
+  }
+}
+
+if (layerSwitch) {
+  // Exporta o terreno exatamente como o jogo o desenha, numa janela do mundo.
+  // Usado para levar a MESMA cena para a prova de conceito em Unity
+  // (experimental/2_5d/tools/export-scene.cjs). Nao altera a partida.
+  window.miguelitoExportTerrain = ({ x0, y0, width, height }) => {
+    const st = sim.state;
+    const keep = {
+      cameraX: st.cameraX, cameraY: st.cameraY,
+      visibleWorldWidth: st.visibleWorldWidth, visibleWorldHeight: st.visibleWorldHeight,
+    };
+    const off = document.createElement('canvas');
+    off.width = width;
+    off.height = height;
+    const octx = off.getContext('2d');
+    Object.assign(st, { cameraX: x0, cameraY: y0, visibleWorldWidth: width, visibleWorldHeight: height });
+    try {
+      octx.translate(0, -y0);
+      platformVisuals.drawWorld(octx);
+    } finally {
+      Object.assign(st, keep);
+    }
+    return off.toDataURL('image/png');
+  };
+  load25DRenderer().then(module => {
+    renderer25D = module.createRenderer25D({
+      mainCanvas: canvas,
+      state: sim.state,
+      getAgents: () => sim.ecology?.agents || null,
+      quality: new URLSearchParams(window.location.search).get('q') || 'high',
+    });
+    module.mount25DPanel?.({
+      renderer25D,
+      isActive: () => render25DActive,
+      setActive: value => { render25DActive = value; },
+    });
+    window.miguelito25D = renderer25D;
+    // Para comparar (e para os testes): true = 2,5D, false = 2D original.
+    window.miguelito25DMode = value => {
+      if (typeof value === 'boolean') render25DActive = value;
+      return render25DActive;
+    };
+  }).catch(error => {
+    console.error('[2,5D] o renderizador WebGL nao carregou; seguindo em 2D', error);
+  });
+}
+
 function renderWorld() {
+  if (renderer25D && render25DActive) {
+    renderer25D.renderFrame(drawWorldLayers25D);
+    return;
+  }
   // Limpeza defensiva em coordenadas de TELA, antes de qualquer zoom/camera:
   // garante que nenhum quadro residual sobreviva na faixa que o fundo do mundo
   // nao cobrir. Precisa vir ANTES de cameraView.apply — depois do zoom, um

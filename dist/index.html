@@ -1087,7 +1087,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"43ad377","subject":"Reverte a alteração no AGENTS.md","builtAt":"2026-09-24 15:28"};
+window.__BEANS_BUILD__ = {"commit":"f118a30","subject":"UI: menu de pausa, nomes dos organismos só antes da apresentação e retra","builtAt":"2026-10-17 16:33"};
 (() => {
 'use strict';
 const __modules = {
@@ -1121,6 +1121,7 @@ const { createBiologicalAudio } = __require("src/procgen/biological-audio.js");
 const { biologicalGroupsForProgress, VICTORY_AUDIO_FALLBACK_SECONDS } = __require("src/audio-manifest.js");
 const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");
 const { createRenderer } = __require("src/render/renderer.js");
+const { createLayerSwitch, read25DPreference } = __require("experimental/2_5d/gl/layer-switch.js");
 const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");
 const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");
 const { createRhizosphereLighting, readLightingPreference } = __require("src/render/rhizosphere-lighting.js");
@@ -1149,6 +1150,16 @@ const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo:
 const canvas = document.querySelector('canvas');
 const responsiveCanvas = createResponsiveCanvas({ canvas, windowObject: window });
 const ctx = canvas.getContext('2d');
+// EXPERIMENTAL (branch experimental/visual-2_5d): renderizador 2,5D em WebGL.
+// So existe com ?render=25d na URL. Sem o parametro nada abaixo roda e o jogo
+// desenha exatamente como na main. Com ele, o renderizador recebe um canvas
+// "comutavel" para que fundo, terreno e efeitos possam ir a camadas separadas;
+// o Three.js e carregado sob demanda e, se falhar, o 2D continua no comando.
+const render25DRequested = read25DPreference(window.location);
+const layerSwitch = render25DRequested ? createLayerSwitch(canvas) : null;
+let renderer25D = null;
+let render25DActive = render25DRequested;
+const load25DRenderer = () => import('../../experimental/2_5d/gl/renderer-25d.js');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
 const phaseCardDiv = document.getElementById('phase-card');
@@ -2424,7 +2435,7 @@ function initGame({ announce = false } = {}) {
   sim.resetBiology();
   ralstoniaControl.initialize();
   renderer = createRenderer({
-    canvas,
+    canvas: layerSwitch ? layerSwitch.canvas : canvas,
     state: sim.state,
     entities: sim.entities,
     parallaxSeed: seed || `campaign-phase-${campaign.phase}`,
@@ -2937,7 +2948,107 @@ function startFromTitle() {
   canvas.focus?.({ preventScroll: true });
 }
 
+// Mesma lista e mesma ordem de renderWorld, distribuida em tres camadas. O
+// que muda e so o destino de cada desenho: a luz, a sombra e a profundidade
+// passam a ser responsabilidade do renderizador 2,5D.
+function drawWorldLayers25D(layer) {
+  const withCamera = (target, draw) => {
+    target.save();
+    try { cameraView.apply(target); draw(target); } finally { target.restore(); }
+  };
+  try {
+    renderer.prepareFrame();
+    layerSwitch.target(layer.bg);
+    withCamera(layer.bg, () => renderer.drawBackground());
+    layerSwitch.target(layer.terrain);
+    withCamera(layer.terrain, terrain => {
+      phaseFinale.renderWorldLayer(terrain);
+      sim.state.level.traversalDebugVisible = showDebug;
+      platformVisuals.drawWorld(terrain);
+    });
+    layerSwitch.target(layer.fx);
+    withCamera(layer.fx, fx => {
+      renderer.drawWorld();
+      rhizoctoniaControl.render(fx);
+      ralstoniaControl.render(fx);
+      sim.pseudomonasSiderophores.renderDeposits(fx);
+      sim.ecology.render(fx);
+      sim.meloidogyneLifecycle.render(fx);
+      sim.beneficialInoculants.render(fx);
+      sim.pseudomonasSiderophores.render(fx);
+      sim.opportunisticFungus.render(fx);
+      sim.azospirillumRootGrowth.render(fx);
+      sim.rhizobiumNodulation.render(fx);
+      sim.nitrogenRootDevelopment.render(fx);
+      sim.trichodermaColonies.render(fx);
+      sim.trichoderma.render(fx);
+      trichodermaRhizoctoniaControl.render(fx);
+      trichodermaMeloidogyneControl.render(fx);
+      sim.mycorrhizaStructures.render(fx);
+      sim.mycorrhiza.render(fx);
+      sim.goal.render(fx);
+      sim.gameplay.render(fx);
+      sim.bacillusBioprotection.render(fx);
+      sim.phosphateSolubilization.render(fx);
+      fixedBlockRuntime.render(fx);
+      platformVisuals.renderLabel(fx);
+    });
+  } finally {
+    layerSwitch.target(null);
+  }
+}
+
+if (layerSwitch) {
+  // Exporta o terreno exatamente como o jogo o desenha, numa janela do mundo.
+  // Usado para levar a MESMA cena para a prova de conceito em Unity
+  // (experimental/2_5d/tools/export-scene.cjs). Nao altera a partida.
+  window.miguelitoExportTerrain = ({ x0, y0, width, height }) => {
+    const st = sim.state;
+    const keep = {
+      cameraX: st.cameraX, cameraY: st.cameraY,
+      visibleWorldWidth: st.visibleWorldWidth, visibleWorldHeight: st.visibleWorldHeight,
+    };
+    const off = document.createElement('canvas');
+    off.width = width;
+    off.height = height;
+    const octx = off.getContext('2d');
+    Object.assign(st, { cameraX: x0, cameraY: y0, visibleWorldWidth: width, visibleWorldHeight: height });
+    try {
+      octx.translate(0, -y0);
+      platformVisuals.drawWorld(octx);
+    } finally {
+      Object.assign(st, keep);
+    }
+    return off.toDataURL('image/png');
+  };
+  load25DRenderer().then(module => {
+    renderer25D = module.createRenderer25D({
+      mainCanvas: canvas,
+      state: sim.state,
+      getAgents: () => sim.ecology?.agents || null,
+      quality: new URLSearchParams(window.location.search).get('q') || 'high',
+    });
+    module.mount25DPanel?.({
+      renderer25D,
+      isActive: () => render25DActive,
+      setActive: value => { render25DActive = value; },
+    });
+    window.miguelito25D = renderer25D;
+    // Para comparar (e para os testes): true = 2,5D, false = 2D original.
+    window.miguelito25DMode = value => {
+      if (typeof value === 'boolean') render25DActive = value;
+      return render25DActive;
+    };
+  }).catch(error => {
+    console.error('[2,5D] o renderizador WebGL nao carregou; seguindo em 2D', error);
+  });
+}
+
 function renderWorld() {
+  if (renderer25D && render25DActive) {
+    renderer25D.renderFrame(drawWorldLayers25D);
+    return;
+  }
   // Limpeza defensiva em coordenadas de TELA, antes de qualquer zoom/camera:
   // garante que nenhum quadro residual sobreviva na faixa que o fundo do mundo
   // nao cobrir. Precisa vir ANTES de cameraView.apply — depois do zoom, um
@@ -43934,7 +44045,10 @@ function createRenderer({
     ctx.restore();
   }
 
-  function render() {
+  // Avanca o que e animado pelo relogio (zona necrotica, paralaxe biologica).
+  // Separado do desenho para o modo 2,5D, que desenha fundo e mundo em camadas
+  // diferentes; no 2D `render()` continua chamando os dois na mesma ordem.
+  function prepareFrame() {
     const necroticTime = Number.isFinite(state.time) ? state.time : lastNecroticTime;
     const necroticDt = necroticTime >= lastNecroticTime
       ? Math.min(.1, necroticTime - lastNecroticTime)
@@ -43947,6 +44061,10 @@ function createRenderer({
     parallaxViewport.height = canvas.height || H;
     parallaxBackground.update(necroticDt, parallaxCamera, state.player);
     lastNecroticTime = necroticTime;
+  }
+
+  function render() {
+    prepareFrame();
     const sx = state.shake ? (Math.random() - .5) * state.shake * 24 : 0;
     const sy = state.shake ? (Math.random() - .5) * state.shake * 16 : 0;
     ctx.save();
@@ -43960,7 +44078,7 @@ function createRenderer({
   }
 
   return {
-    render, drawBackground, drawWorld, drawPlayer,
+    render, prepareFrame, drawBackground, drawWorld, drawPlayer,
     necroticZone,
     rhizosphereBackdrop,
     parallaxBackground,
@@ -45618,6 +45736,79 @@ function createRhizosphereParallax({
   };
 }
 Object.assign(__exports, { BIOLOGICAL_PARALLAX_KEY, RHIZOSPHERE_PARALLAX_FACTORS, calculateFilamentGeometry, createRhizosphereParallax });
+},
+"experimental/2_5d/gl/layer-switch.js": (__exports, __require) => {
+// Comutador de camadas para o modo 2,5D (sem dependencia de Three.js).
+//
+// O renderizador do jogo (`createRenderer`) guarda o contexto 2D que recebe ao
+// nascer e desenha sempre nele. No modo 2,5D cada parte do quadro precisa ir
+// para uma camada diferente — fundo, terreno, efeitos — porque cada uma recebe
+// um tratamento de luz e profundidade proprio na GPU.
+//
+// Em vez de mexer no renderizador, ele recebe um canvas cujo contexto e um
+// "desvio": cada chamada vai para o contexto que estiver selecionado no
+// momento. Sem modo 2,5D o alvo e o contexto real, e o jogo desenha
+// exatamente como sempre.
+//
+// Este arquivo e importado estaticamente por app.js; o Three.js so e carregado
+// (import dinamico) quando `?render=25d` esta na URL.
+
+function read25DPreference(locationLike) {
+  try {
+    const params = new URLSearchParams(locationLike?.search || '');
+    const value = (params.get('render') || '').toLowerCase();
+    return value === '25d' || value === '2.5d' || value === '2,5d';
+  } catch (_) {
+    return false;
+  }
+}
+
+function createLayerSwitch(canvas) {
+  const realCtx = canvas.getContext('2d');
+  let target = realCtx;
+  const bound = new WeakMap();
+
+  function boundFor(ctx, prop, fn) {
+    let map = bound.get(ctx);
+    if (!map) { map = new Map(); bound.set(ctx, map); }
+    let f = map.get(prop);
+    if (!f) { f = fn.bind(ctx); map.set(prop, f); }
+    return f;
+  }
+
+  const ctx = new Proxy({}, {
+    get(_, prop) {
+      const value = target[prop];
+      return typeof value === 'function' ? boundFor(target, prop, value) : value;
+    },
+    set(_, prop, value) {
+      target[prop] = value;
+      return true;
+    },
+    has(_, prop) { return prop in target; },
+  });
+
+  const proxyCanvas = new Proxy(canvas, {
+    get(real, prop) {
+      if (prop === 'getContext') return () => ctx;
+      const value = real[prop];
+      return typeof value === 'function' ? value.bind(real) : value;
+    },
+    set(real, prop, value) {
+      real[prop] = value;
+      return true;
+    },
+  });
+
+  return {
+    canvas: proxyCanvas,
+    ctx,
+    realCtx,
+    /** Seleciona o contexto que recebe as proximas chamadas (null = real). */
+    target(next) { target = next || realCtx; },
+  };
+}
+Object.assign(__exports, { read25DPreference, createLayerSwitch });
 },
 "src/render/rhizosphere-lighting.js": (__exports, __require) => {
 // Iluminação e atmosfera da rizosfera.
