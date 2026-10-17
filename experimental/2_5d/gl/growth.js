@@ -89,6 +89,7 @@ uniform float uZ;
 uniform float uDim;
 uniform float uOpacity;
 uniform float uDesat;
+uniform float uLightGain;
 varying vec2 vWorld;
 varying float vAcross;
 varying float vAlong;
@@ -132,8 +133,11 @@ void main() {
   }
   vec3 rim;
   vec3 wp = vec3(vWorld, 0.0);
-  vec3 light = accumulateLight(wp, N, .45, spec, rim);
-  vec3 col = albedo * (uAmbient * 1.6 + light) + rim * albedo * .9 + albedo * emis;
+  vec3 light = accumulateLight(wp, N, .45, spec, rim) * uLightGain;
+  // camadas de tras recebem menos luz das fontes (que estao perto do plano do
+  // jogo) e menos ambiente: a diferenca de valor entre planos e o que le
+  // como profundidade, mais que o movimento
+  vec3 col = albedo * (uAmbient * mix(.9, 1.6, uLightGain) + light) + rim * albedo * .9 * uLightGain + albedo * emis;
   col *= uDim;
   // longe, a cor perde saturacao antes de sumir na nevoa (perspectiva aerea)
   float gray = dot(col, vec3(.2126, .7152, .0722));
@@ -141,7 +145,7 @@ void main() {
   gl_FragColor = vec4(col, cover * uOpacity);
 }`;
 
-export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1, opacity = 1, thicken = .6, follow = 0, desat = 0 }) {
+export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1, opacity = 1, thicken = .6, follow = 0, desat = 0, lightGain = 1 }) {
   const cap = maxSegments;
   const geom = new THREE.BufferGeometry();
   const aA = new Float32Array(cap * 4 * 2);
@@ -178,6 +182,7 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
       uCamDelta: { value: new THREE.Vector2() },
       uFollow: { value: follow },
       uDesat: { value: desat },
+      uLightGain: { value: lightGain },
       uRootColor: { value: new THREE.Color('#cfaa72').convertSRGBToLinear() },
       uHyphaColor: { value: new THREE.Color('#d9c8ee').convertSRGBToLinear() },
     },

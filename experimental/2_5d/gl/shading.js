@@ -49,7 +49,9 @@ uniform float uLightingOn;
 uniform float uShadowsOn;
 
 float shadowFor(float slotPlusOne, vec2 suv) {
-  if (slotPlusOne < .5 || uShadowsOn < .5) return 1.0;
+  // o passe de visibilidade roda sempre: sem "Sombras" ele so calcula a luz
+  // entrando no volume do solo (sem sombra projetada)
+  if (slotPlusOne < .5) return 1.0;
   vec4 v = texture(uVis, suv);
   int s = int(slotPlusOne + .5) - 1;
   return s == 0 ? v.r : s == 1 ? v.g : s == 2 ? v.b : v.a;
@@ -65,11 +67,19 @@ vec3 accumulateLightAt(vec3 wp, vec3 N, float wrap, float spec, vec2 suv, out ve
     vec4 lc = uLightCol[i];
     vec3 L = lp.xyz - wp;
     float d = length(L);
-    if (d > lp.w) continue;
+    // raio negativo = foco apontado para baixo (feixe da superficie), como o
+    // Spot Light 2D da cena Unity: cone de 58 graus com miolo de 18. Fora do
+    // cone fica escuro; e esse contraste que separa as camadas.
+    float radius = abs(lp.w);
+    if (d > radius) continue;
     vec3 l = L / max(d, 1e-3);
-    float q = d / lp.w;
+    float q = d / radius;
     float att = 1.0 - q * q;
     att *= att;
+    if (lp.w < 0.0) {
+      float cy = L.y / max(length(L.xy), 1e-3);
+      att *= smoothstep(.875, .988, cy);
+    }
     float ndl = dot(N, l);
     float diff = clamp((ndl + wrap) / (1.0 + wrap), 0.0, 1.0);
     float sh = shadowFor(lc.w, suv);

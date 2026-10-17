@@ -21,6 +21,11 @@ import { createGrowthLayer, hashString } from './growth.js';
 import { createParticleField } from './particles.js';
 
 const FOV = 32;
+// Padrao = valores calibrados pelo Marco no painel (17/10/2026), mais o
+// gradiente de luz dentro do solo (novo).
+export const DEFAULT_TUNING = {
+  exposure: 1.1, ambient: 1.4, lights: 1.95, spriteLight: .55, rim: 1.9, soil: 1, bloom: 1.15, shafts: 2.1, fog: .6,
+};
 const TAU = Math.PI * 2;
 
 // ---------------------------------------------------------------- shaders
@@ -48,6 +53,7 @@ uniform float uAO;
 uniform float uBrightness;
 uniform float uRim;
 uniform float uGlow;
+uniform float uSky;        // terreno: quanto escurece com a terra acima do pixel
 varying vec2 vUv;
 
 float heightAt(vec2 p) {
@@ -72,6 +78,20 @@ void main() {
   // oclusao de cavidade: o miolo do volume recebe menos luz ambiente que a borda
   float dome = textureLod(uMap, vUv, uLodVolume + 1.0).a;
   float ao = mix(1.0, mix(.55, 1.0, 1.0 - dome * dome), uAO);
+  // Profundidade dentro do bloco: terra acima do pixel (amostras para cima na
+  // propria camada). A borda de cima fica clara e o miolo/baixo escurece, como
+  // a luz da cena Unity entrando pela superficie do torrao.
+  if (uSky > 0.0) {
+    float above = 0.0;
+    for (int k = 1; k <= 6; k++) {
+      above += textureLod(uMap, vUv + vec2(0.0, .018 * float(k)), 2.0).a;
+    }
+    float cover = above / 6.0;
+    float sky = mix(1.0, .28, smoothstep(.15, 1.0, cover) * uSky);
+    ao *= sky;
+    light *= mix(1.0, sky, .8);
+    rim *= sky;
+  }
   vec3 lit = albedo * (uAmbient * ao + light) + rim * albedo * uRim;
   vec3 col = mix(albedo * uBrightness, lit, uLit * uLightingOn);
   // o que o jogo desenhou como brilho (exsudato, halo, aura) continua emitindo
@@ -148,6 +168,8 @@ uniform float uAspect;
 uniform float uTime;
 varying vec2 vUv;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime * 3.1) * 43758.5453); }
+uniform float uCast;       // 1 = sombra projetada ligada; 0 = so a luz dentro do solo
+uniform float uSoil;       // quanto a luz se apaga ao atravessar o solo
 float march(vec4 s) {
   if (s.w < .5) return 1.0;
   vec2 d = s.xy - vUv;
@@ -155,25 +177,44 @@ float march(vec4 s) {
   float len = length(da);
   if (len < .004) return 1.0;
   float reach = min(len, s.z);
-  vec2 dir = d / len;
-  const int STEPS = 22;
+  vec2 dir = da / len / vec2(uAspect, 1.0);   // passo unitario em altura de tela
   float jitter = hash(vUv);
+
+  // 1. Luz dentro do bloco de solo: quanto mais terra entre o pixel e a borda
+  // virada para a luz, mais escuro. Gradiente continuo (sem a faixa dura que a
+  // sombra do proprio bloco fazia), e independe da opcao "Sombras".
+  float start = .004;
+  float soil = 1.0;
+  if (textureLod(uOcc, vUv, 0.0).r > .5) {
+    const int IS = 14;
+    const float ST = .012;
+    float depth = 0.0;
+    for (int k = 0; k < IS; k++) {
+      float f = ST * (float(k) + jitter);
+      if (f > reach) break;
+      vec2 p = vUv + dir * f;
+      if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) break;
+      if (textureLod(uOcc, p, 1.0).r < .35) break;
+      depth = f;
+    }
+    if (depth >= ST * float(IS - 1)) depth = .3;   // miolo de bloco grande
+    soil = exp(-depth * uSoil);
+    start = depth + ST;
+  }
+  if (uCast < .5) return mix(.12, 1.0, soil);
+
+  // 2. Sombra projetada pelo que estiver entre a borda e a luz
+  const int STEPS = 22;
   float t = 1.0;
-  float start = .006;
-  // Um pixel DENTRO do terreno nao se sombreia com o proprio bloco: so conta
-  // oclusor depois que o raio sai dele. Sem isso a massa de solo escurecia por
-  // dentro e criava a faixa de "sobreposicao" sob a superficie.
-  bool inside = textureLod(uOcc, vUv, 0.0).r > .5;
   for (int k = 0; k < STEPS; k++) {
     float f = start + (reach - start) * (float(k) + jitter) / float(STEPS);
     vec2 p = vUv + dir * f;
     if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) break;
     vec2 o = textureLod(uOcc, p, 1.0).rg;
-    if (inside) { if (o.r < .35) inside = false; else continue; }
     float a = o.r + (s.w > 1.5 ? o.g : 0.0);
     t *= 1.0 - clamp(a, 0.0, 1.0) * .2;
   }
-  return mix(.08, 1.0, t);
+  return mix(.12, 1.0, soil) * mix(.08, 1.0, t);
 }
 void main() {
   gl_FragColor = vec4(march(uSlot[0]), march(uSlot[1]), march(uSlot[2]), march(uSlot[3]));
@@ -488,6 +529,16 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   const fsCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
   let W = 0, H = 0;
+  // Resolucao da GPU (o canvas e esticado pelo CSS). O custo do 2,5D e por
+  // pixel: em GPU integrada 75% quase dobra o FPS sem perder muito detalhe.
+  let GW = 0, GH = 0;
+  const glInfo = renderer.getContext();
+  const dbgInfo = glInfo.getExtension('WEBGL_debug_renderer_info');
+  const gpuName = dbgInfo ? glInfo.getParameter(dbgInfo.UNMASKED_RENDERER_WEBGL) : 'desconhecida';
+  const integratedGpu = /intel|uhd|iris|arc\(tm\) graphics|microsoft basic|swiftshader|llvmpipe/i.test(gpuName);
+  let renderScale = integratedGpu ? .75 : 1;
+  try { const v = Number(localStorage.getItem('miguelito:25d:scale')); if (v >= .4 && v <= 1) renderScale = v; } catch (_) {}
+  let builtScale = renderScale;
   let layers = null;
   let rt = null;
   let bloom = null;
@@ -498,7 +549,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   // Controles finos (painel). Padrao entre a 1a versao (luz viva, estourava)
   // e a 2a (cor fiel, mas apagada).
   const tuning = {
-    exposure: 1.1, ambient: 1, lights: 1.15, bloom: .5, shafts: 1, rim: 1.2, fog: 1, spriteLight: 1,
+    ...DEFAULT_TUNING,
   };
   try { Object.assign(tuning, JSON.parse(localStorage.getItem('miguelito:25d:tuning') || '{}')); } catch (_) {}
 
@@ -540,6 +591,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
         uBrightness: { value: o.brightness ?? 1 },
         uRim: { value: o.rim ?? .6 },
         uGlow: { value: o.glow ?? 0 },
+        uSky: { value: o.sky ?? 0 },
       },
       vertexShader: SCREEN_VERT,
       fragmentShader: LAYER_FRAG,
@@ -562,23 +614,25 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     rt?.scene.dispose(); rt?.occ.dispose(); rt?.vis.dispose(); rt?.vol.dispose(); rt?.volB.dispose();
     const hdr = { type: THREE.HalfFloatType, depthBuffer: false };
     rt = {
-      scene: new THREE.WebGLRenderTarget(W, H, hdr),
-      occ: new THREE.WebGLRenderTarget(W >> 1, H >> 1, {
+      scene: new THREE.WebGLRenderTarget(GW, GH, hdr),
+      occ: new THREE.WebGLRenderTarget(GW >> 1, GH >> 1, {
         depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter,
       }),
-      vis: new THREE.WebGLRenderTarget(W >> 1, H >> 1, { depthBuffer: false }),
-      vol: new THREE.WebGLRenderTarget(W >> 1, H >> 1, { depthBuffer: false, type: THREE.HalfFloatType }),
-      volB: new THREE.WebGLRenderTarget(W >> 1, H >> 1, { depthBuffer: false, type: THREE.HalfFloatType }),
+      vis: new THREE.WebGLRenderTarget(GW >> 1, GH >> 1, { depthBuffer: false }),
+      vol: new THREE.WebGLRenderTarget(GW >> 1, GH >> 1, { depthBuffer: false, type: THREE.HalfFloatType }),
+      volB: new THREE.WebGLRenderTarget(GW >> 1, GH >> 1, { depthBuffer: false, type: THREE.HalfFloatType }),
     };
     shared.uVis.value = rt.vis.texture;
-    shared.uResolution.value.set(W, H);
+    shared.uResolution.value.set(GW, GH);
     bloom?.dispose?.();
-    bloom = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), .5, .4, 1.0);
+    bloom = new THREE.UnrealBloomPass(new THREE.Vector2(GW, GH), .5, .4, 1.0);
   }
 
   function rebuild() {
     W = mainCanvas.width; H = mainCanvas.height;
-    renderer.setSize(W, H, false);
+    builtScale = renderScale;
+    GW = Math.max(2, Math.round(W * renderScale)); GH = Math.max(2, Math.round(H * renderScale));
+    renderer.setSize(GW, GH, false);
     camera.aspect = W / H;
     for (const m of Object.values(meshes)) { scene.remove(m); occScene.remove(m); }
     layers = buildLayers();
@@ -587,7 +641,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     }));
     meshes.bg.material.uniforms.uTexel.value.set(1 / layers.bg.canvas.width, 1 / layers.bg.canvas.height);
     meshes.terrain = screenMesh(layerMaterial(layers.terrain.tex, {
-      depth: 0, lit: 1, volume: 1, detail: .35, gain: 7, lodVolume: 2.6, wrap: .25, spec: .35, ao: .9, rim: .9,
+      depth: 0, lit: 1, volume: 1, detail: .35, gain: 7, lodVolume: 2.6, wrap: .25, spec: .35, ao: .9, rim: .9, sky: 1,
     }));
     meshes.fx = screenMesh(layerMaterial(layers.fx.tex, {
       depth: 0, lit: .6, volume: .35, detail: .2, gain: 3, lodVolume: 2.0, wrap: .7, spec: .3, rim: .5, glow: .7,
@@ -616,7 +670,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   const visPass = new THREE.FullScreenQuad(new THREE.ShaderMaterial({
     uniforms: {
       uOcc: { value: null }, uSlot: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
-      uAspect: { value: 16 / 9 }, uTime: { value: 0 },
+      uAspect: { value: 16 / 9 }, uTime: { value: 0 }, uCast: { value: 1 }, uSoil: { value: 9 },
     },
     vertexShader: SCREEN_VERT, fragmentShader: VIS_FRAG,
   }));
@@ -667,8 +721,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     // (Rizosfera25DBootstrap.cs): fundo segue 35% da camera, intermediario 18%,
     // tom .2/.34 e dessaturacao .55/.35. Desenhados no plano do jogo, sem a
     // compressao da perspectiva.
-    const far = createGrowthLayer({ shared, z: -340, seed: seed ^ 0x51, dim: .2, desat: .55, follow: .35, opacity: 1, maxSegments: 14000 });
-    const mid = createGrowthLayer({ shared, z: -130, seed: seed ^ 0x77, dim: .34, desat: .35, follow: .18, opacity: 1, maxSegments: 12000 });
+    const far = createGrowthLayer({ shared, z: -340, seed: seed ^ 0x51, dim: .28, desat: .55, follow: .35, opacity: 1, maxSegments: 14000, lightGain: .5 });
+    const mid = createGrowthLayer({ shared, z: -130, seed: seed ^ 0x77, dim: .5, desat: .35, follow: .18, opacity: 1, maxSegments: 12000, lightGain: .78 });
     const hyph = createGrowthLayer({ shared, z: -20, seed: seed ^ 0x99, dim: .9, opacity: .45, maxSegments: 16000, thicken: 0 });
     far.mesh.renderOrder = 5; mid.mesh.renderOrder = 12; hyph.mesh.renderOrder = 25;
     growth.push(far, mid, hyph);
@@ -715,9 +769,9 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
 
   // ---- luzes ------------------------------------------------------------
   const lights = [];
-  function pushLight(x, y, z, r, cr, cg, cb, i, slot = 0, key = 0) {
+  function pushLight(x, y, z, r, cr, cg, cb, i, slot = 0, key = 0, spot = false) {
     i *= tuning.lights;
-    lights.push({ x, y, z, r, cr: cr * i, cg: cg * i, cb: cb * i, slot, key });
+    lights.push({ x, y, z, r, cr: cr * i, cg: cg * i, cb: cb * i, slot, key, spot });
   }
 
   const NIGHT_AMBIENT = shared.uAmbient.value.clone();
@@ -748,7 +802,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     const sourceY = Math.min(topY - 700, camCY * -1 - visH * .5 - visH * .45);
     shafts.forEach((s, i) => {
       const flick = .92 + .08 * Math.sin(time * .7 + s.x);
-      pushLight(s.x, -sourceY, 320, 2300, .55, .82, 1.0, 1.9 * flick, i < 2 ? i + 1 : 0, 100);
+      pushLight(s.x, -sourceY, 320, 2300, .55, .82, 1.0, 1.9 * flick, i < 2 ? i + 1 : 0, 100, true);
     });
     if (player) {
       const px = player.x + player.w / 2, py = player.y + player.h * .35;
@@ -796,7 +850,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       const L = lights[i];
       if (!L || i >= n) continue;
       shared.uLightPos.value[i].set(L.x, L.y, L.z, L.r);
-      shared.uLightCol.value[i].set(L.cr, L.cg, L.cb, settings.shadows ? L.slot : 0);
+      shared.uLightPos.value[i].w = L.spot ? -L.r : L.r;
+      shared.uLightCol.value[i].set(L.cr, L.cg, L.cb, settings.lighting ? L.slot : 0);
     }
     return lights.slice(0, n);
   }
@@ -817,7 +872,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
    */
   function renderFrame(drawLayers) {
     const t0 = performance.now();
-    if (!layers || mainCanvas.width !== W || mainCanvas.height !== H) rebuild();
+    if (!layers || mainCanvas.width !== W || mainCanvas.height !== H || builtScale !== renderScale) rebuild();
     if (state.level !== lastLevel || (state.level?.seed !== undefined && growthSeed === null)) {
       lastLevel = state.level;
       setupGrowth(state.level);
@@ -876,7 +931,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     const camDX = cx - camAnchor.x, camDY = cy - camAnchor.y;
     for (const g of growth) {
       // 1 px de tela no plano z da camada
-      g.setPixelSize(visH / H);
+      g.setPixelSize(visH / GH);
       g.setCamDelta(camDX, camDY);
       g.mesh.visible = settings.growth;
       // a regiao visivel da camada esta deslocada pelo proprio fator de paralaxe
@@ -884,7 +939,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       if (settings.growth) g.step(dtReal, time, { x0: lx - visW * 1.2, x1: lx + visW * 1.2 });
       segs += g.segments;
     }
-    for (const p of particles) { p.points.visible = settings.particles; p.update(camera, H); }
+    for (const p of particles) { p.points.visible = settings.particles; p.update(camera, GH); }
 
     // 5. luzes
     const active = collectLights(time, cx, cy, visW, visH);
@@ -893,6 +948,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     meshes.bg.material.uniforms.uLodBlur.value = .3 * (1 - daylight);
     meshes.bg.material.uniforms.uDepth.value = -420 * (1 - daylight) - 1;
     meshes.terrain.material.uniforms.uRim.value = tuning.rim * (1 - .85 * daylight);
+    meshes.terrain.material.uniforms.uSky.value = tuning.soil * (1 - .7 * daylight);
     const toUv = (x, y) => [ (x - camX) / visW, 1 - ((-y) - camY) / visH ];
 
     // 6. oclusao (terreno + sprites) em meia resolucao
@@ -914,6 +970,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     visPass.material.uniforms.uOcc.value = rt.occ.texture;
     visPass.material.uniforms.uAspect.value = W / H;
     visPass.material.uniforms.uTime.value = time;
+    visPass.material.uniforms.uCast.value = settings.shadows ? 1 : 0;
+    visPass.material.uniforms.uSoil.value = 9 * tuning.soil;
     renderer.setRenderTarget(rt.vis);
     visPass.render(renderer);
 
@@ -931,7 +989,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       renderer.setRenderTarget(rt.vol);
       volPass.render(renderer);
       // desfoque separavel em dois passes (meia resolucao)
-      const bw = 1.5 / (W >> 1), bh = 1.5 / (H >> 1);
+      const bw = 1.5 / (GW >> 1), bh = 1.5 / (GH >> 1);
       blurPass.material.uniforms.uSrc.value = rt.vol.texture;
       blurPass.material.uniforms.uDir.value.set(bw, 0);
       renderer.setRenderTarget(rt.volB);
@@ -984,9 +1042,6 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     if (fpsAcc > .5) { stats.fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
   }
 
-  const gl = renderer.getContext();
-  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-  const gpuName = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'desconhecida';
 
   return {
     renderFrame,
@@ -995,6 +1050,12 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     saveTuning() { try { localStorage.setItem('miguelito:25d:tuning', JSON.stringify(tuning)); } catch (_) {} },
     setVisible,
     gpuName,
+    integratedGpu,
+    get renderScale() { return renderScale; },
+    setRenderScale(v) {
+      renderScale = Math.min(1, Math.max(.4, Number(v) || 1));
+      try { localStorage.setItem('miguelito:25d:scale', String(renderScale)); } catch (_) {}
+    },
     stats,
     renderer,
     toggle(name) { if (name in settings) settings[name] = !settings[name]; return settings[name]; },
@@ -1015,13 +1076,14 @@ const PANEL_ITEMS = [
 ];
 
 const PANEL_SLIDERS = [
-  ['exposure', 'Exposição', .5, 1.8, .05],
-  ['ambient', 'Luz ambiente', 0, 2.5, .05],
-  ['lights', 'Intensidade das luzes', 0, 2.5, .05],
+  ['exposure', 'Exposição', .5, 2.5, .05],
+  ['ambient', 'Luz ambiente', 0, 3, .05],
+  ['lights', 'Intensidade das luzes', 0, 4, .05],
   ['spriteLight', 'Luz nos sprites', 0, 2, .05],
-  ['rim', 'Contorno do terreno', 0, 2.5, .05],
-  ['bloom', 'Bloom', 0, 1.5, .05],
-  ['shafts', 'Feixes', 0, 2.5, .05],
+  ['rim', 'Contorno do terreno', 0, 4, .05],
+  ['soil', 'Luz entrando no solo', 0, 3, .05],
+  ['bloom', 'Bloom', 0, 2.5, .05],
+  ['shafts', 'Feixes', 0, 4, .05],
   ['fog', 'Névoa de profundidade', 0, 3, .05],
 ];
 
@@ -1086,6 +1148,15 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
           <option value="10">10 · Ralstonia</option>
         </select>
       </label>
+      <label class="phase">Resolução da GPU
+        <select data-scale>
+          <option value="1">100%</option>
+          <option value="0.85">85%</option>
+          <option value="0.75">75%</option>
+          <option value="0.6">60%</option>
+          <option value="0.5">50%</option>
+        </select>
+      </label>
       <div class="toggles"></div>
       <details><summary>Calibrar luz</summary>
         <div class="sliders"></div>
@@ -1124,7 +1195,6 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
   }
 
   const defaults = { ...renderer25D.tuning };
-  const DEFAULT_TUNING = { exposure: 1.1, ambient: 1, lights: 1.15, bloom: .5, shafts: 1, rim: 1.2, fog: 1, spriteLight: 1 };
   const sliders = panel.querySelector('.sliders');
   const inputs = {};
   for (const [key, label, min, max, step] of PANEL_SLIDERS) {
@@ -1180,6 +1250,11 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     } catch (_) {}
     location.reload();
   });
+
+  const scaleSelect = panel.querySelector('[data-scale]');
+  scaleSelect.value = String(renderer25D.renderScale);
+  if (scaleSelect.value === '') scaleSelect.value = '1';
+  scaleSelect.addEventListener('change', () => { renderer25D.setRenderScale(Number(scaleSelect.value)); scaleSelect.blur(); });
 
   const modeButtons = [...panel.querySelectorAll('[data-mode]')];
   const syncMode = () => modeButtons.forEach(b => b.setAttribute('aria-pressed', String((b.dataset.mode === '25d') === isActive())));
