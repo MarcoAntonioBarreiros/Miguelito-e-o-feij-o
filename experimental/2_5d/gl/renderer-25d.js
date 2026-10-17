@@ -490,6 +490,68 @@ function createSpriteBatch(image, shared, maxTexture) {
   };
 }
 
+// Emissores: pontos de brilho em HDR (acima de 1) por cima de objetos que o
+// jogo desenha como "brilhantes" mas em cor media — o Fe3+ laranja, por
+// exemplo. A cor do jogo nao passa do limiar do bloom; o exsudato passa porque
+// alem do desenho claro ele tem luz propria. Mesmo recurso da cena Unity
+// (sprite de brilho com cor HDR para o bloom pegar).
+const EMIT_VERT = /* glsl */`
+attribute vec4 aGlow;     // rgb ja multiplicado pela intensidade, w = diametro no mundo
+uniform float uPxPerUnit;
+varying vec3 vCol;
+void main() {
+  vCol = aGlow.rgb;
+  gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0);
+  gl_PointSize = clamp(aGlow.w * uPxPerUnit, 2.0, 512.0);
+}`;
+const EMIT_FRAG = /* glsl */`
+varying vec3 vCol;
+void main() {
+  vec2 d = gl_PointCoord - .5;
+  float r = dot(d, d) * 4.0;
+  float core = exp(-r * 9.0);
+  float halo = exp(-r * 2.6) * .35;
+  float a = (core + halo) * smoothstep(1.0, .8, r);
+  if (a < .004) discard;
+  gl_FragColor = vec4(vCol * a, 1.0);   // AdditiveBlending usa SrcAlpha
+}`;
+
+function createEmitters(max = 32) {
+  const pos = new Float32Array(max * 3);
+  const glow = new Float32Array(max * 4);
+  const geom = new THREE.BufferGeometry();
+  const aPos = new THREE.BufferAttribute(pos, 3);
+  const aGlow = new THREE.BufferAttribute(glow, 4);
+  geom.setAttribute('position', aPos);
+  geom.setAttribute('aGlow', aGlow);
+  const material = new THREE.ShaderMaterial({
+    uniforms: { uPxPerUnit: { value: 1 } },
+    vertexShader: EMIT_VERT, fragmentShader: EMIT_FRAG,
+    transparent: true, depthTest: false, depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const points = new THREE.Points(geom, material);
+  points.frustumCulled = false;
+  points.renderOrder = 55;
+  let n = 0;
+  return {
+    points,
+    begin() { n = 0; },
+    add(x, y, r, g, b, intensity, size) {
+      if (n >= max) return;
+      pos.set([x, y, .2], n * 3);
+      glow.set([r * intensity, g * intensity, b * intensity, size], n * 4);
+      n++;
+    },
+    end(pxPerUnit) {
+      material.uniforms.uPxPerUnit.value = pxPerUnit;
+      aPos.needsUpdate = aGlow.needsUpdate = true;
+      geom.setDrawRange(0, n);
+      points.visible = n > 0;
+    },
+  };
+}
+
 // ---------------------------------------------------------------- renderizador
 
 export function createRenderer25D({ mainCanvas, state, getAgents = () => null, quality = 'high' }) {
@@ -706,6 +768,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   particles[1].points.renderOrder = 45;
   particles[2].points.renderOrder = 80;
   for (const p of particles) scene.add(p.points);
+  const emitters = createEmitters();
+  scene.add(emitters.points);
 
   // ---- crescimento organico ---------------------------------------------
   function setupGrowth(level) {
@@ -783,6 +847,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
 
   function collectLights(time, camCX, camCY, visW, visH) {
     lights.length = 0;
+    emitters.begin();
     const level = state.level || {};
     const player = state.player;
     // Superficie (abertura da fase 1 e cinematica final): ceu aberto, luz do
@@ -827,7 +892,10 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       .slice(0, 4);
     for (const d of iron) {
       const ratio = Math.min(1, d.stock / Math.max(.01, d.maxStock || 1));
-      pushLight(d.x, -d.y, 30, 220, 1.0, .58, .26, (.9 + .8 * ratio) * (.9 + .1 * Math.sin(time * 1.7 + (d.phase || 0))), 0, 45);
+      const pulse = .9 + .1 * Math.sin(time * 1.7 + (d.phase || 0));
+      pushLight(d.x, -d.y, 30, 220, 1.0, .58, .26, (.9 + .8 * ratio) * pulse, 0, 45);
+      // nucleo emissivo: so o bloom o espalha (desliga junto com o bloom)
+      if (settings.bloom) emitters.add(d.x, -d.y, 1.0, .55, .22, (.4 + .5 * ratio) * pulse * Math.min(1.6, tuning.bloom), (d.radius || 14) * 2.4);
     }
     for (const c of level.checkpoints || []) {
       if (!Number.isFinite(c.x) || Math.abs(c.x - camCX) > visW) continue;
@@ -961,6 +1029,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
 
     // 5. luzes
     const active = collectLights(time, cx, cy, visW, visH);
+    emitters.end(GH / visH);
     // Na superficie o fundo repete partes do primeiro plano (planta, ceu):
     // desfoque e nevoa ali viravam um halo azul em volta das folhas.
     meshes.bg.material.uniforms.uLodBlur.value = .3 * (1 - daylight);
