@@ -4,6 +4,7 @@
   "checks": [
     "WebGL2 ready; phase 4 native bridge matures",
     "original 32x48 collider; 109 native microbial agents",
+    "reference framing: hero about 12.5% high, x41%, feet62%; settings collapsed",
     "keyboard movement delegates to native physics",
     "jump keyboard path works",
     "pause freezes simulation",
@@ -36,6 +37,14 @@
         "assets/bacillus/bacillus.png"
       ],
       "adapter": "original createSimulator / phase 4",
+      "revision": 2,
+      "rootArchitecture": {
+        "source": "growPlantRoots",
+        "roots": 120,
+        "plants": 6,
+        "maxDiameter": 0.14,
+        "drawCalls": 6
+      },
       "maxTextureSize": 16384,
       "viewport": {
         "width": 1440,
@@ -43,15 +52,22 @@
         "pixelRatio": 1
       },
       "gpu": "ANGLE (Intel, Intel(R) Arc(TM) Graphics (0x00007D55) Direct3D11 vs_5_0 ps_5_0, D3D11)",
-      "drawCalls": 264,
-      "triangles": 59298,
+      "drawCalls": 98,
+      "triangles": 41168,
       "gpuMemory": {
-        "geometries": 75,
-        "textures": 30
+        "geometries": 32,
+        "textures": 38
       },
-      "meanFrameMs": 16.66644518272425,
-      "p95FrameMs": 16.80000000000109,
-      "meanFps": 60.00079735278875,
+      "framing": {
+        "visibleHeight": 5.1,
+        "visibleWidth": 8.159999999999998,
+        "characterHeightFraction": 0.12549019607843137,
+        "heroScreenX": 0.4099999999995817,
+        "footScreenY": 0.6239215694346012
+      },
+      "meanFrameMs": 16.75250836120401,
+      "p95FrameMs": 16.899999999999636,
+      "meanFps": 59.692553403873035,
       "quality": "high",
       "cinematic": true,
       "webgl": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
@@ -78,6 +94,14 @@
         "assets/bacillus/bacillus.png"
       ],
       "adapter": "original createSimulator / phase 4",
+      "revision": 2,
+      "rootArchitecture": {
+        "source": "growPlantRoots",
+        "roots": 120,
+        "plants": 6,
+        "maxDiameter": 0.14,
+        "drawCalls": 6
+      },
       "maxTextureSize": 16384,
       "viewport": {
         "width": 1440,
@@ -85,15 +109,22 @@
         "pixelRatio": 1
       },
       "gpu": "ANGLE (Intel, Intel(R) Arc(TM) Graphics (0x00007D55) Direct3D11 vs_5_0 ps_5_0, D3D11)",
-      "drawCalls": 259,
-      "triangles": 59549,
+      "drawCalls": 78,
+      "triangles": 41141,
       "gpuMemory": {
-        "geometries": 75,
-        "textures": 31
+        "geometries": 32,
+        "textures": 38
       },
-      "meanFrameMs": 16.666999999999994,
-      "p95FrameMs": 16.80000000000291,
-      "meanFps": 59.99880002399954,
+      "framing": {
+        "visibleHeight": 5.1,
+        "visibleWidth": 8.159999999999998,
+        "characterHeightFraction": 0.12549019607843137,
+        "heroScreenX": 0.40994909037838656,
+        "footScreenY": 0.623872285193849
+      },
+      "meanFrameMs": 16.666112956810633,
+      "p95FrameMs": 16.899999999997817,
+      "meanFps": 60.001993421708356,
       "quality": "low",
       "cinematic": true,
       "webgl": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
@@ -120,6 +151,14 @@
         "assets/bacillus/bacillus.png"
       ],
       "adapter": "original createSimulator / phase 4",
+      "revision": 2,
+      "rootArchitecture": {
+        "source": "growPlantRoots",
+        "roots": 120,
+        "plants": 6,
+        "maxDiameter": 0.14,
+        "drawCalls": 6
+      },
       "maxTextureSize": 16384,
       "viewport": {
         "width": 1440,
@@ -127,15 +166,22 @@
         "pixelRatio": 1
       },
       "gpu": "ANGLE (Intel, Intel(R) Arc(TM) Graphics (0x00007D55) Direct3D11 vs_5_0 ps_5_0, D3D11)",
-      "drawCalls": 191,
-      "triangles": 29362,
+      "drawCalls": 85,
+      "triangles": 41122,
       "gpuMemory": {
-        "geometries": 75,
-        "textures": 31
+        "geometries": 32,
+        "textures": 38
       },
-      "meanFrameMs": 16.722166666666666,
-      "p95FrameMs": 16.799999999999272,
-      "meanFps": 59.80086312579112,
+      "framing": {
+        "visibleHeight": 5.8,
+        "visibleWidth": 2.6800947867298577,
+        "characterHeightFraction": 0.11034482758620691,
+        "heroScreenX": 0.408742799868891,
+        "footScreenY": 0.6231834959996988
+      },
+      "meanFrameMs": 16.72216666666667,
+      "p95FrameMs": 16.900000000001455,
+      "meanFps": 59.8008631257911,
       "quality": "high",
       "cinematic": true,
       "webgl": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",

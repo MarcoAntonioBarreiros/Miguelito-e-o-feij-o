@@ -1,5 +1,7 @@
 # Miguelito · Sob a superfície — experimento 2,5D
 
+**Versão atual: revisão visual 02.** A câmera, iluminação e arte de ambiente foram corrigidas usando o preview Unity enviado pelo usuário como referência. Veja [mudanças e evidências da revisão](VISUAL-REVISION-02.md). Os números e descrições da primeira POC abaixo permanecem como histórico quando explicitamente substituídos pela revisão.
+
 Prova visual **Three.js r186 / WebGL2** sobre o código existente. Branch `experiment/rhizosphere-2-5d`, base `f118a303f6cefb2c20d77ff4bf23826fbcd31005`. Nenhuma modificação em `src/`, `dist/`, entradas principais ou workflow de publicação. Não é uma migração completa das dez fases.
 
 ## Executar no checkout da branch
@@ -15,7 +17,7 @@ Abra **http://127.0.0.1:4173**. `npm ci` prepara uma cópia local do Three.js; a
 
 Controles: **A/D ou setas** movem; **Espaço** salta (inclui salto duplo desbloqueado na fase); **E** usa a inoculação original; **R** reinicia crescimento; **P** pausa; **B** alterna a luz cinematográfica e luz uniforme; **H** oculta a interface. Em tela estreita há botões de toque. Aguarde aproximadamente sete segundos até a ponte estar madura. Não há áudio nesta POC: o simulador usa seu adaptador silencioso original.
 
-O painel permite alternar três paletas, intensidade, sombra projetada, normal maps, paralaxe e partículas. O modo leve reduz DPR, shadow map de 2048 para 1024, partículas de 500 para 180 e desliga bloom. Atualiza também a resolução dos render targets. O resultado em celular físico ainda precisa ser medido.
+O painel, recolhido por padrão, permite alternar três paletas, intensidade, sombra projetada, normal maps, paralaxe e partículas. O modo leve reduz DPR, shadow map de 2048 para 1024, partículas de 260 para 120 e desliga bloom. Atualiza também a resolução dos render targets. O resultado em celular físico ainda precisa ser medido.
 
 ## O que foi efetivamente implementado
 
@@ -24,9 +26,9 @@ O painel permite alternar três paletas, intensidade, sombra projetada, normal m
 - A ponte cresce pelo sistema original e só ganha os colliders quando amadurece. Seus colliders não são desenhados como blocos: a apresentação usa uma fita sobre seus pontos. Andar sobre ela continua sendo decidido pela física original.
 - Miguelito usa `idle`, `run`, `hurt` e `celebrate` originais; derrota segura o frame 4 de hurt a 24 fps. Os estados sem folha usam a corrida como fallback visual. Recorte, baseline, compensação de `contentHeight` e cadência de corrida vêm do catálogo. Microrganismos usam as folhas, fases, sentidos e escalas existentes; Bacillus conserva seus 44 retângulos próprios.
 - PNGs originais preservados; o atlas da GPU apenas reempacota os pixels 1:1. Folhas longas usam até oito colunas e adaptam a grade ao `MAX_TEXTURE_SIZE`. Mínimo prático de textura: 2048. São mantidos os arquivos fonte sem retoque ou substituição por personagens 3D.
-- Luz direcional quente móvel com shadow map PCF, preenchimentos pontuais ciano/âmbar, luz local de Miguelito, superfícies que recebem sombras e recortes alfa que projetam silhuetas. Câmera perspectiva frontal; personagens continuam sendo planos.
-- Materiais de solo e raízes com normal map procedural, microtextura, rugosidade e iluminação PBR. Não existem normal maps dos personagens no repositório; esta POC não finge tê-los produzido. A arte dos personagens recebe luz em planos com normais frontais.
-- Raízes decorativas em curvas com espessura variável, crescimento por draw range, estratos em profundidade, paralaxe, névoa, feixes estilizados, partículas em lote e bloom moderado. Os feixes são planos transparentes, não ray marching volumétrico. As raízes decorativas não criam colliders.
+- Luz direcional neutra móvel com shadow map PCF, preenchimentos suaves, luz local de Miguelito, superfícies que recebem sombras e recortes alfa que projetam silhuetas. Câmera ortográfica; personagens continuam sendo planos e suas cores têm resposta de luz limitada a 8%, sem tone mapping global.
+- Plataformas e raízes reutilizam diretamente o tecido celular e a paleta originais, com normal maps de ambiente e extrusão discreta. Não existem normal maps dos personagens no repositório; a revisão mantém o albedo original dos sprites com sombreamento sutil, separado do material PBR do ambiente.
+- Raízes decorativas seguem os caminhos e as espessuras de `growPlantRoots`, com três estratos em profundidade, paralaxe, névoa, um feixe azul suave, partículas em lote e bloom discreto. O feixe é um plano transparente, não ray marching volumétrico. As raízes decorativas não criam colliders.
 
 ### Fixtures e limites explícitos
 
