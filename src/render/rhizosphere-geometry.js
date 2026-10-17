@@ -1074,7 +1074,9 @@ export function createRhizosphereGeometry({ state, painters }) {
 
   let lastRenderMs = 0;
 
-  const R = (name, fn) => (globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
+  // experimental: medir (?perfil) e pular partes do terreno (painel "Teste de custo")
+  const R = (name, fn) => (globalThis.__terrenoPular?.has(name.trim()) ? undefined
+    : globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
   function draw(ctx, view, seedOf) {
     const started = typeof performance !== 'undefined' ? performance.now() : 0;
     cacheFrame++;
@@ -1089,7 +1091,11 @@ export function createRhizosphereGeometry({ state, painters }) {
     const arch = buildArchitecture(layout, platforms, seedOf);
     const time = state.time || 0;
 
+    // Fases do desenho para o renderizador nativo (GPU): imagens de cada fase
+    // num lote, e o vetor da fase por cima delas. Num contexto 2D comum, nada.
+    ctx.__glSegment?.(0);
     R('  terreno/ceu', () => drawSky(ctx, view, surface));
+    ctx.__glSegment?.(1);
     // Arquitetura radicular: principal e laterais livres mais atrás; laterais
     // que alimentam blocos um pouco mais à frente.
     // Como no original: ramificações finas atrás, depois a principal, e as
@@ -1116,6 +1122,7 @@ export function createRhizosphereGeometry({ state, painters }) {
     R('  terreno/plantas', () => { for (const plant of plants) {
       if (inX(plant.x - 120, plant.x + 120, 60)) drawPlant(ctx, plant, surface, view);
     } });
+    ctx.__glSegment?.(2);
     for (const platform of platforms) {
       if (platform.type !== 'soil' || !inX(platform.x, platform.x + platform.w)) continue;
       const massSeed = seedOf(platform);

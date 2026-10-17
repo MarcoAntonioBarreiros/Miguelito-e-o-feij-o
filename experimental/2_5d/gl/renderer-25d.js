@@ -19,6 +19,7 @@ import { generateSpriteNormalMap, loadAuthoredNormal } from './sprite-normals.js
 import { LIGHTING_GLSL, MAX_LIGHTS, createSharedUniforms } from './shading.js';
 import { createGrowthLayer, hashString } from './growth.js';
 import { createParticleField } from './particles.js';
+import { createNativeLayer, createTextureCache, installCanvasVersions } from './native-layer.js';
 
 const FOV = 32;
 // Padrao = valores calibrados pelo Marco no painel (17/10/2026), mais o
@@ -54,6 +55,7 @@ uniform float uBrightness;
 uniform float uRim;
 uniform float uGlow;
 uniform float uSky;        // terreno: quanto escurece com a terra acima do pixel
+uniform float uPremult;    // 1 = camada veio da GPU (cor pre-multiplicada)
 varying vec2 vUv;
 
 float heightAt(vec2 p) {
@@ -66,6 +68,7 @@ float heightAt(vec2 p) {
 void main() {
   vec4 c = textureLod(uMap, vUv, uLodBlur);
   if (c.a < .004) discard;
+  if (uPremult > .5) c.rgb /= max(c.a, 1e-3);
   vec3 albedo = c.rgb;
   vec2 e = uTexel * exp2(uLodVolume) * .9;
   float hx = heightAt(vUv + vec2(e.x, 0.0)) - heightAt(vUv - vec2(e.x, 0.0));
@@ -607,7 +610,19 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   const settings = {
     lighting: true, shadows: true, volumetric: true, bloom: true, growth: true,
     particles: true, grade: true, sprites: true,
+    // Modo nativo: fundo e terreno desenhados pela GPU (imagens do jogo viram
+    // texturas que sobem uma vez); so o vetor passa pelo Canvas 2D.
+    native: /[?&]nativo=1/.test(location.search) || (() => { try { return localStorage.getItem('miguelito:25d:native') === '1'; } catch (_) { return false; } })(),
   };
+  const textures = createTextureCache(renderer);
+  let nativeBg = null, nativeTerrain = null;
+  // camadas nativas so existem quando o modo e ligado (memoria de video)
+  function ensureNative() {
+    if (nativeTerrain) return;
+    installCanvasVersions();
+    nativeBg = createNativeLayer({ renderer, textures, width: layers.bg.canvas.width, height: layers.bg.canvas.height, scale: layers.bg.scale, maxSegments: 4 });
+    nativeTerrain = createNativeLayer({ renderer, textures, width: W, height: H, scale: 1, maxSegments: 4, onSprite: s => layers.captured.push(s), textTarget: () => realCtx });
+  }
   // Controles finos (painel). Padrao entre a 1a versao (luz viva, estourava)
   // e a 2a (cor fiel, mas apagada).
   const tuning = {
@@ -633,6 +648,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     const textTarget = () => (textOverlay ? realCtx : null);
     const terrainBridge = createBridgeContext(terrain.ctx, s => captured.push(s), { textTarget });
     const fxBridge = createBridgeContext(fx.ctx, s => captured.push(s), { textTarget });
+    nativeBg?.dispose(); nativeTerrain?.dispose();
+    nativeBg = nativeTerrain = null;
     return { bg, terrain, fx, captured, terrainBridge, fxBridge };
   }
 
@@ -656,6 +673,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
         uRim: { value: o.rim ?? .6 },
         uGlow: { value: o.glow ?? 0 },
         uSky: { value: o.sky ?? 0 },
+        uPremult: { value: 0 },
       },
       vertexShader: SCREEN_VERT,
       fragmentShader: LAYER_FRAG,
@@ -677,6 +695,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
 
   function rebuildTargets() {
     rt?.scene.dispose(); rt?.occ.dispose(); rt?.vis.dispose(); rt?.vol.dispose(); rt?.volB.dispose();
+    rt?.bgNative?.dispose(); rt?.terrainNative?.dispose();
     const hdr = { type: THREE.HalfFloatType, depthBuffer: false };
     rt = {
       scene: new THREE.WebGLRenderTarget(GW, GH, hdr),
@@ -687,6 +706,15 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       vol: new THREE.WebGLRenderTarget(GW >> 1, GH >> 1, { depthBuffer: false, type: THREE.HalfFloatType }),
       volB: new THREE.WebGLRenderTarget(GW >> 1, GH >> 1, { depthBuffer: false, type: THREE.HalfFloatType }),
     };
+    // camadas desenhadas pela GPU no modo nativo (mipmaps: o relevo da luz vem do alfa borrado)
+    const layerRT = (w, h) => new THREE.WebGLRenderTarget(w, h, {
+      type: THREE.HalfFloatType, depthBuffer: false, generateMipmaps: true,
+      minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter,
+    });
+    if (settings.native) {
+      rt.bgNative = layerRT(Math.round(W * .5), Math.round(H * .5));
+      rt.terrainNative = layerRT(W, H);
+    }
     shared.uVis.value = rt.vis.texture;
     shared.uResolution.value.set(GW, GH);
     bloom?.dispose?.();
@@ -967,7 +995,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     realCtx.restore();
 
     // 1. o jogo desenha nas tres camadas
-    for (const L of [layers.bg, layers.terrain, layers.fx]) {
+    for (const L of settings.native ? [layers.fx] : [layers.bg, layers.terrain, layers.fx]) {
       L.ctx.setTransform(1, 0, 0, 1, 0, 0);
       L.ctx.clearRect(0, 0, L.canvas.width, L.canvas.height);
       if (L.scale !== 1) L.ctx.setTransform(L.scale, 0, 0, L.scale, 0, 0);
@@ -975,8 +1003,29 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     layers.captured.length = 0;
     layers.terrainBridge.setCapture(settings.sprites);
     layers.fxBridge.setCapture(settings.sprites);
-    drawLayers({ bg: layers.bg.ctx, terrain: layers.terrainBridge.ctx, fx: layers.fxBridge.ctx });
-    for (const L of [layers.bg, layers.terrain, layers.fx]) L.tex.needsUpdate = true;
+    const native = settings.native;
+    if (native) {
+      if (!rt.terrainNative) rebuildTargets();
+      ensureNative();
+      nativeBg.begin(); nativeTerrain.begin();
+      nativeTerrain.setCapture(settings.sprites);
+      textures.resetStats();
+      drawLayers({ bg: nativeBg.ctx, terrain: nativeTerrain.ctx, fx: layers.fxBridge.ctx });
+      layers.fx.tex.needsUpdate = true;
+      stats.nativeBg = nativeBg.render(rt.bgNative);
+      stats.nativeTerrain = nativeTerrain.render(rt.terrainNative);
+      stats.uploads = textures.uploads;
+    } else {
+      drawLayers({ bg: layers.bg.ctx, terrain: layers.terrainBridge.ctx, fx: layers.fxBridge.ctx });
+      for (const L of [layers.bg, layers.terrain, layers.fx]) L.tex.needsUpdate = true;
+    }
+    const bgTex = native ? rt.bgNative.texture : layers.bg.tex;
+    const terrainTex = native ? rt.terrainNative.texture : layers.terrain.tex;
+    meshes.bg.material.uniforms.uMap.value = bgTex;
+    meshes.bg.material.uniforms.uPremult.value = native ? 1 : 0;
+    meshes.terrain.material.uniforms.uMap.value = terrainTex;
+    meshes.terrain.material.uniforms.uPremult.value = native ? 1 : 0;
+    meshes.occTerrain.material.uniforms.uMap.value = terrainTex;
 
     // 2. camera: o plano z=0 coincide exatamente com a vista 2D do jogo
     const zoom = Number(state.cameraZoom) || 1;
@@ -1148,6 +1197,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
 // ---------------------------------------------------------------- painel de teste
 
 const PANEL_ITEMS = [
+  ['native', 'Fundo e terreno direto na GPU (teste)'],
   ['lighting', 'Luz dinâmica'],
   ['shadows', 'Sombras'],
   ['volumetric', 'Feixes volumétricos'],
@@ -1276,12 +1326,23 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     box.type = 'checkbox';
     box.id = `panel25d-${key}`;
     box.checked = renderer25D.settings[key];
-    box.addEventListener('change', () => { renderer25D.settings[key] = box.checked; box.blur(); });
+    box.addEventListener('change', () => {
+      renderer25D.settings[key] = box.checked;
+      if (key === 'native') { try { localStorage.setItem('miguelito:25d:native', box.checked ? '1' : '0'); } catch (_) {} }
+      box.blur();
+    });
     row.append(box, document.createTextNode(label));
     toggles.append(row);
   }
 
   const COSTS = [['fundo', 'Fundo (imagem + paralaxe)'], ['terreno', 'Terreno (solo e raízes)'], ['luz', 'Luz 2D do original'], ['efeitos', 'Organismos e efeitos']];
+  // partes do terreno (nomes dos trechos em rhizosphere-geometry.js)
+  const TERRAIN_PARTS = [
+    ['terreno/raizes corpo (cache)', 'Corpo das raízes'], ['terreno/pelos radiculares', 'Pelos radiculares'],
+    ['terreno/massas (cache)', 'Massas de solo'], ['terreno/agregados', 'Agregados (blocos ligados às raízes)'],
+    ['terreno/teto', 'Teto de solo'], ['terreno/chao', 'Chão da superfície'], ['terreno/plantas', 'Plantas'], ['terreno/ceu', 'Céu'],
+  ];
+  globalThis.__terrenoPular = globalThis.__terrenoPular || new Set();
   const costs = panel.querySelector('.costs');
   for (const [key, label] of COSTS) {
     const row = document.createElement('label');
@@ -1291,6 +1352,23 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     box.addEventListener('change', () => {
       if (window.miguelitoCusto2D) window.miguelitoCusto2D[key] = !box.checked;
       if (!box.checked && isActive()) { setActive(false); syncMode(); }
+      box.blur();
+    });
+    row.append(box, document.createTextNode(label));
+    costs.append(row);
+  }
+  const sub = document.createElement('div');
+  sub.className = 'hint';
+  sub.textContent = 'Partes do terreno:';
+  costs.append(sub);
+  for (const [key, label] of TERRAIN_PARTS) {
+    const row = document.createElement('label');
+    row.style.paddingLeft = '14px';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = !globalThis.__terrenoPular.has(key);
+    box.addEventListener('change', () => {
+      if (box.checked) globalThis.__terrenoPular.delete(key); else globalThis.__terrenoPular.add(key);
       box.blur();
     });
     row.append(box, document.createTextNode(label));
@@ -1384,7 +1462,8 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
   setInterval(() => {
     const s = renderer25D.stats;
     stats.textContent = isActive()
-      ? `${fps} fps (2,5D) · CPU ${s.ms.toFixed(1)} ms · ${s.lights} luzes · ${s.sprites} sprites`
+      ? `${fps} fps (2,5D${renderer25D.settings.native ? ' nativo' : ''}) · CPU ${s.ms.toFixed(1)} ms · ${s.lights} luzes · ${s.sprites} sprites`
+        + (renderer25D.settings.native && s.nativeTerrain ? ` · GPU: ${s.nativeBg.quads + s.nativeTerrain.quads} imagens, ${s.nativeBg.segmentsUsed + s.nativeTerrain.segmentsUsed} camadas de vetor, ${s.uploads} envios` : '')
       : `${fps} fps (2D original)`;
   }, 500);
   if (new URLSearchParams(location.search).get('painel') === '0') panel.hidden = true;
