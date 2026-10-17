@@ -42,7 +42,9 @@ attribute float aAlong; // distancia acumulada ao longo do eixo (para as celulas
 uniform float uTime;
 uniform float uZ;
 uniform float uThicken;
-uniform float uPx;       // tamanho de 1 pixel de tela em unidades do mundo, nesta profundidade
+uniform float uPx;       // tamanho de 1 pixel de tela em unidades do mundo
+uniform vec2 uCamDelta;  // deslocamento da camera desde o inicio da fase
+uniform float uFollow;   // fracao da camera que a camada acompanha (igual a Unity)
 varying vec2 vWorld;
 varying float vAcross;
 varying float vAlong;
@@ -64,6 +66,11 @@ void main() {
   // fio fino nunca abaixo de ~1,6 px na tela: sem isso a hifa virava tracejado
   w = max(w, (aInfo.w > .5 ? 1.6 : 1.0) * uPx);
   p += nrm * aSide.x * w * .5;
+  // Paralaxe igual a da Unity (ParallaxLayer): a camada anda uma fracao do
+  // deslocamento da camera e fica no plano z=0, sem encolher pela perspectiva.
+  // Na perspectiva, um plano distante encolhe e EMPACOTA mais raizes por tela:
+  // era o principal motivo da poluicao visual da versao anterior.
+  p += uCamDelta * uFollow;
   vWorld = p;
   vAcross = aSide.x;
   vAlong = aAlong + len * aSide.y * grow;
@@ -71,7 +78,7 @@ void main() {
   vKind = aInfo.w;
   vAge = age;
   vEnd = aSide.y;
-  gl_Position = projectionMatrix * viewMatrix * vec4(p, uZ, 1.0);
+  gl_Position = projectionMatrix * viewMatrix * vec4(p, 0.0, 1.0);
 }`;
 
 const FRAG = /* glsl */`
@@ -81,6 +88,7 @@ uniform vec3 uHyphaColor;
 uniform float uZ;
 uniform float uDim;
 uniform float uOpacity;
+uniform float uDesat;
 varying vec2 vWorld;
 varying float vAcross;
 varying float vAlong;
@@ -123,18 +131,17 @@ void main() {
     emis = .10 + .45 * (1.0 - smoothstep(0.0, 1.6, vAge)); // ponta ativa brilha
   }
   vec3 rim;
-  vec3 wp = vec3(vWorld, uZ);
+  vec3 wp = vec3(vWorld, 0.0);
   vec3 light = accumulateLight(wp, N, .45, spec, rim);
   vec3 col = albedo * (uAmbient * 1.6 + light) + rim * albedo * .9 + albedo * emis;
   col *= uDim;
   // longe, a cor perde saturacao antes de sumir na nevoa (perspectiva aerea)
   float gray = dot(col, vec3(.2126, .7152, .0722));
-  col = mix(col, vec3(gray), clamp(-uZ / 500.0, 0.0, .6));
-  col = applyFog(col, uZ);
+  col = mix(col, vec3(gray), uDesat);
   gl_FragColor = vec4(col, cover * uOpacity);
 }`;
 
-export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1, opacity = 1, thicken = .6 }) {
+export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1, opacity = 1, thicken = .6, follow = 0, desat = 0 }) {
   const cap = maxSegments;
   const geom = new THREE.BufferGeometry();
   const aA = new Float32Array(cap * 4 * 2);
@@ -168,6 +175,9 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
       uOpacity: { value: opacity },
       uThicken: { value: thicken },
       uPx: { value: 1 },
+      uCamDelta: { value: new THREE.Vector2() },
+      uFollow: { value: follow },
+      uDesat: { value: desat },
       uRootColor: { value: new THREE.Color('#cfaa72').convertSRGBToLinear() },
       uHyphaColor: { value: new THREE.Color('#d9c8ee').convertSRGBToLinear() },
     },
@@ -291,7 +301,9 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
   return {
     mesh,
     z,
+    follow,
     setPixelSize(px) { material.uniforms.uPx.value = px; },
+    setCamDelta(dx, dy) { material.uniforms.uCamDelta.value.set(dx, dy); },
     spawn,
     step(dt, time, bounds) { step(dt, time, bounds); flush(); },
     /** Avanca o crescimento sem esperar (para nao comecar a fase vazia). */

@@ -160,11 +160,16 @@ float march(vec4 s) {
   float jitter = hash(vUv);
   float t = 1.0;
   float start = .006;
+  // Um pixel DENTRO do terreno nao se sombreia com o proprio bloco: so conta
+  // oclusor depois que o raio sai dele. Sem isso a massa de solo escurecia por
+  // dentro e criava a faixa de "sobreposicao" sob a superficie.
+  bool inside = textureLod(uOcc, vUv, 0.0).r > .5;
   for (int k = 0; k < STEPS; k++) {
     float f = start + (reach - start) * (float(k) + jitter) / float(STEPS);
     vec2 p = vUv + dir * f;
     if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) break;
     vec2 o = textureLod(uOcc, p, 1.0).rg;
+    if (inside) { if (o.r < .35) inside = false; else continue; }
     float a = o.r + (s.w > 1.5 ? o.g : 0.0);
     t *= 1.0 - clamp(a, 0.0, 1.0) * .2;
   }
@@ -551,6 +556,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   let growthSeed = null;
   let shaftXs = [];
   let lastExudateState = new Map();
+  let camAnchor = null;
 
   function rebuildTargets() {
     rt?.scene.dispose(); rt?.occ.dispose(); rt?.vis.dispose(); rt?.vol.dispose(); rt?.volB.dispose();
@@ -657,40 +663,35 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     shaftXs = [];
     for (let x = 300 + (seed % 400); x < endX + 600; x += 640 + ((seed >> (x % 7)) % 360)) shaftXs.push(x);
 
-    // Tres planos de raiz atras do jogo. Profundidade se le por paralaxe
-    // (perspectiva real), tamanho, contraste e cor: o plano mais distante tem
-    // raizes grossas e escuras que atravessam a tela inteira.
-    const deep = createGrowthLayer({ shared, z: -760, seed: seed ^ 0x21, dim: .22, opacity: .95, maxSegments: 9000 });
-    const far = createGrowthLayer({ shared, z: -340, seed: seed ^ 0x51, dim: .26, opacity: .9, maxSegments: 14000 });
-    const mid = createGrowthLayer({ shared, z: -130, seed: seed ^ 0x77, dim: .42, opacity: .95, maxSegments: 12000 });
-    const hyph = createGrowthLayer({ shared, z: -20, seed: seed ^ 0x99, dim: .9, opacity: .75, maxSegments: 16000, thicken: 0 });
-    deep.mesh.renderOrder = 3; far.mesh.renderOrder = 5; mid.mesh.renderOrder = 12; hyph.mesh.renderOrder = 25;
-    growth.push(far, mid, hyph, deep);
+    // Mesmos planos, tons e fatores de paralaxe da cena Unity
+    // (Rizosfera25DBootstrap.cs): fundo segue 35% da camera, intermediario 18%,
+    // tom .2/.34 e dessaturacao .55/.35. Desenhados no plano do jogo, sem a
+    // compressao da perspectiva.
+    const far = createGrowthLayer({ shared, z: -340, seed: seed ^ 0x51, dim: .2, desat: .55, follow: .35, opacity: 1, maxSegments: 14000 });
+    const mid = createGrowthLayer({ shared, z: -130, seed: seed ^ 0x77, dim: .34, desat: .35, follow: .18, opacity: 1, maxSegments: 12000 });
+    const hyph = createGrowthLayer({ shared, z: -20, seed: seed ^ 0x99, dim: .9, opacity: .45, maxSegments: 16000, thicken: 0 });
+    far.mesh.renderOrder = 5; mid.mesh.renderOrder = 12; hyph.mesh.renderOrder = 25;
+    growth.push(far, mid, hyph);
     for (const g of growth) scene.add(g.mesh);
 
-    const r0 = deep.random;
-    for (let x = -900; x < endX + 1600; x += 420 + r0() * 380) {
-      deep.spawn({ x, y: -(topY - 900), angle: -Math.PI / 2 + (r0() - .5) * .5, width: 26 + r0() * 18, speed: 40, maxLength: 2600 + r0() * 600 });
-    }
     const r = far.random;
-    for (let x = -400; x < endX + 900; x += 260 + r() * 260) {
-      far.spawn({ x, y: -(topY - 520), angle: -Math.PI / 2 + (r() - .5) * .4, width: 9 + r() * 7, speed: 34, maxLength: 1700 + r() * 500 });
+    for (let x = -200; x < endX + 1400; x += 300 + r() * 300) {
+      far.spawn({ x, y: -(topY - 420), angle: -Math.PI / 2 + (r() - .5) * .35, width: 6 + r() * 5, speed: 34, maxLength: 1500 + r() * 500 });
     }
     const r2 = mid.random;
-    for (let x = -100; x < endX + 500; x += 460 + r2() * 460) {
-      mid.spawn({ x, y: -(topY - 400), angle: -Math.PI / 2 + (r2() - .5) * .4, width: 12 + r2() * 6, speed: 30, maxLength: 1400 + r2() * 400 });
+    for (let x = 0; x < endX + 800; x += 520 + r2() * 520) {
+      mid.spawn({ x, y: -(topY - 380), angle: -Math.PI / 2 + (r2() - .5) * .4, width: 8 + r2() * 4, speed: 30, maxLength: 1300 + r2() * 400 });
     }
-    // hifas: rede micorrizica saindo de algumas plataformas de raiz
+    // hifas: poucas, discretas (o proprio jogo ja desenha a micorriza dele)
     const r4 = hyph.random;
     for (const p of (level?.platforms || [])) {
-      if (p.recovery || r4() < .6) continue;
+      if (p.recovery || r4() < .8) continue;
       const cx = p.x + p.w * (.2 + r4() * .6);
       const cy = -(p.y + p.h * .75);
-      for (let k = 0; k < 2; k++) {
-        hyph.spawn({ x: cx, y: cy, angle: -Math.PI / 2 + (r4() - .5) * 2.2, kind: 'hypha', width: 1.1, speed: 40, maxLength: 120 + r4() * 120 });
-      }
+      hyph.spawn({ x: cx, y: cy, angle: -Math.PI / 2 + (r4() - .5) * 1.6, kind: 'hypha', width: 1.1, speed: 40, maxLength: 90 + r4() * 80 });
     }
-    deep.prewarm(60); far.prewarm(45); mid.prewarm(30); hyph.prewarm(4);
+    far.prewarm(40); mid.prewarm(26); hyph.prewarm(4);
+    camAnchor = null;
     lastExudateState = new Map();
   }
 
@@ -871,12 +872,16 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     const dtReal = Math.min(.1, (t0 - lastTime) / 1000);
     lastTime = t0;
     let segs = 0;
-    const bounds = { x0: cx - visW * 1.2, x1: cx + visW * 1.2 };
+    if (!camAnchor) camAnchor = { x: cx, y: cy };
+    const camDX = cx - camAnchor.x, camDY = cy - camAnchor.y;
     for (const g of growth) {
       // 1 px de tela no plano z da camada
-      g.setPixelSize(((dist - g.z) * 2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2))) / H);
+      g.setPixelSize(visH / H);
+      g.setCamDelta(camDX, camDY);
       g.mesh.visible = settings.growth;
-      if (settings.growth) g.step(dtReal, time, bounds);
+      // a regiao visivel da camada esta deslocada pelo proprio fator de paralaxe
+      const lx = cx - camDX * g.follow;
+      if (settings.growth) g.step(dtReal, time, { x0: lx - visW * 1.2, x1: lx + visW * 1.2 });
       segs += g.segments;
     }
     for (const p of particles) { p.points.visible = settings.particles; p.update(camera, H); }
