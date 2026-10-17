@@ -145,7 +145,7 @@ void main() {
   gl_FragColor = vec4(col, cover * uOpacity);
 }`;
 
-export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1, opacity = 1, thicken = .6, follow = 0, desat = 0, lightGain = 1 }) {
+export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1, opacity = 1, thicken = .6, follow = 0, desat = 0, lightGain = 1, maxGeneration = 2, branchSpacing = 1 }) {
   const cap = maxSegments;
   const geom = new THREE.BufferGeometry();
   const aA = new Float32Array(cap * 4 * 2);
@@ -223,7 +223,7 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
       x, y, angle, kind, width, speed, maxLength, generation,
       length: 0, acc: 0, along: 0, delay,
       wander: 0, base: angle, lastBranch: 0,
-      nextBranch: kind === 'root' ? 70 + random() * 90 : 26 + random() * 40,
+      nextBranch: kind === 'root' ? (70 + random() * 90) * branchSpacing : 26 + random() * 40,
     });
   }
 
@@ -269,9 +269,9 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
         }
         t.x = nx; t.y = ny;
         // ramificacao subapical
-        if (t.length - t.lastBranch > t.nextBranch && t.generation < (isRoot ? 2 : 4)) {
+        if (t.length - t.lastBranch > t.nextBranch && t.generation < (isRoot ? maxGeneration : 4)) {
           t.lastBranch = t.length;
-          t.nextBranch = isRoot ? 80 + random() * 120 : 22 + random() * 46;
+          t.nextBranch = isRoot ? (80 + random() * 120) * branchSpacing : 22 + random() * 46;
           const side = random() < .5 ? 1 : -1;
           const branchAngle = isRoot
             ? -Math.PI / 2 + side * (1.05 + random() * .35)   // laterais quase horizontais

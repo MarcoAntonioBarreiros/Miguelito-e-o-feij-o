@@ -690,7 +690,6 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   const batches = new Map();
   let growthSeed = null;
   let shaftXs = [];
-  let lastExudateState = new Map();
   let camAnchor = null;
   const textOverlay = true;
 
@@ -811,14 +810,16 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     const topY = ys.length ? Math.min(...ys) : 200;
     const bottomY = ys.length ? Math.max(...ys) : 700;
     shaftXs = [];
-    for (let x = 300 + (seed % 400); x < endX + 600; x += 640 + ((seed >> (x % 7)) % 360)) shaftXs.push(x);
+    // feixes espacados mais que uma tela: no maximo dois visiveis ao mesmo tempo
+    for (let x = 300 + (seed % 400); x < endX + 600; x += 1150 + ((seed >> (x % 7)) % 550)) shaftXs.push(x);
 
     // Mesmos planos, tons e fatores de paralaxe da cena Unity
     // (Rizosfera25DBootstrap.cs): fundo segue 35% da camera, intermediario 18%,
     // tom .2/.34 e dessaturacao .55/.35. Desenhados no plano do jogo, sem a
     // compressao da perspectiva.
     const far = createGrowthLayer({ shared, z: -340, seed: seed ^ 0x51, dim: .28, desat: .55, follow: .35, opacity: 1, maxSegments: 14000, lightGain: .5 });
-    const mid = createGrowthLayer({ shared, z: -130, seed: seed ^ 0x77, dim: .5, desat: .35, follow: .18, opacity: 1, maxSegments: 12000, lightGain: .78 });
+    // intermediaria (a mais clara): menos raizes, mais curtas e com menos laterais
+    const mid = createGrowthLayer({ shared, z: -130, seed: seed ^ 0x77, dim: .5, desat: .35, follow: .18, opacity: 1, maxSegments: 6000, lightGain: .78, maxGeneration: 1, branchSpacing: 2.2 });
     far.mesh.renderOrder = 5; mid.mesh.renderOrder = 12;
     // Sem hifas decorativas: a micorriza que aparece e a do proprio jogo
     // (simulacao). Hifas so de enfeite confundiam com a mecanica.
@@ -830,35 +831,53 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       far.spawn({ x, y: -(topY - 420), angle: -Math.PI / 2 + (r() - .5) * .35, width: 6 + r() * 5, speed: 34, maxLength: 1500 + r() * 500 });
     }
     const r2 = mid.random;
-    for (let x = 0; x < endX + 800; x += 520 + r2() * 520) {
-      mid.spawn({ x, y: -(topY - 380), angle: -Math.PI / 2 + (r2() - .5) * .4, width: 8 + r2() * 4, speed: 30, maxLength: 1300 + r2() * 400 });
+    for (let x = 0; x < endX + 800; x += 700 + r2() * 600) {
+      mid.spawn({ x, y: -(topY - 380), angle: -Math.PI / 2 + (r2() - .5) * .4, width: 8 + r2() * 4, speed: 26, maxLength: 850 + r2() * 300 });
     }
     far.prewarm(40); mid.prewarm(26);
     camAnchor = null;
-    lastExudateState = new Map();
-  }
-
-  // Coletar um exsudato e um evento biologico: a raiz responde com uma onda de
-  // raizes laterais e pelos, e as hifas avancam em direcao ao ponto.
-  function reactToGameplay(level, time) {
-    const mid = growth[1];
-    if (!mid) return;
-    for (const ex of level?.exudates || []) {
-      const was = lastExudateState.get(ex);
-      lastExudateState.set(ex, ex.taken);
-      if (was === false && ex.taken) {
-        const r = mid.random;
-        mid.spawn({ x: ex.x + 30, y: -ex.y + 120, angle: -Math.PI / 2 + (r() - .5) * 1.4, width: 5, speed: 55, maxLength: 360, generation: 1 });
-      }
-    }
   }
 
   // ---- luzes ------------------------------------------------------------
   const lights = [];
-  function pushLight(x, y, z, r, cr, cg, cb, i, slot = 0, key = 0, spot = false) {
+  function pushLight(x, y, z, r, cr, cg, cb, i, slot = 0, key = 0, spot = false, id = null) {
     i *= tuning.lights;
-    lights.push({ x, y, z, r, cr: cr * i, cg: cg * i, cb: cb * i, slot, key, spot });
+    lights.push({ x, y, z, r, cr: cr * i, cg: cg * i, cb: cb * i, slot, key, spot, id });
   }
+  // Luzes entram e saem devagar (~0,3 s): sem isso, quando a lista das mais
+  // proximas mudava (camera andando, bacterias se mexendo) a luz aparecia ou
+  // sumia num quadro so — o "pisca".
+  const lightFade = new Map();
+  let lastLightTime = null;
+  const agentIds = new WeakMap();
+  let agentIdSeq = 0;
+  const agentId = a => { let k = agentIds.get(a); if (!k) { k = 'a' + (++agentIdSeq); agentIds.set(a, k); } return k; };
+  let stickyExudate = null;
+  function fadeLights(time) {
+    const dt = lastLightTime === null ? 1 : Math.min(.25, Math.max(0, time - lastLightTime));
+    lastLightTime = time;
+    const k = 1 - Math.exp(-dt / .12);
+    const seen = new Set();
+    for (const L of lights) {
+      if (!L.id) continue;
+      seen.add(L.id);
+      const f = lightFade.get(L.id) || { v: 0 };
+      f.v += (1 - f.v) * k;
+      f.base = { ...L, weight: L.weight ?? 1 };   // valores cheios deste quadro
+      lightFade.set(L.id, f);
+      L.cr *= f.v; L.cg *= f.v; L.cb *= f.v;
+      L.weight = f.base.weight * f.v;
+    }
+    for (const [id, f] of lightFade) {
+      if (seen.has(id)) continue;
+      f.v -= f.v * k;
+      if (f.v < .02) { lightFade.delete(id); continue; }
+      // saindo: mesma luz do ultimo quadro, apagando, sem canal de sombra
+      const B = f.base;
+      lights.push({ ...B, slot: 0, cr: B.cr * f.v, cg: B.cg * f.v, cb: B.cb * f.v, weight: B.weight * f.v });
+    }
+  }
+
 
   const NIGHT_AMBIENT = shared.uAmbient.value.clone();
   const DAY_AMBIENT = new THREE.Color(.36, .38, .39);
@@ -879,21 +898,30 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     if (daylight > .02) pushLight(camCX - visW * .3, camCY + visH * 1.4, 1400, 9000, 1, .95, .86, .72 * daylight, 0, 200);
     const ys = (level.platforms || []).map(p => p.y).filter(Number.isFinite);
     const topY = ys.length ? Math.min(...ys) : 200;
-    // feixes da superficie (os dois mais proximos fazem sombra e luz volumetrica)
+    // Feixes da superficie: so os que estao na tela ou chegando nela. Cada um
+    // entra e sai da tela gradualmente (peso pela distancia) e mantem o MESMO
+    // canal de sombra/volume enquanto existir (indice par/impar): antes o canal
+    // ia para "o mais proximo", e quando dois trocavam de posicao o feixe piscava.
+    const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const reachX = visW * 1.15;
     const shafts = shaftXs
-      .map(x => ({ x, d: Math.abs(x - camCX) }))
+      .map((x, idx) => ({ x, idx, d: Math.abs(x - camCX) }))
+      .filter(s => s.d < reachX)
       .sort((a, b) => a.d - b.d)
-      .slice(0, 3);
+      .slice(0, 2);
     // a fonte fica sempre acima do quadro: o feixe entra pela borda de cima,
     // quase paralelo, em vez de nascer de um ponto visivel (estrela falsa)
     const sourceY = Math.min(topY - 700, camCY * -1 - visH * .5 - visH * .45);
-    shafts.forEach((s, i) => {
-      const flick = .92 + .08 * Math.sin(time * .7 + s.x);
-      pushLight(s.x, -sourceY, 320, 2300, .55, .82, 1.0, 1.9 * flick, i < 2 ? i + 1 : 0, 100, true);
+    shafts.forEach(s => {
+      const flick = .95 + .05 * Math.sin(time * .7 + s.x);
+      const w = smooth(reachX, visW * .5, s.d);
+      if (w <= .001) return;
+      pushLight(s.x, -sourceY, 320, 2300, .55, .82, 1.0, 1.9 * flick * w, (s.idx % 2) + 1, 100, true, 's' + s.idx);
+      lights[lights.length - 1].weight = w;
     });
     if (player) {
       const px = player.x + player.w / 2, py = player.y + player.h * .35;
-      pushLight(px + player.facing * 30, -(py - 14), 120, 440, 1.0, .82, .58, 1.0, 3, 90);
+      pushLight(px + player.facing * 30, -(py - 14), 120, 440, 1.0, .82, .58, 1.0, 3, 90, false, 'p');
     }
     const ex = (level.exudates || [])
       .filter(e => !e.taken && Number.isFinite(e.x))
@@ -901,9 +929,13 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       .filter(o => o.d < visW)
       .sort((a, b) => a.d - b.d)
       .slice(0, 8);
-    ex.forEach((o, i) => {
+    // o canal de sombra do exsudato so troca de dono se outro ficar bem mais perto
+    const nearestEx = ex[0]?.e || null;
+    const stickyEntry = ex.find(o => o.e === stickyExudate);
+    if (!stickyEntry || (nearestEx && nearestEx !== stickyExudate && ex[0].d < stickyEntry.d * .7)) stickyExudate = nearestEx;
+    ex.forEach(o => {
       const f = .85 + .15 * Math.sin(time * 3 + o.e.x * .01);
-      pushLight(o.e.x, -o.e.y, 45, 280, .7, 1.0, .42, 1.3 * f, i === 0 ? 4 : 0, 50);
+      pushLight(o.e.x, -o.e.y, 45, 280, .7, 1.0, .42, 1.3 * f, o.e === stickyExudate ? 4 : 0, 50, false, 'e' + Math.round(o.e.x) + ':' + Math.round(o.e.y));
     });
     // depositos de Fe3+: emitem (laranja), proporcional ao estoque
     const iron = (level.ironDeposits || [])
@@ -912,13 +944,13 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     for (const d of iron) {
       const ratio = Math.min(1, d.stock / Math.max(.01, d.maxStock || 1));
       const pulse = .9 + .1 * Math.sin(time * 1.7 + (d.phase || 0));
-      pushLight(d.x, -d.y, 30, 220, 1.0, .58, .26, (.9 + .8 * ratio) * pulse, 0, 45);
+      pushLight(d.x, -d.y, 30, 220, 1.0, .58, .26, (.9 + .8 * ratio) * pulse, 0, 45, false, 'i' + Math.round(d.x));
       // nucleo emissivo: so o bloom o espalha (desliga junto com o bloom)
       if (settings.bloom) emitters.add(d.x, -d.y, 1.0, .55, .22, (.4 + .5 * ratio) * pulse * Math.min(1.6, tuning.bloom), (d.radius || 14) * 2.4);
     }
     for (const c of level.checkpoints || []) {
       if (!Number.isFinite(c.x) || Math.abs(c.x - camCX) > visW) continue;
-      pushLight(c.x + 10, -(c.y + 10), 50, 240, .35, .95, .9, c.active ? 1.2 : .45, 0, 30);
+      pushLight(c.x + 10, -(c.y + 10), 50, 240, .35, .95, .9, c.active ? 1.2 : .45, 0, 30, false, 'c' + Math.round(c.x));
     }
     const goal = level.goal;
     if (goal && Number.isFinite(goal.x)) pushLight(goal.x + (goal.w || 0) / 2, -(goal.y || 0), 80, 500, 1, .85, .4, 1.6, 0, 40);
@@ -939,8 +971,9 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     }
     for (const { a } of picked) {
       const [r, g, b] = AGENT_COLORS[a.type];
-      pushLight(a.x, -a.y, 40, 170, r, g, b, .3 + .12 * Math.sin(time * 2.4 + (a.phase || 0)), 0, 10);
+      pushLight(a.x, -a.y, 40, 170, r, g, b, .3 + .12 * Math.sin(time * 2.4 + (a.phase || 0)), 0, 10, false, agentId(a));
     }
+    fadeLights(time);
     lights.sort((a, b) => b.key - a.key);
     const n = Math.min(MAX_LIGHTS, lights.length);
     shared.uLightCount.value = n;
@@ -1049,7 +1082,6 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     for (const b of batches.values()) b.end();
 
     // 4. crescimento e particulas
-    reactToGameplay(state.level, time);
     const dtReal = Math.min(.1, (t0 - lastTime) / 1000);
     lastTime = t0;
     let segs = 0;
@@ -1109,7 +1141,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       shaftU[0].set(0, 0, 0, 0); shaftU[1].set(0, 0, 0, 0);
       active.filter(L => L.slot === 1 || L.slot === 2).forEach(L => {
         const [u, v] = toUv(L.x, L.y);
-        shaftU[L.slot - 1].set(u, v, .75, 1);
+        shaftU[L.slot - 1].set(u, v, .75 * (L.weight ?? 1), 1);
       });
       volPass.material.uniforms.uOcc.value = rt.occ.texture;
       volPass.material.uniforms.uTime.value = time;
