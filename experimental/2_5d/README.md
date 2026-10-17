@@ -129,8 +129,8 @@ Rodou no seu Unity 2022.3.44f1 (modelo *Universal 2D*, URP 14.0.11).
   vagam), patógenos, tutoriais, áudio, HUD, campanha. O terreno é uma foto do
   desenho do jogo: plataformas que crescem ou mudam (escada de Azospirillum,
   ponte micorrízica, nódulos) não existem lá.
-- **Desempenho medido no seu computador** (Stats do editor, em Play): ~196 FPS
-  (5,1 ms de CPU), 172 batches, a 2560×1440.
+- **Desempenho medido no seu computador** (Stats do editor, em Play): 196 a 268 FPS
+  (3,7 a 5,1 ms de CPU), 172 a 244 batches, a 2560×1440.
 
 ---
 
@@ -140,7 +140,7 @@ Rodou no seu Unity 2022.3.44f1 (modelo *Universal 2D*, URP 14.0.11).
 |---|---|---|
 | **Qualidade gráfica** | Luz, sombras, volume, névoa, bloom e profundidade em perspectiva já no nível da demonstração. Sombras saem do contorno orgânico real do terreno. | Equivalente no que o URP 2D oferece pronto (Light2D, sombras, volume, pós). Sombra precisa de contorno manual (aqui retângulos). Teto mais alto se um dia houver 3D de verdade. |
 | **Animação** | Mantém todas as regras atuais de quadro (`player-sprite.js`, `organism-sprites.js`) sem cópia. | Folhas importam bem; regras de estado e ritmo teriam de ser reescritas (aqui só corrida/parado). Animator e Sprite Library ajudam em projetos novos. |
-| **Desempenho** | Não medido em GPU real: o ambiente de testes só tem rasterizador de software (~10–30 ms de CPU por quadro, 12 fps lá). Precisa ser lido no painel numa máquina sua e num celular. | Medido: ~196 FPS no editor do seu PC. Build WebGL da Unity não foi gerado nem medido. |
+| **Desempenho** | Não medido em GPU real: o ambiente de testes só tem rasterizador de software (~10–30 ms de CPU por quadro, 12 fps lá). Precisa ser lido no painel numa máquina sua e num celular. | Medido: 196–268 FPS no editor do seu PC. Build WebGL da Unity não foi gerado nem medido. |
 | **Facilidade de desenvolvimento** | Shaders e luzes escritos à mão; sem editor visual de cena. O fluxo atual (Claude Code, testes em Node, Phase Lab) continua valendo. | Editor visual, Shader Graph, profiler, inspeção de luz ao vivo. Exige C# e o ciclo de importação/compilação do editor. |
 | **Manutenção** | Um código só; o renderizador é um módulo opcional que pode ser desligado. Risco: shaders próprios a manter. | Duas bases (JS publicada + C#) durante anos de migração, ou congelar o jogo atual. Atualizações de URP mexem em APIs (este experimento já esbarrou em uma: `TextureImporter.spritesheet` foi removido). |
 | **Distribuição web** | Igual à atual: página estática no GitHub Pages; +~0,7 MB de Three.js, carregado só no modo 2,5D. | Build WebGL da Unity traz runtime em WebAssembly baixado a cada visita e é mais pesado em celular (não medido aqui). Ganha APK/loja nativa. |
