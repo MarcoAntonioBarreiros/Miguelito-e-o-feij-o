@@ -70,6 +70,11 @@ export const NARRATION = Object.freeze({
   'system.parallax-off': { kind: 'system', text: 'Paralaxe biológico desativado' },
   'system.lighting-on': { kind: 'system', text: 'Luz e atmosfera ativadas' },
   'system.lighting-off': { kind: 'system', text: 'Luz e atmosfera desativadas' },
+  'system.vfx-on': { kind: 'system', text: 'Efeitos 2,5D ativados' },
+  'system.vfx-off': { kind: 'system', text: 'Efeitos 2,5D desativados' },
+  // 'danger' interrompe a mensagem em tela: o jogador precisa saber na hora por que mudou
+  'system.vfx-slow': { kind: 'danger', scope: 'always', text: 'Efeitos 2,5D desligados: este aparelho ficou lento demais' },
+  'system.vfx-failed': { kind: 'system', text: 'Efeitos 2,5D indisponíveis neste aparelho' },
   'system.loop-error': { kind: 'system', text: 'Um sistema falhou; Tab mostra o erro' },
 
   // 4.2 Rhizobium, nitrogênio e Azospirillum ---------------------------------

@@ -47,6 +47,8 @@ import {
   createTutorialInputGate,
 } from './tutorial-pause.js';
 import { createRenderer } from '../render/renderer.js';
+import { createLayerSwitch, read25DPreference } from '../../experimental/2_5d/gl/layer-switch.js';
+import { createFrameProfiler, readProfilePreference } from '../../experimental/2_5d/gl/frame-profiler.js';
 import { BIOLOGICAL_PARALLAX_KEY } from '../render/rhizosphere-parallax.js';
 import { createPlatformVisuals } from './platform-visuals.js';
 import { createRhizosphereLighting, readLightingPreference } from '../render/rhizosphere-lighting.js';
@@ -91,6 +93,21 @@ import {
 const canvas = document.querySelector('canvas');
 const responsiveCanvas = createResponsiveCanvas({ canvas, windowObject: window });
 const ctx = canvas.getContext('2d');
+// ?perfil=1: mede o custo de cada parte do quadro 2D (experimental)
+const frameProfiler = createFrameProfiler(ctx, readProfilePreference(window.location));
+window.miguelitoPerfil = frameProfiler;
+// EXPERIMENTAL (branch experimental/visual-2_5d): renderizador 2,5D em WebGL.
+// So existe com ?render=25d na URL. Sem o parametro nada abaixo roda e o jogo
+// desenha exatamente como na main. Com ele, o renderizador recebe um canvas
+// "comutavel" para que fundo, terreno e efeitos possam ir a camadas separadas;
+// o Three.js e carregado sob demanda e, se falhar, o 2D continua no comando.
+const render25DRequested = read25DPreference(window.location);
+// O comutador existe sempre: os Efeitos 2,5D podem ser ligados pelo menu a
+// qualquer momento. Desligado, ele so repassa as chamadas ao contexto real.
+const layerSwitch = createLayerSwitch(canvas);
+let renderer25D = null;
+let render25DActive = false;
+const load25DRenderer = () => import('../../experimental/2_5d/gl/renderer-25d.js');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
 const phaseCardDiv = document.getElementById('phase-card');
@@ -1366,7 +1383,7 @@ function initGame({ announce = false } = {}) {
   sim.resetBiology();
   ralstoniaControl.initialize();
   renderer = createRenderer({
-    canvas,
+    canvas: layerSwitch ? layerSwitch.canvas : canvas,
     state: sim.state,
     entities: sim.entities,
     parallaxSeed: seed || `campaign-phase-${campaign.phase}`,
@@ -1759,7 +1776,8 @@ window.addEventListener('keydown', event => {
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'KeyT' && !event.repeat) toggleRecoveryPlatforms();
   if (event.code === 'KeyM' && !event.repeat) toggleGameAudio();
-  if (event.code === 'KeyL' && !event.repeat) toggleLighting();
+  if (event.code === 'KeyL' && !event.repeat && !render25DActive) toggleLighting();
+  if (event.code === 'KeyG' && !event.repeat) setVfx(!render25DActive);
   if (event.code === BIOLOGICAL_PARALLAX_KEY && !event.repeat) toggleBiologicalParallax();
   if (event.code === 'Tab') {
     event.preventDefault();
@@ -1879,7 +1897,206 @@ function startFromTitle() {
   canvas.focus?.({ preventScroll: true });
 }
 
+// Mesma lista e mesma ordem de renderWorld, distribuida em tres camadas. O
+// que muda e so o destino de cada desenho: a luz, a sombra e a profundidade
+// passam a ser responsabilidade do renderizador 2,5D.
+function drawWorldLayers25D(layer) {
+  const withCamera = (target, draw) => {
+    target.save();
+    try { cameraView.apply(target); draw(target); } finally { target.restore(); }
+  };
+  try {
+    renderer.prepareFrame();
+    layerSwitch.target(layer.bg);
+    withCamera(layer.bg, () => renderer.drawBackground());
+    layerSwitch.target(layer.terrain);
+    // o liquido do fundo vai junto com o solo: mesma luz por camadas
+    withCamera(layer.terrain, () => renderer.drawHazardsLayer());
+    withCamera(layer.terrain, terrain => {
+      phaseFinale.renderWorldLayer(terrain);
+      sim.state.level.traversalDebugVisible = showDebug;
+      platformVisuals.drawWorld(terrain);
+    });
+    layerSwitch.target(layer.fx);
+    withCamera(layer.fx, fx => {
+      renderer.drawWorld({ skipHazards: true });
+      rhizoctoniaControl.render(fx);
+      ralstoniaControl.render(fx);
+      sim.pseudomonasSiderophores.renderDeposits(fx);
+      sim.ecology.render(fx);
+      sim.meloidogyneLifecycle.render(fx);
+      sim.beneficialInoculants.render(fx);
+      sim.pseudomonasSiderophores.render(fx);
+      sim.opportunisticFungus.render(fx);
+      sim.azospirillumRootGrowth.render(fx);
+      sim.rhizobiumNodulation.render(fx);
+      sim.nitrogenRootDevelopment.render(fx);
+      sim.trichodermaColonies.render(fx);
+      sim.trichoderma.render(fx);
+      trichodermaRhizoctoniaControl.render(fx);
+      trichodermaMeloidogyneControl.render(fx);
+      sim.mycorrhizaStructures.render(fx);
+      sim.mycorrhiza.render(fx);
+      sim.goal.render(fx);
+      sim.gameplay.render(fx);
+      sim.bacillusBioprotection.render(fx);
+      sim.phosphateSolubilization.render(fx);
+      fixedBlockRuntime.render(fx);
+      platformVisuals.renderLabel(fx);
+    });
+  } finally {
+    layerSwitch.target(null);
+  }
+}
+
+{
+  // Exporta o terreno exatamente como o jogo o desenha, numa janela do mundo.
+  // Usado para levar a MESMA cena para a prova de conceito em Unity
+  // (experimental/2_5d/tools/export-scene.cjs). Nao altera a partida.
+  window.miguelitoExportTerrain = ({ x0, y0, width, height }) => {
+    const st = sim.state;
+    const keep = {
+      cameraX: st.cameraX, cameraY: st.cameraY,
+      visibleWorldWidth: st.visibleWorldWidth, visibleWorldHeight: st.visibleWorldHeight,
+    };
+    const off = document.createElement('canvas');
+    off.width = width;
+    off.height = height;
+    const octx = off.getContext('2d');
+    Object.assign(st, { cameraX: x0, cameraY: y0, visibleWorldWidth: width, visibleWorldHeight: height });
+    try {
+      octx.translate(0, -y0);
+      platformVisuals.drawWorld(octx);
+    } finally {
+      Object.assign(st, keep);
+    }
+    return off.toDataURL('image/png');
+  };
+}
+
+// ---- Efeitos 2,5D (menu de pausa, tecla G) ----------------------------------
+// Desligado: nada do 2,5D e baixado (Three.js e shaders vem sob demanda).
+// Ligado: se o jogo ficar abaixo de VFX_MIN_FPS por alguns segundos, volta
+// sozinho ao 2D e avisa — protecao para aparelhos de escola desconhecidos.
+const VFX_MIN_FPS = 20;
+const vfxButton = document.querySelector('[data-mobile-action="toggle-25d"]');
+let vfxLoading = null;
+const showPanel25D = /[?&]painel=1/.test(window.location.search) || globalThis.MIGUELITO_RENDER_25D_DEFAULT === true;
+
+function saveVfxPreference(on) {
+  try { localStorage.setItem('miguelito:vfx-25d', on ? '1' : '0'); } catch (_) {}
+}
+
+function syncVfxUi() {
+  vfxButton?.setAttribute('aria-pressed', String(render25DActive));
+  // A luz do 2D nao vale com o 2,5D ligado (a luz e a do 2,5D)
+  if (lightingToggleButton) {
+    lightingToggleButton.disabled = render25DActive;
+    lightingToggleButton.closest('.pause-row')?.classList.toggle('is-disabled', render25DActive);
+  }
+}
+
+function ensureRenderer25D() {
+  if (renderer25D) return Promise.resolve(renderer25D);
+  if (vfxLoading) return vfxLoading;
+  vfxLoading = load25DRenderer().then(module => {
+    renderer25D = module.createRenderer25D({
+      mainCanvas: canvas,
+      state: sim.state,
+      getAgents: () => sim.ecology?.agents || null,
+      quality: new URLSearchParams(window.location.search).get('q') || 'high',
+    });
+    if (showPanel25D) {
+      module.mount25DPanel?.({
+        renderer25D,
+        isActive: () => render25DActive,
+        setActive: value => setVfx(value, { save: false, quiet: true }),
+      });
+    }
+    window.miguelito25D = renderer25D;
+    return renderer25D;
+  }).catch(error => {
+    console.error('[2,5D] o renderizador WebGL nao carregou; seguindo em 2D', error);
+    vfxLoading = null;
+    throw error;
+  });
+  return vfxLoading;
+}
+
+const vfxGuard = { since: 0, frames: 0, slowWindows: 0, fps: 0, warm: false };
+window.miguelitoVfxGuard = vfxGuard;
+function resetVfxGuard() { Object.assign(vfxGuard, { since: 0, frames: 0, slowWindows: 0, fps: 0, warm: false }); }
+
+async function setVfx(on, { save = true, quiet = false } = {}) {
+  if (!on) {
+    render25DActive = false;
+    renderer25D?.setVisible(false);
+    if (save) saveVfxPreference(false);
+    syncVfxUi();
+    if (!quiet) narrate(sim.state, 'system.vfx-off');
+    return;
+  }
+  try {
+    await ensureRenderer25D();
+    render25DActive = true;
+    resetVfxGuard();
+    if (save) saveVfxPreference(true);
+    syncVfxUi();
+    if (!quiet) narrate(sim.state, 'system.vfx-on');
+  } catch (_) {
+    render25DActive = false;
+    if (save) saveVfxPreference(false);
+    syncVfxUi();
+    narrate(sim.state, 'system.vfx-failed');
+  }
+}
+
+// Mede o FPS so com o jogo rodando de verdade (fora de pausa, cartao ou aba
+// escondida). Janelas de 2 s; a primeira depois de ligar/retomar e descartada
+// (compilacao de shaders, carga de texturas); duas seguidas abaixo do limite
+// desligam os efeitos.
+function watchVfxPerformance(now) {
+  if (!render25DActive) return;
+  const running = sim.state.gameState === 'play' && !pauseMenu.isOpen
+    && !(window.miguelitoTutorial?.isOpen) && document.visibilityState === 'visible';
+  if (!running) { vfxGuard.since = 0; vfxGuard.frames = 0; vfxGuard.warm = false; return; }
+  if (!vfxGuard.since) { vfxGuard.since = now; vfxGuard.frames = 0; return; }
+  vfxGuard.frames++;
+  const elapsed = now - vfxGuard.since;
+  if (elapsed < 2000) return;
+  const fps = vfxGuard.frames * 1000 / elapsed;
+  vfxGuard.fps = Math.round(fps);
+  vfxGuard.since = now; vfxGuard.frames = 0;
+  if (!vfxGuard.warm) { vfxGuard.warm = true; return; }
+  vfxGuard.slowWindows = fps < VFX_MIN_FPS ? vfxGuard.slowWindows + 1 : 0;
+  if (vfxGuard.slowWindows >= 2) {
+    setVfx(false, { quiet: true });
+    narrate(sim.state, 'system.vfx-slow');
+  }
+}
+
+vfxButton?.addEventListener('click', event => {
+  event.preventDefault();
+  setVfx(!render25DActive);
+  vfxButton.blur();
+});
+
+// Para comparar (e para os testes): true = 2,5D, false = 2D original.
+window.miguelito25DMode = value => {
+  if (typeof value === 'boolean') setVfx(value, { save: false, quiet: true });
+  return render25DActive;
+};
+
+if (render25DRequested) setVfx(true, { save: false, quiet: true });
+syncVfxUi();
+
 function renderWorld() {
+  if (renderer25D && render25DActive) {
+    renderer25D.renderFrame(drawWorldLayers25D);
+    return;
+  }
+  renderer25D?.setVisible(false);
+  if (frameProfiler.active || Object.values(window.miguelitoCusto2D || {}).some(Boolean)) { renderWorldProfiled(); return; }
   // Limpeza defensiva em coordenadas de TELA, antes de qualquer zoom/camera:
   // garante que nenhum quadro residual sobreviva na faixa que o fundo do mundo
   // nao cobrir. Precisa vir ANTES de cameraView.apply — depois do zoom, um
@@ -1940,6 +2157,50 @@ function renderWorld() {
   }
 }
 
+// Mesmo quadro de renderWorld, em trechos medidos (?perfil=1) e com trechos
+// que podem ser pulados pelo painel ("Teste de custo"): pular um trecho mostra
+// quanto FPS ele custa NESTE aparelho, inclusive celular e tablet.
+window.miguelitoCusto2D = { fundo: false, terreno: false, luz: false, efeitos: false };
+function renderWorldProfiled() {
+  const P = frameProfiler;
+  const skip = window.miguelitoCusto2D;
+  P.frame();
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  ctx.save();
+  try {
+    cameraView.apply(ctx);
+    renderer.prepareFrame();
+    if (!skip.fundo) P.run('fundo (gradiente + backdrop + paralaxe)', () => renderer.drawBackground());
+    if (!skip.efeitos) P.run('mundo (raizes, exsudatos, jogador, microbios)', () => renderer.drawWorld());
+    else { ctx.save(); ctx.translate(-(sim.state.cameraX || 0), 0); renderer.drawPlayer(); ctx.restore(); }
+    P.run('final/superficie', () => phaseFinale.renderWorldLayer(ctx));
+    if (!skip.terreno) P.run('terreno (plataformas)', () => { sim.state.level.traversalDebugVisible = showDebug; platformVisuals.drawWorld(ctx); });
+    if (!skip.luz) P.run('profundidade das plataformas (luz)', () => lighting?.renderPlatformDepth(ctx));
+    const subs = [
+      ['rhizoctoniaControl', rhizoctoniaControl], ['ralstoniaControl', ralstoniaControl],
+      ['ecology', sim.ecology], ['meloidogyne', sim.meloidogyneLifecycle], ['inoculants', sim.beneficialInoculants],
+      ['siderophores', sim.pseudomonasSiderophores], ['opportunisticFungus', sim.opportunisticFungus],
+      ['azospirillum', sim.azospirillumRootGrowth], ['rhizobium', sim.rhizobiumNodulation],
+      ['nitrogenRoot', sim.nitrogenRootDevelopment], ['trichodermaColonies', sim.trichodermaColonies],
+      ['trichoderma', sim.trichoderma], ['trichoRhizoctonia', trichodermaRhizoctoniaControl],
+      ['trichoMeloidogyne', trichodermaMeloidogyneControl], ['mycorrhizaStructures', sim.mycorrhizaStructures],
+      ['mycorrhiza', sim.mycorrhiza], ['goal', sim.goal], ['gameplay', sim.gameplay],
+      ['bacillus', sim.bacillusBioprotection], ['phosphate', sim.phosphateSolubilization], ['fixedBlocks', fixedBlockRuntime],
+    ];
+    if (!skip.efeitos) {
+      P.run('siderophores (depositos)', () => sim.pseudomonasSiderophores.renderDeposits(ctx));
+      for (const [name, sys] of subs) P.run(name, () => sys.render(ctx));
+    }
+    if (!skip.luz) P.run('iluminacao 2D (escurecer + recortes + feixes)', () => lighting?.render(ctx, { finaleActive: phaseFinale.active }));
+    P.run('rotulos', () => platformVisuals.renderLabel(ctx));
+  } finally {
+    ctx.restore();
+  }
+}
+
 function loop(now) {
   try {
     const dt = Math.max(0, Math.min((now - lastTime) / 1000, .1));
@@ -1990,6 +2251,7 @@ function loop(now) {
     // avancado (um cartao de tutorial aberto congela o jogo, nao a cena).
     phaseFinale.update(dt);
     renderWorld();
+    watchVfxPerformance(now);
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);
     const finaleVisible = phaseFinale.active;

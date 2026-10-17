@@ -85,7 +85,8 @@ export function createRenderer({
     // a faixa [0, cameraX] descoberta a esquerda quando cameraX > 0, e os quadros
     // antigos apareciam ali como fantasma. Ancorado em x=0.
     ctx.fillRect(0, cameraY, viewportWidth, viewportHeight);
-    rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport);
+    const R = (name, fn) => (globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
+    R('  fundo/imagem (backdrop)', () => rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport));
     parallaxBackground.render(ctx, parallaxCamera, parallaxViewport);
   }
 
@@ -220,7 +221,36 @@ export function createRenderer({
     ctx.restore();
   }
 
-  function drawWorld() {
+  // Zona necrotica (liquido do fundo). Separada para o modo 2,5D poder
+  // desenha-la na camada do terreno, onde recebe brilho na superficie e
+  // escurece por camadas para baixo, como os blocos de solo.
+  function drawNecroticZone() {
+    const { cameraX, level } = state;
+    if (!level.hazards.length) return;
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const hazard of level.hazards) {
+      top = Math.min(top, hazard.y);
+      bottom = Math.max(bottom, hazard.y + hazard.h);
+    }
+    necroticView.cameraX = cameraX;
+    necroticView.cameraY = state.cameraY || 0;
+    necroticView.zoom = state.cameraZoom || 1;
+    necroticView.viewportWidth = canvas.width || W;
+    necroticView.viewportHeight = canvas.height || H;
+    necroticView.top = top;
+    necroticView.bottom = bottom;
+    necroticZone.render(ctx, necroticView);
+  }
+
+  function drawHazardsLayer() {
+    ctx.save();
+    ctx.translate(-(state.cameraX || 0), 0);
+    drawNecroticZone();
+    ctx.restore();
+  }
+
+  function drawWorld(options = {}) {
     const { time, cameraX, level } = state;
     const player = state.player;
     ctx.save();
@@ -243,22 +273,7 @@ export function createRenderer({
       // A geometria e colisao fisica em level.platforms permanecem 100% ativas para o personagem.
     });
 
-    if (level.hazards.length) {
-      let top = Infinity;
-      let bottom = -Infinity;
-      for (const hazard of level.hazards) {
-        top = Math.min(top, hazard.y);
-        bottom = Math.max(bottom, hazard.y + hazard.h);
-      }
-      necroticView.cameraX = cameraX;
-      necroticView.cameraY = state.cameraY || 0;
-      necroticView.zoom = state.cameraZoom || 1;
-      necroticView.viewportWidth = canvas.width || W;
-      necroticView.viewportHeight = canvas.height || H;
-      necroticView.top = top;
-      necroticView.bottom = bottom;
-      necroticZone.render(ctx, necroticView);
-    }
+    if (!options.skipHazards) drawNecroticZone();
 
     if (level.endX === undefined) {
       ctx.strokeStyle = '#cfaa72';
@@ -766,7 +781,10 @@ export function createRenderer({
     ctx.restore();
   }
 
-  function render() {
+  // Avanca o que e animado pelo relogio (zona necrotica, paralaxe biologica).
+  // Separado do desenho para o modo 2,5D, que desenha fundo e mundo em camadas
+  // diferentes; no 2D `render()` continua chamando os dois na mesma ordem.
+  function prepareFrame() {
     const necroticTime = Number.isFinite(state.time) ? state.time : lastNecroticTime;
     const necroticDt = necroticTime >= lastNecroticTime
       ? Math.min(.1, necroticTime - lastNecroticTime)
@@ -779,6 +797,10 @@ export function createRenderer({
     parallaxViewport.height = canvas.height || H;
     parallaxBackground.update(necroticDt, parallaxCamera, state.player);
     lastNecroticTime = necroticTime;
+  }
+
+  function render() {
+    prepareFrame();
     const sx = state.shake ? (Math.random() - .5) * state.shake * 24 : 0;
     const sy = state.shake ? (Math.random() - .5) * state.shake * 16 : 0;
     ctx.save();
@@ -792,7 +814,7 @@ export function createRenderer({
   }
 
   return {
-    render, drawBackground, drawWorld, drawPlayer,
+    render, prepareFrame, drawBackground, drawWorld, drawPlayer, drawHazardsLayer,
     necroticZone,
     rhizosphereBackdrop,
     parallaxBackground,

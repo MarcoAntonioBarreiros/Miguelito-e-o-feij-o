@@ -625,6 +625,7 @@
       cursor: pointer;
     }
     #pause-menu .pause-row .mobile-tool { flex: none; width: 38px; height: 34px; }
+    #pause-menu .pause-row.is-disabled { opacity: .45; }
     #pause-menu kbd {
       margin-left: 4px;
       padding: 0 4px;
@@ -1059,6 +1060,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
       <div id="pause-options">
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-sound" aria-label="Ligar ou desligar o som (tecla M)" aria-pressed="false" title="Clique para ativar o som">♪</button><span>Som <kbd>M</kbd></span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-lighting" aria-label="Ligar/desligar luz e atmosfera (tecla L)" aria-pressed="true">☀</button><span>Luz e atmosfera <kbd>L</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-25d" aria-label="Ligar/desligar efeitos 2,5D: luz dinâmica, sombras e profundidade (tecla G)" aria-pressed="false">✦</button><span>Efeitos 2,5D <kbd>G</kbd></span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-parallax" aria-label="Ligar/desligar paralaxe biológico (tecla P)" aria-pressed="true">P</button><span>Paralaxe biológico <kbd>P</kbd></span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-recovery" aria-label="Ligar/desligar plataformas de segurança (tecla T)" aria-pressed="false">⛨</button><span>Plataformas de segurança <kbd>T</kbd></span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="debug" aria-label="Mostrar informações técnicas" aria-pressed="false">ⓘ</button><span>Informações técnicas <kbd>Tab</kbd></span></label>
@@ -1087,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"43ad377","subject":"Reverte a alteração no AGENTS.md","builtAt":"2026-09-24 15:28"};
+window.__BEANS_BUILD__ = {"commit":"8469853","subject":"2,5D: remove as hifas decorativas (a micorriza visivel e so a da simulac","builtAt":"2026-10-17 21:06"};
 (() => {
 'use strict';
 const __modules = {
@@ -1121,6 +1123,8 @@ const { createBiologicalAudio } = __require("src/procgen/biological-audio.js");
 const { biologicalGroupsForProgress, VICTORY_AUDIO_FALLBACK_SECONDS } = __require("src/audio-manifest.js");
 const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");
 const { createRenderer } = __require("src/render/renderer.js");
+const { createLayerSwitch, read25DPreference } = __require("experimental/2_5d/gl/layer-switch.js");
+const { createFrameProfiler, readProfilePreference } = __require("experimental/2_5d/gl/frame-profiler.js");
 const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");
 const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");
 const { createRhizosphereLighting, readLightingPreference } = __require("src/render/rhizosphere-lighting.js");
@@ -1149,6 +1153,21 @@ const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo:
 const canvas = document.querySelector('canvas');
 const responsiveCanvas = createResponsiveCanvas({ canvas, windowObject: window });
 const ctx = canvas.getContext('2d');
+// ?perfil=1: mede o custo de cada parte do quadro 2D (experimental)
+const frameProfiler = createFrameProfiler(ctx, readProfilePreference(window.location));
+window.miguelitoPerfil = frameProfiler;
+// EXPERIMENTAL (branch experimental/visual-2_5d): renderizador 2,5D em WebGL.
+// So existe com ?render=25d na URL. Sem o parametro nada abaixo roda e o jogo
+// desenha exatamente como na main. Com ele, o renderizador recebe um canvas
+// "comutavel" para que fundo, terreno e efeitos possam ir a camadas separadas;
+// o Three.js e carregado sob demanda e, se falhar, o 2D continua no comando.
+const render25DRequested = read25DPreference(window.location);
+// O comutador existe sempre: os Efeitos 2,5D podem ser ligados pelo menu a
+// qualquer momento. Desligado, ele so repassa as chamadas ao contexto real.
+const layerSwitch = createLayerSwitch(canvas);
+let renderer25D = null;
+let render25DActive = false;
+const load25DRenderer = () => import('../../experimental/2_5d/gl/renderer-25d.js');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
 const phaseCardDiv = document.getElementById('phase-card');
@@ -2424,7 +2443,7 @@ function initGame({ announce = false } = {}) {
   sim.resetBiology();
   ralstoniaControl.initialize();
   renderer = createRenderer({
-    canvas,
+    canvas: layerSwitch ? layerSwitch.canvas : canvas,
     state: sim.state,
     entities: sim.entities,
     parallaxSeed: seed || `campaign-phase-${campaign.phase}`,
@@ -2817,7 +2836,8 @@ window.addEventListener('keydown', event => {
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'KeyT' && !event.repeat) toggleRecoveryPlatforms();
   if (event.code === 'KeyM' && !event.repeat) toggleGameAudio();
-  if (event.code === 'KeyL' && !event.repeat) toggleLighting();
+  if (event.code === 'KeyL' && !event.repeat && !render25DActive) toggleLighting();
+  if (event.code === 'KeyG' && !event.repeat) setVfx(!render25DActive);
   if (event.code === BIOLOGICAL_PARALLAX_KEY && !event.repeat) toggleBiologicalParallax();
   if (event.code === 'Tab') {
     event.preventDefault();
@@ -2937,7 +2957,206 @@ function startFromTitle() {
   canvas.focus?.({ preventScroll: true });
 }
 
+// Mesma lista e mesma ordem de renderWorld, distribuida em tres camadas. O
+// que muda e so o destino de cada desenho: a luz, a sombra e a profundidade
+// passam a ser responsabilidade do renderizador 2,5D.
+function drawWorldLayers25D(layer) {
+  const withCamera = (target, draw) => {
+    target.save();
+    try { cameraView.apply(target); draw(target); } finally { target.restore(); }
+  };
+  try {
+    renderer.prepareFrame();
+    layerSwitch.target(layer.bg);
+    withCamera(layer.bg, () => renderer.drawBackground());
+    layerSwitch.target(layer.terrain);
+    // o liquido do fundo vai junto com o solo: mesma luz por camadas
+    withCamera(layer.terrain, () => renderer.drawHazardsLayer());
+    withCamera(layer.terrain, terrain => {
+      phaseFinale.renderWorldLayer(terrain);
+      sim.state.level.traversalDebugVisible = showDebug;
+      platformVisuals.drawWorld(terrain);
+    });
+    layerSwitch.target(layer.fx);
+    withCamera(layer.fx, fx => {
+      renderer.drawWorld({ skipHazards: true });
+      rhizoctoniaControl.render(fx);
+      ralstoniaControl.render(fx);
+      sim.pseudomonasSiderophores.renderDeposits(fx);
+      sim.ecology.render(fx);
+      sim.meloidogyneLifecycle.render(fx);
+      sim.beneficialInoculants.render(fx);
+      sim.pseudomonasSiderophores.render(fx);
+      sim.opportunisticFungus.render(fx);
+      sim.azospirillumRootGrowth.render(fx);
+      sim.rhizobiumNodulation.render(fx);
+      sim.nitrogenRootDevelopment.render(fx);
+      sim.trichodermaColonies.render(fx);
+      sim.trichoderma.render(fx);
+      trichodermaRhizoctoniaControl.render(fx);
+      trichodermaMeloidogyneControl.render(fx);
+      sim.mycorrhizaStructures.render(fx);
+      sim.mycorrhiza.render(fx);
+      sim.goal.render(fx);
+      sim.gameplay.render(fx);
+      sim.bacillusBioprotection.render(fx);
+      sim.phosphateSolubilization.render(fx);
+      fixedBlockRuntime.render(fx);
+      platformVisuals.renderLabel(fx);
+    });
+  } finally {
+    layerSwitch.target(null);
+  }
+}
+
+{
+  // Exporta o terreno exatamente como o jogo o desenha, numa janela do mundo.
+  // Usado para levar a MESMA cena para a prova de conceito em Unity
+  // (experimental/2_5d/tools/export-scene.cjs). Nao altera a partida.
+  window.miguelitoExportTerrain = ({ x0, y0, width, height }) => {
+    const st = sim.state;
+    const keep = {
+      cameraX: st.cameraX, cameraY: st.cameraY,
+      visibleWorldWidth: st.visibleWorldWidth, visibleWorldHeight: st.visibleWorldHeight,
+    };
+    const off = document.createElement('canvas');
+    off.width = width;
+    off.height = height;
+    const octx = off.getContext('2d');
+    Object.assign(st, { cameraX: x0, cameraY: y0, visibleWorldWidth: width, visibleWorldHeight: height });
+    try {
+      octx.translate(0, -y0);
+      platformVisuals.drawWorld(octx);
+    } finally {
+      Object.assign(st, keep);
+    }
+    return off.toDataURL('image/png');
+  };
+}
+
+// ---- Efeitos 2,5D (menu de pausa, tecla G) ----------------------------------
+// Desligado: nada do 2,5D e baixado (Three.js e shaders vem sob demanda).
+// Ligado: se o jogo ficar abaixo de VFX_MIN_FPS por alguns segundos, volta
+// sozinho ao 2D e avisa — protecao para aparelhos de escola desconhecidos.
+const VFX_MIN_FPS = 20;
+const vfxButton = document.querySelector('[data-mobile-action="toggle-25d"]');
+let vfxLoading = null;
+const showPanel25D = /[?&]painel=1/.test(window.location.search) || globalThis.MIGUELITO_RENDER_25D_DEFAULT === true;
+
+function saveVfxPreference(on) {
+  try { localStorage.setItem('miguelito:vfx-25d', on ? '1' : '0'); } catch (_) {}
+}
+
+function syncVfxUi() {
+  vfxButton?.setAttribute('aria-pressed', String(render25DActive));
+  // A luz do 2D nao vale com o 2,5D ligado (a luz e a do 2,5D)
+  if (lightingToggleButton) {
+    lightingToggleButton.disabled = render25DActive;
+    lightingToggleButton.closest('.pause-row')?.classList.toggle('is-disabled', render25DActive);
+  }
+}
+
+function ensureRenderer25D() {
+  if (renderer25D) return Promise.resolve(renderer25D);
+  if (vfxLoading) return vfxLoading;
+  vfxLoading = load25DRenderer().then(module => {
+    renderer25D = module.createRenderer25D({
+      mainCanvas: canvas,
+      state: sim.state,
+      getAgents: () => sim.ecology?.agents || null,
+      quality: new URLSearchParams(window.location.search).get('q') || 'high',
+    });
+    if (showPanel25D) {
+      module.mount25DPanel?.({
+        renderer25D,
+        isActive: () => render25DActive,
+        setActive: value => setVfx(value, { save: false, quiet: true }),
+      });
+    }
+    window.miguelito25D = renderer25D;
+    return renderer25D;
+  }).catch(error => {
+    console.error('[2,5D] o renderizador WebGL nao carregou; seguindo em 2D', error);
+    vfxLoading = null;
+    throw error;
+  });
+  return vfxLoading;
+}
+
+const vfxGuard = { since: 0, frames: 0, slowWindows: 0, fps: 0, warm: false };
+window.miguelitoVfxGuard = vfxGuard;
+function resetVfxGuard() { Object.assign(vfxGuard, { since: 0, frames: 0, slowWindows: 0, fps: 0, warm: false }); }
+
+async function setVfx(on, { save = true, quiet = false } = {}) {
+  if (!on) {
+    render25DActive = false;
+    renderer25D?.setVisible(false);
+    if (save) saveVfxPreference(false);
+    syncVfxUi();
+    if (!quiet) narrate(sim.state, 'system.vfx-off');
+    return;
+  }
+  try {
+    await ensureRenderer25D();
+    render25DActive = true;
+    resetVfxGuard();
+    if (save) saveVfxPreference(true);
+    syncVfxUi();
+    if (!quiet) narrate(sim.state, 'system.vfx-on');
+  } catch (_) {
+    render25DActive = false;
+    if (save) saveVfxPreference(false);
+    syncVfxUi();
+    narrate(sim.state, 'system.vfx-failed');
+  }
+}
+
+// Mede o FPS so com o jogo rodando de verdade (fora de pausa, cartao ou aba
+// escondida). Janelas de 2 s; a primeira depois de ligar/retomar e descartada
+// (compilacao de shaders, carga de texturas); duas seguidas abaixo do limite
+// desligam os efeitos.
+function watchVfxPerformance(now) {
+  if (!render25DActive) return;
+  const running = sim.state.gameState === 'play' && !pauseMenu.isOpen
+    && !(window.miguelitoTutorial?.isOpen) && document.visibilityState === 'visible';
+  if (!running) { vfxGuard.since = 0; vfxGuard.frames = 0; vfxGuard.warm = false; return; }
+  if (!vfxGuard.since) { vfxGuard.since = now; vfxGuard.frames = 0; return; }
+  vfxGuard.frames++;
+  const elapsed = now - vfxGuard.since;
+  if (elapsed < 2000) return;
+  const fps = vfxGuard.frames * 1000 / elapsed;
+  vfxGuard.fps = Math.round(fps);
+  vfxGuard.since = now; vfxGuard.frames = 0;
+  if (!vfxGuard.warm) { vfxGuard.warm = true; return; }
+  vfxGuard.slowWindows = fps < VFX_MIN_FPS ? vfxGuard.slowWindows + 1 : 0;
+  if (vfxGuard.slowWindows >= 2) {
+    setVfx(false, { quiet: true });
+    narrate(sim.state, 'system.vfx-slow');
+  }
+}
+
+vfxButton?.addEventListener('click', event => {
+  event.preventDefault();
+  setVfx(!render25DActive);
+  vfxButton.blur();
+});
+
+// Para comparar (e para os testes): true = 2,5D, false = 2D original.
+window.miguelito25DMode = value => {
+  if (typeof value === 'boolean') setVfx(value, { save: false, quiet: true });
+  return render25DActive;
+};
+
+if (render25DRequested) setVfx(true, { save: false, quiet: true });
+syncVfxUi();
+
 function renderWorld() {
+  if (renderer25D && render25DActive) {
+    renderer25D.renderFrame(drawWorldLayers25D);
+    return;
+  }
+  renderer25D?.setVisible(false);
+  if (frameProfiler.active || Object.values(window.miguelitoCusto2D || {}).some(Boolean)) { renderWorldProfiled(); return; }
   // Limpeza defensiva em coordenadas de TELA, antes de qualquer zoom/camera:
   // garante que nenhum quadro residual sobreviva na faixa que o fundo do mundo
   // nao cobrir. Precisa vir ANTES de cameraView.apply — depois do zoom, um
@@ -2998,6 +3217,50 @@ function renderWorld() {
   }
 }
 
+// Mesmo quadro de renderWorld, em trechos medidos (?perfil=1) e com trechos
+// que podem ser pulados pelo painel ("Teste de custo"): pular um trecho mostra
+// quanto FPS ele custa NESTE aparelho, inclusive celular e tablet.
+window.miguelitoCusto2D = { fundo: false, terreno: false, luz: false, efeitos: false };
+function renderWorldProfiled() {
+  const P = frameProfiler;
+  const skip = window.miguelitoCusto2D;
+  P.frame();
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  ctx.save();
+  try {
+    cameraView.apply(ctx);
+    renderer.prepareFrame();
+    if (!skip.fundo) P.run('fundo (gradiente + backdrop + paralaxe)', () => renderer.drawBackground());
+    if (!skip.efeitos) P.run('mundo (raizes, exsudatos, jogador, microbios)', () => renderer.drawWorld());
+    else { ctx.save(); ctx.translate(-(sim.state.cameraX || 0), 0); renderer.drawPlayer(); ctx.restore(); }
+    P.run('final/superficie', () => phaseFinale.renderWorldLayer(ctx));
+    if (!skip.terreno) P.run('terreno (plataformas)', () => { sim.state.level.traversalDebugVisible = showDebug; platformVisuals.drawWorld(ctx); });
+    if (!skip.luz) P.run('profundidade das plataformas (luz)', () => lighting?.renderPlatformDepth(ctx));
+    const subs = [
+      ['rhizoctoniaControl', rhizoctoniaControl], ['ralstoniaControl', ralstoniaControl],
+      ['ecology', sim.ecology], ['meloidogyne', sim.meloidogyneLifecycle], ['inoculants', sim.beneficialInoculants],
+      ['siderophores', sim.pseudomonasSiderophores], ['opportunisticFungus', sim.opportunisticFungus],
+      ['azospirillum', sim.azospirillumRootGrowth], ['rhizobium', sim.rhizobiumNodulation],
+      ['nitrogenRoot', sim.nitrogenRootDevelopment], ['trichodermaColonies', sim.trichodermaColonies],
+      ['trichoderma', sim.trichoderma], ['trichoRhizoctonia', trichodermaRhizoctoniaControl],
+      ['trichoMeloidogyne', trichodermaMeloidogyneControl], ['mycorrhizaStructures', sim.mycorrhizaStructures],
+      ['mycorrhiza', sim.mycorrhiza], ['goal', sim.goal], ['gameplay', sim.gameplay],
+      ['bacillus', sim.bacillusBioprotection], ['phosphate', sim.phosphateSolubilization], ['fixedBlocks', fixedBlockRuntime],
+    ];
+    if (!skip.efeitos) {
+      P.run('siderophores (depositos)', () => sim.pseudomonasSiderophores.renderDeposits(ctx));
+      for (const [name, sys] of subs) P.run(name, () => sys.render(ctx));
+    }
+    if (!skip.luz) P.run('iluminacao 2D (escurecer + recortes + feixes)', () => lighting?.render(ctx, { finaleActive: phaseFinale.active }));
+    P.run('rotulos', () => platformVisuals.renderLabel(ctx));
+  } finally {
+    ctx.restore();
+  }
+}
+
 function loop(now) {
   try {
     const dt = Math.max(0, Math.min((now - lastTime) / 1000, .1));
@@ -3048,6 +3311,7 @@ function loop(now) {
     // avancado (um cartao de tutorial aberto congela o jogo, nao a cena).
     phaseFinale.update(dt);
     renderWorld();
+    watchVfxPerformance(now);
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);
     const finaleVisible = phaseFinale.active;
@@ -14176,6 +14440,11 @@ const NARRATION = Object.freeze({
   'system.parallax-off': { kind: 'system', text: 'Paralaxe biológico desativado' },
   'system.lighting-on': { kind: 'system', text: 'Luz e atmosfera ativadas' },
   'system.lighting-off': { kind: 'system', text: 'Luz e atmosfera desativadas' },
+  'system.vfx-on': { kind: 'system', text: 'Efeitos 2,5D ativados' },
+  'system.vfx-off': { kind: 'system', text: 'Efeitos 2,5D desativados' },
+  // 'danger' interrompe a mensagem em tela: o jogador precisa saber na hora por que mudou
+  'system.vfx-slow': { kind: 'danger', scope: 'always', text: 'Efeitos 2,5D desligados: este aparelho ficou lento demais' },
+  'system.vfx-failed': { kind: 'system', text: 'Efeitos 2,5D indisponíveis neste aparelho' },
   'system.loop-error': { kind: 'system', text: 'Um sistema falhou; Tab mostra o erro' },
 
   // 4.2 Rhizobium, nitrogênio e Azospirillum ---------------------------------
@@ -18711,7 +18980,13 @@ function createRhizosphereGeometry({ state, painters }) {
   function cached(ctx, key, box, paint) {
     if (!canCache || typeof ctx.getTransform !== 'function') { paint(ctx); return; }
     const m = ctx.getTransform();
-    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * 2 * 4) / 4;
+    // Escala do cache: 1x a da camera (antes 2x). Com 2x cada copia era uma
+    // REDUCAO de imagem grande em suavizacao alta, refeita a cada quadro: no
+    // notebook de teste (Intel Arc) isso sozinho levava o quadro de ~17 para
+    // ~38 fps. Em 1x a copia e praticamente 1:1 e a nitidez fica a mesma.
+    // O painel experimental ("Teste de custo") ainda deixa voltar ao 2x/alta.
+    const tune = globalThis.__terrenoCache;
+    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * (tune?.scale ?? 1) * 4) / 4;
     let entry = drawCache.get(key);
     // Só na cinemática do fim de fase (finalRootPulse existe enquanto ela
     // roda): o afastamento atravessa uns 9 degraus de zoom seguidos e
@@ -18734,7 +19009,7 @@ function createRhizosphereGeometry({ state, painters }) {
     entry.frame = cacheFrame;
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = tune?.smoothing ?? 'low';
     ctx.drawImage(entry.canvas, entry.x, entry.y, entry.w, entry.h);
     ctx.restore();
   }
@@ -19642,6 +19917,9 @@ function createRhizosphereGeometry({ state, painters }) {
 
   let lastRenderMs = 0;
 
+  // experimental: medir (?perfil) e pular partes do terreno (painel "Teste de custo")
+  const R = (name, fn) => (globalThis.__terrenoPular?.has(name.trim()) ? undefined
+    : globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
   function draw(ctx, view, seedOf) {
     const started = typeof performance !== 'undefined' ? performance.now() : 0;
     cacheFrame++;
@@ -19656,7 +19934,11 @@ function createRhizosphereGeometry({ state, painters }) {
     const arch = buildArchitecture(layout, platforms, seedOf);
     const time = state.time || 0;
 
-    drawSky(ctx, view, surface);
+    // Fases do desenho para o renderizador nativo (GPU): imagens de cada fase
+    // num lote, e o vetor da fase por cima delas. Num contexto 2D comum, nada.
+    ctx.__glSegment?.(0);
+    R('  terreno/ceu', () => drawSky(ctx, view, surface));
+    ctx.__glSegment?.(1);
     // Arquitetura radicular: principal e laterais livres mais atrás; laterais
     // que alimentam blocos um pouco mais à frente.
     // Como no original: ramificações finas atrás, depois a principal, e as
@@ -19671,32 +19953,33 @@ function createRhizosphereGeometry({ state, painters }) {
             : root.layer === 'link' ? LINK_ROOT_PALETTE : MUTED_ROOT_PALETTE;
           const fade = root.layer === 'link' ? .2 : .5;
           const pad = Math.max(...root.widths) + 14;
-          cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
+          R('  terreno/raizes corpo (cache)', () => cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
             x: box.minX - pad, y: box.minY - pad, w: box.maxX - box.minX + pad * 2, h: box.maxY - box.minY + pad * 2,
-          }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' }));
-          drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' });
+          }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' })));
+          R('  terreno/pelos radiculares', () => drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' }));
         }
       }
     }
-    drawCeiling(ctx, view, platforms, surface);
-    drawGround(ctx, view, surface);
-    for (const plant of plants) {
+    R('  terreno/teto', () => drawCeiling(ctx, view, platforms, surface));
+    R('  terreno/chao', () => drawGround(ctx, view, surface));
+    R('  terreno/plantas', () => { for (const plant of plants) {
       if (inX(plant.x - 120, plant.x + 120, 60)) drawPlant(ctx, plant, surface, view);
-    }
+    } });
+    ctx.__glSegment?.(2);
     for (const platform of platforms) {
       if (platform.type !== 'soil' || !inX(platform.x, platform.x + platform.w)) continue;
       const massSeed = seedOf(platform);
       const bottom = massBottom(platform, platforms, floor);
       if (platform.y > view.bottom || bottom < view.top) continue;
-      cached(ctx, `mass:${massSeed}:${Math.round(platform.x)}:${Math.round(platform.y)}:${Math.round(platform.w)}:${Math.round(bottom)}`, {
+      R('  terreno/massas (cache)', () => cached(ctx, `mass:${massSeed}:${Math.round(platform.x)}:${Math.round(platform.y)}:${Math.round(platform.w)}:${Math.round(bottom)}`, {
         x: platform.x - 96, y: platform.y - 12, w: platform.w + 192, h: bottom - platform.y + 72,
-      }, g => drawSoilMass(g, platform, platforms, FULL_VIEW, floor, massSeed));
+      }, g => drawSoilMass(g, platform, platforms, FULL_VIEW, floor, massSeed)));
     }
     links.forEach((link, index) => {
       const { block } = link;
       if (!inX(block.x, block.x + block.w, 40)) return;
       if (block.y > view.bottom || block.y + block.h < view.top) return;
-      drawAggregate(ctx, link, seedOf(block));
+      R('  terreno/agregados', () => drawAggregate(ctx, link, seedOf(block)));
     });
     trimCache();
     if (started) lastRenderMs = performance.now() - started;
@@ -43253,7 +43536,8 @@ function createRenderer({
     // a faixa [0, cameraX] descoberta a esquerda quando cameraX > 0, e os quadros
     // antigos apareciam ali como fantasma. Ancorado em x=0.
     ctx.fillRect(0, cameraY, viewportWidth, viewportHeight);
-    rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport);
+    const R = (name, fn) => (globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
+    R('  fundo/imagem (backdrop)', () => rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport));
     parallaxBackground.render(ctx, parallaxCamera, parallaxViewport);
   }
 
@@ -43388,7 +43672,36 @@ function createRenderer({
     ctx.restore();
   }
 
-  function drawWorld() {
+  // Zona necrotica (liquido do fundo). Separada para o modo 2,5D poder
+  // desenha-la na camada do terreno, onde recebe brilho na superficie e
+  // escurece por camadas para baixo, como os blocos de solo.
+  function drawNecroticZone() {
+    const { cameraX, level } = state;
+    if (!level.hazards.length) return;
+    let top = Infinity;
+    let bottom = -Infinity;
+    for (const hazard of level.hazards) {
+      top = Math.min(top, hazard.y);
+      bottom = Math.max(bottom, hazard.y + hazard.h);
+    }
+    necroticView.cameraX = cameraX;
+    necroticView.cameraY = state.cameraY || 0;
+    necroticView.zoom = state.cameraZoom || 1;
+    necroticView.viewportWidth = canvas.width || W;
+    necroticView.viewportHeight = canvas.height || H;
+    necroticView.top = top;
+    necroticView.bottom = bottom;
+    necroticZone.render(ctx, necroticView);
+  }
+
+  function drawHazardsLayer() {
+    ctx.save();
+    ctx.translate(-(state.cameraX || 0), 0);
+    drawNecroticZone();
+    ctx.restore();
+  }
+
+  function drawWorld(options = {}) {
     const { time, cameraX, level } = state;
     const player = state.player;
     ctx.save();
@@ -43411,22 +43724,7 @@ function createRenderer({
       // A geometria e colisao fisica em level.platforms permanecem 100% ativas para o personagem.
     });
 
-    if (level.hazards.length) {
-      let top = Infinity;
-      let bottom = -Infinity;
-      for (const hazard of level.hazards) {
-        top = Math.min(top, hazard.y);
-        bottom = Math.max(bottom, hazard.y + hazard.h);
-      }
-      necroticView.cameraX = cameraX;
-      necroticView.cameraY = state.cameraY || 0;
-      necroticView.zoom = state.cameraZoom || 1;
-      necroticView.viewportWidth = canvas.width || W;
-      necroticView.viewportHeight = canvas.height || H;
-      necroticView.top = top;
-      necroticView.bottom = bottom;
-      necroticZone.render(ctx, necroticView);
-    }
+    if (!options.skipHazards) drawNecroticZone();
 
     if (level.endX === undefined) {
       ctx.strokeStyle = '#cfaa72';
@@ -43934,7 +44232,10 @@ function createRenderer({
     ctx.restore();
   }
 
-  function render() {
+  // Avanca o que e animado pelo relogio (zona necrotica, paralaxe biologica).
+  // Separado do desenho para o modo 2,5D, que desenha fundo e mundo em camadas
+  // diferentes; no 2D `render()` continua chamando os dois na mesma ordem.
+  function prepareFrame() {
     const necroticTime = Number.isFinite(state.time) ? state.time : lastNecroticTime;
     const necroticDt = necroticTime >= lastNecroticTime
       ? Math.min(.1, necroticTime - lastNecroticTime)
@@ -43947,6 +44248,10 @@ function createRenderer({
     parallaxViewport.height = canvas.height || H;
     parallaxBackground.update(necroticDt, parallaxCamera, state.player);
     lastNecroticTime = necroticTime;
+  }
+
+  function render() {
+    prepareFrame();
     const sx = state.shake ? (Math.random() - .5) * state.shake * 24 : 0;
     const sy = state.shake ? (Math.random() - .5) * state.shake * 16 : 0;
     ctx.save();
@@ -43960,7 +44265,7 @@ function createRenderer({
   }
 
   return {
-    render, drawBackground, drawWorld, drawPlayer,
+    render, prepareFrame, drawBackground, drawWorld, drawPlayer, drawHazardsLayer,
     necroticZone,
     rhizosphereBackdrop,
     parallaxBackground,
@@ -45529,6 +45834,7 @@ function createRhizosphereParallax({
 
   function render(ctx, camera = {}, viewport = {}) {
     if (!enabled || !ctx) return;
+    const R = (name, fn) => (globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
     const zoom = Math.max(0.01, Number(camera.zoom) || 1);
     const viewportWidth = Math.max(1, (Number(viewport.width) || width || 1280) / zoom);
     const viewportHeight = Math.max(1, (Number(viewport.height) || height || 720) / zoom);
@@ -45538,7 +45844,7 @@ function createRhizosphereParallax({
     const cameraY = Number(camera.cameraY) || 0;
     ctx.save();
     resetCanvasState(ctx);
-    drawTiled(
+    R('  fundo/fundo profundo (cache)', () => drawTiled(
       ctx,
       deepCache,
       cameraX,
@@ -45547,8 +45853,8 @@ function createRhizosphereParallax({
       vertical.deep,
       viewportWidth,
       deepMotion,
-    );
-    drawTiledFilaments(
+    ));
+    R('  fundo/filamentos', () => drawTiledFilaments(
       ctx,
       deepFilaments,
       cameraX,
@@ -45558,8 +45864,8 @@ function createRhizosphereParallax({
       elapsed,
       deepMotion,
       filamentMotionScale,
-    );
-    drawTiled(
+    ));
+    R('  fundo/biologia (cache)', () => drawTiled(
       ctx,
       biologyCache,
       cameraX,
@@ -45568,8 +45874,8 @@ function createRhizosphereParallax({
       vertical.biology,
       viewportWidth,
       biologyMotion,
-    );
-    drawParticles(ctx, camera, { width: viewportWidth, height: viewportHeight });
+    ));
+    R('  fundo/particulas', () => drawParticles(ctx, camera, { width: viewportWidth, height: viewportHeight }));
     ctx.restore();
     stats.renderCount++;
   }
@@ -45618,6 +45924,166 @@ function createRhizosphereParallax({
   };
 }
 Object.assign(__exports, { BIOLOGICAL_PARALLAX_KEY, RHIZOSPHERE_PARALLAX_FACTORS, calculateFilamentGeometry, createRhizosphereParallax });
+},
+"experimental/2_5d/gl/layer-switch.js": (__exports, __require) => {
+// Comutador de camadas para o modo 2,5D (sem dependencia de Three.js).
+//
+// O renderizador do jogo (`createRenderer`) guarda o contexto 2D que recebe ao
+// nascer e desenha sempre nele. No modo 2,5D cada parte do quadro precisa ir
+// para uma camada diferente — fundo, terreno, efeitos — porque cada uma recebe
+// um tratamento de luz e profundidade proprio na GPU.
+//
+// Em vez de mexer no renderizador, ele recebe um canvas cujo contexto e um
+// "desvio": cada chamada vai para o contexto que estiver selecionado no
+// momento. Sem modo 2,5D o alvo e o contexto real, e o jogo desenha
+// exatamente como sempre.
+//
+// Este arquivo e importado estaticamente por app.js; o Three.js so e carregado
+// (import dinamico) quando `?render=25d` esta na URL.
+
+function read25DPreference(locationLike) {
+  try {
+    const params = new URLSearchParams(locationLike?.search || '');
+    const value = (params.get('render') || '').toLowerCase();
+    if (value === '2d') return false;
+    if (value === '25d' || value === '2.5d' || value === '2,5d') return true;
+    // escolha do jogador no menu de pausa (Efeitos 2,5D), guardada no navegador
+    try {
+      const saved = globalThis.localStorage?.getItem('miguelito:vfx-25d');
+      if (saved === '1') return true;
+      if (saved === '0') return false;
+    } catch (_) {}
+    // padrao: desligado (a demonstracao publicada liga por build-web-demo.cjs)
+    return globalThis.MIGUELITO_RENDER_25D_DEFAULT === true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function createLayerSwitch(canvas) {
+  const realCtx = canvas.getContext('2d');
+  let target = realCtx;
+  const bound = new WeakMap();
+
+  function boundFor(ctx, prop, fn) {
+    let map = bound.get(ctx);
+    if (!map) { map = new Map(); bound.set(ctx, map); }
+    let f = map.get(prop);
+    if (!f) { f = fn.bind(ctx); map.set(prop, f); }
+    return f;
+  }
+
+  const ctx = new Proxy({}, {
+    get(_, prop) {
+      const value = target[prop];
+      return typeof value === 'function' ? boundFor(target, prop, value) : value;
+    },
+    set(_, prop, value) {
+      target[prop] = value;
+      return true;
+    },
+    has(_, prop) { return prop in target; },
+  });
+
+  const proxyCanvas = new Proxy(canvas, {
+    get(real, prop) {
+      if (prop === 'getContext') return () => ctx;
+      const value = real[prop];
+      return typeof value === 'function' ? value.bind(real) : value;
+    },
+    set(real, prop, value) {
+      real[prop] = value;
+      return true;
+    },
+  });
+
+  return {
+    canvas: proxyCanvas,
+    ctx,
+    realCtx,
+    /** Seleciona o contexto que recebe as proximas chamadas (null = real). */
+    target(next) { target = next || realCtx; },
+  };
+}
+Object.assign(__exports, { read25DPreference, createLayerSwitch });
+},
+"experimental/2_5d/gl/frame-profiler.js": (__exports, __require) => {
+// Perfil do quadro 2D (so com ?perfil=1): mede quanto cada parte do desenho
+// custa. Depois de cada trecho forca o canvas a terminar o que foi pedido
+// (getImageData de 1 pixel), entao o tempo inclui a rasterizacao, nao so a
+// chamada. Serve para comparar as partes entre si, nao como FPS real.
+
+function readProfilePreference(locationLike) {
+  try { const v = new URLSearchParams(locationLike?.search || '').get('perfil'); return v === '1' ? 'flush' : v === '2' ? 'cpu' : false; } catch (_) { return false; }
+}
+
+function createFrameProfiler(ctx, active) {
+  const acc = new Map();
+  let frames = 0;
+  // contagem de operacoes por trecho (drawImage com area, preenchimentos,
+  // tracos, com sombra borrada) — diz O QUE pesa dentro de cada trecho
+  let current = null;
+  if (active) {
+    const proto = CanvasRenderingContext2D.prototype;
+    const wrap = (name, count) => {
+      const orig = proto[name];
+      proto[name] = function (...args) {
+        if (current) count(current, this, args);
+        return orig.apply(this, args);
+      };
+    };
+    const bump = (e, k, v = 1) => { e.ops[k] = (e.ops[k] || 0) + v; };
+    const blur = (e, c) => { if (c.shadowBlur > 0 && c.shadowColor !== 'rgba(0, 0, 0, 0)') bump(e, 'comSombra'); };
+    wrap('drawImage', (e, c, a) => {
+      bump(e, 'drawImage');
+      const src = a[0];
+      const tag = src?.tagName === 'CANVAS' ? 'canvas' : 'img';
+      bump(e, 'drawImage:' + tag);
+      const w = a.length >= 8 ? a[7] : a.length >= 4 ? a[3] : (src?.width || 0);
+      const h = a.length >= 8 ? a[8] : a.length >= 4 ? a[4] : (src?.height || 0);
+      const m = c.getTransform();
+      bump(e, 'pxImagem', Math.abs(w * h * m.a * m.d) / 1000);
+      blur(e, c);
+    });
+    for (const n of ['fill', 'stroke', 'fillRect', 'strokeRect', 'fillText', 'clip', 'putImageData']) wrap(n, (e, c) => { bump(e, n); blur(e, c); });
+    for (const n of ['createLinearGradient', 'createRadialGradient', 'createPattern']) wrap(n, e => bump(e, 'gradiente/padrao'));
+  }
+  // 'flush': forca a rasterizacao em cada trecho; 'cpu': so o tempo das chamadas
+  const flush = active === 'flush' ? () => { try { ctx.getImageData(0, 0, 1, 1); } catch (_) {} } : () => {};
+  const api = {
+    active: Boolean(active),
+    frame() { frames++; },
+    run(name, fn) {
+      if (!active) return fn();
+      flush();
+      const e = acc.get(name) || { ms: 0, n: 0, ops: {} };
+      acc.set(name, e);
+      const t0 = performance.now();
+      const prev = current;
+      current = e;
+      try { return fn(); } finally {
+        flush();
+        current = prev;
+        e.ms += performance.now() - t0; e.n++;
+      }
+    },
+    reset() { acc.clear(); frames = 0; },
+    report() {
+      const f = Math.max(1, frames);
+      const rows = [...acc.entries()].map(([name, e]) => ({
+        name, msPerFrame: +(e.ms / f).toFixed(3),
+        ops: Object.fromEntries(Object.entries(e.ops).map(([k, v]) => [k, +(v / f).toFixed(1)])),
+      }));
+      rows.sort((a, b) => b.msPerFrame - a.msPerFrame);
+      const total = rows.reduce((s, r) => s + r.msPerFrame, 0);
+      return { frames, totalMs: +total.toFixed(2), rows };
+    },
+  };
+  // trechos internos de modulos do jogo (so medem com o perfil ligado)
+  if (active) globalThis.__perfRun = (name, fn) => api.run(name, fn);
+  return api;
+}
+Object.assign(__exports, { readProfilePreference, createFrameProfiler });
 },
 "src/render/rhizosphere-lighting.js": (__exports, __require) => {
 // Iluminação e atmosfera da rizosfera.

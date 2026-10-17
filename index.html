@@ -625,6 +625,7 @@
       cursor: pointer;
     }
     #pause-menu .pause-row .mobile-tool { flex: none; width: 38px; height: 34px; }
+    #pause-menu .pause-row.is-disabled { opacity: .45; }
     #pause-menu kbd {
       margin-left: 4px;
       padding: 0 4px;
@@ -881,6 +882,7 @@
       <div id="pause-options">
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-sound" aria-label="Ligar ou desligar o som (tecla M)" aria-pressed="false" title="Clique para ativar o som">♪</button><span>Som <kbd>M</kbd></span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-lighting" aria-label="Ligar/desligar luz e atmosfera (tecla L)" aria-pressed="true">☀</button><span>Luz e atmosfera <kbd>L</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-25d" aria-label="Ligar/desligar efeitos 2,5D: luz dinâmica, sombras e profundidade (tecla G)" aria-pressed="false">✦</button><span>Efeitos 2,5D <kbd>G</kbd></span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-parallax" aria-label="Ligar/desligar paralaxe biológico (tecla P)" aria-pressed="true">P</button><span>Paralaxe biológico <kbd>P</kbd></span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-recovery" aria-label="Ligar/desligar plataformas de segurança (tecla T)" aria-pressed="false">⛨</button><span>Plataformas de segurança <kbd>T</kbd></span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="debug" aria-label="Mostrar informações técnicas" aria-pressed="false">ⓘ</button><span>Informações técnicas <kbd>Tab</kbd></span></label>

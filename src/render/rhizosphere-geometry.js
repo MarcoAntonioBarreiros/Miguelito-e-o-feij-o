@@ -143,7 +143,13 @@ export function createRhizosphereGeometry({ state, painters }) {
   function cached(ctx, key, box, paint) {
     if (!canCache || typeof ctx.getTransform !== 'function') { paint(ctx); return; }
     const m = ctx.getTransform();
-    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * 2 * 4) / 4;
+    // Escala do cache: 1x a da camera (antes 2x). Com 2x cada copia era uma
+    // REDUCAO de imagem grande em suavizacao alta, refeita a cada quadro: no
+    // notebook de teste (Intel Arc) isso sozinho levava o quadro de ~17 para
+    // ~38 fps. Em 1x a copia e praticamente 1:1 e a nitidez fica a mesma.
+    // O painel experimental ("Teste de custo") ainda deixa voltar ao 2x/alta.
+    const tune = globalThis.__terrenoCache;
+    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * (tune?.scale ?? 1) * 4) / 4;
     let entry = drawCache.get(key);
     // Só na cinemática do fim de fase (finalRootPulse existe enquanto ela
     // roda): o afastamento atravessa uns 9 degraus de zoom seguidos e
@@ -166,7 +172,7 @@ export function createRhizosphereGeometry({ state, painters }) {
     entry.frame = cacheFrame;
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = tune?.smoothing ?? 'low';
     ctx.drawImage(entry.canvas, entry.x, entry.y, entry.w, entry.h);
     ctx.restore();
   }
@@ -1074,6 +1080,9 @@ export function createRhizosphereGeometry({ state, painters }) {
 
   let lastRenderMs = 0;
 
+  // experimental: medir (?perfil) e pular partes do terreno (painel "Teste de custo")
+  const R = (name, fn) => (globalThis.__terrenoPular?.has(name.trim()) ? undefined
+    : globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
   function draw(ctx, view, seedOf) {
     const started = typeof performance !== 'undefined' ? performance.now() : 0;
     cacheFrame++;
@@ -1088,7 +1097,11 @@ export function createRhizosphereGeometry({ state, painters }) {
     const arch = buildArchitecture(layout, platforms, seedOf);
     const time = state.time || 0;
 
-    drawSky(ctx, view, surface);
+    // Fases do desenho para o renderizador nativo (GPU): imagens de cada fase
+    // num lote, e o vetor da fase por cima delas. Num contexto 2D comum, nada.
+    ctx.__glSegment?.(0);
+    R('  terreno/ceu', () => drawSky(ctx, view, surface));
+    ctx.__glSegment?.(1);
     // Arquitetura radicular: principal e laterais livres mais atrás; laterais
     // que alimentam blocos um pouco mais à frente.
     // Como no original: ramificações finas atrás, depois a principal, e as
@@ -1103,32 +1116,33 @@ export function createRhizosphereGeometry({ state, painters }) {
             : root.layer === 'link' ? LINK_ROOT_PALETTE : MUTED_ROOT_PALETTE;
           const fade = root.layer === 'link' ? .2 : .5;
           const pad = Math.max(...root.widths) + 14;
-          cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
+          R('  terreno/raizes corpo (cache)', () => cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
             x: box.minX - pad, y: box.minY - pad, w: box.maxX - box.minX + pad * 2, h: box.maxY - box.minY + pad * 2,
-          }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' }));
-          drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' });
+          }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' })));
+          R('  terreno/pelos radiculares', () => drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' }));
         }
       }
     }
-    drawCeiling(ctx, view, platforms, surface);
-    drawGround(ctx, view, surface);
-    for (const plant of plants) {
+    R('  terreno/teto', () => drawCeiling(ctx, view, platforms, surface));
+    R('  terreno/chao', () => drawGround(ctx, view, surface));
+    R('  terreno/plantas', () => { for (const plant of plants) {
       if (inX(plant.x - 120, plant.x + 120, 60)) drawPlant(ctx, plant, surface, view);
-    }
+    } });
+    ctx.__glSegment?.(2);
     for (const platform of platforms) {
       if (platform.type !== 'soil' || !inX(platform.x, platform.x + platform.w)) continue;
       const massSeed = seedOf(platform);
       const bottom = massBottom(platform, platforms, floor);
       if (platform.y > view.bottom || bottom < view.top) continue;
-      cached(ctx, `mass:${massSeed}:${Math.round(platform.x)}:${Math.round(platform.y)}:${Math.round(platform.w)}:${Math.round(bottom)}`, {
+      R('  terreno/massas (cache)', () => cached(ctx, `mass:${massSeed}:${Math.round(platform.x)}:${Math.round(platform.y)}:${Math.round(platform.w)}:${Math.round(bottom)}`, {
         x: platform.x - 96, y: platform.y - 12, w: platform.w + 192, h: bottom - platform.y + 72,
-      }, g => drawSoilMass(g, platform, platforms, FULL_VIEW, floor, massSeed));
+      }, g => drawSoilMass(g, platform, platforms, FULL_VIEW, floor, massSeed)));
     }
     links.forEach((link, index) => {
       const { block } = link;
       if (!inX(block.x, block.x + block.w, 40)) return;
       if (block.y > view.bottom || block.y + block.h < view.top) return;
-      drawAggregate(ctx, link, seedOf(block));
+      R('  terreno/agregados', () => drawAggregate(ctx, link, seedOf(block)));
     });
     trimCache();
     if (started) lastRenderMs = performance.now() - started;
