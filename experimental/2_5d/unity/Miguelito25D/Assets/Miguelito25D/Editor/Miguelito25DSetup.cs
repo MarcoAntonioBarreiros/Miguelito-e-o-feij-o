@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.U2D.Sprites;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -110,30 +111,33 @@ namespace Miguelito25D.EditorTools
                 imp.textureCompression = TextureImporterCompression.CompressedHQ;
                 var size = TextureSize(f);
 
+                List<SpriteRect> rects = null;
                 if (Sheets.TryGetValue(key, out var sheet))
                 {
                     imp.spriteImportMode = SpriteImportMode.Multiple;
                     float fw = size.x / (float)sheet.frames;
-                    imp.spritesheet = Enumerable.Range(0, sheet.frames).Select(i => new SpriteMetaData
+                    rects = Enumerable.Range(0, sheet.frames).Select(i => new SpriteRect
                     {
                         name = Path.GetFileName(key) + "_" + i,
                         rect = new Rect(i * fw, 0, fw, size.y),
-                        alignment = (int)SpriteAlignment.Custom,
+                        alignment = SpriteAlignment.Custom,
                         pivot = new Vector2(.5f, sheet.pivotY),
-                    }).ToArray();
+                        spriteID = GUID.Generate(),
+                    }).ToList();
                 }
                 else if (key == "bacillus/bacillus" || key == "bacillus/inoculated_bacillus")
                 {
                     imp.spriteImportMode = SpriteImportMode.Multiple;
-                    var metas = new List<SpriteMetaData>();
+                    rects = new List<SpriteRect>();
                     for (int i = 0; i < BacillusFrames.Length / 2; i++)
-                        metas.Add(new SpriteMetaData
+                        rects.Add(new SpriteRect
                         {
                             name = Path.GetFileName(key) + "_" + i,
                             rect = new Rect(BacillusFrames[i * 2], 0, BacillusFrames[i * 2 + 1], size.y),
-                            alignment = (int)SpriteAlignment.Center,
+                            alignment = SpriteAlignment.Center,
+                            pivot = new Vector2(.5f, .5f),
+                            spriteID = GUID.Generate(),
                         });
-                    imp.spritesheet = metas.ToArray();
                 }
                 else
                 {
@@ -143,12 +147,27 @@ namespace Miguelito25D.EditorTools
                     settings.spriteAlignment = key.StartsWith("terrain/") ? (int)SpriteAlignment.TopLeft : (int)SpriteAlignment.Center;
                     imp.SetTextureSettings(settings);
                 }
+                imp.SaveAndReimport();
 
+                // fatiamento pela API atual (TextureImporter.spritesheet foi removido)
+                var factory = new SpriteDataProviderFactories();
+                factory.Init();
+                var dp = factory.GetSpriteEditorDataProviderFromObject(imp);
+                dp.InitSpriteEditorDataProvider();
+                if (rects != null)
+                {
+                    dp.SetSpriteRects(rects.ToArray());
+                    var ids = dp.GetDataProvider<ISpriteNameFileIdDataProvider>();
+                    ids?.SetNameFileIdPairs(rects.Select(r => new SpriteNameFileIdPair(r.name, r.spriteID)));
+                }
                 var nmPath = f.Replace(".png", "_n.png");
                 var nm = AssetDatabase.LoadAssetAtPath<Texture2D>(nmPath);
-                imp.secondarySpriteTextures = nm != null
-                    ? new[] { new SecondarySpriteTexture { name = "_NormalMap", texture = nm } }
-                    : new SecondarySpriteTexture[0];
+                var secondary = dp.GetDataProvider<ISecondaryTextureDataProvider>();
+                if (secondary != null)
+                    secondary.textures = nm != null
+                        ? new[] { new SecondarySpriteTexture { name = "_NormalMap", texture = nm } }
+                        : new SecondarySpriteTexture[0];
+                dp.Apply();
                 imp.SaveAndReimport();
             }
         }
