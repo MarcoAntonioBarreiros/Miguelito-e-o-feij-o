@@ -1357,10 +1357,29 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     row.append(box, document.createTextNode(label));
     costs.append(row);
   }
-  const sub = document.createElement('div');
-  sub.className = 'hint';
-  sub.textContent = 'Partes do terreno:';
-  costs.append(sub);
+  // como o terreno guarda e copia as imagens prontas (cache)
+  globalThis.__terrenoCache = globalThis.__terrenoCache || { scale: 2, smoothing: 'high' };
+  const cacheOpts = document.createElement('div');
+  cacheOpts.className = 'hint';
+  cacheOpts.textContent = 'Imagens prontas do terreno (marcar = original):';
+  costs.append(cacheOpts);
+  for (const [label, read, write] of [
+    ['Cache em 2× (desmarcado: 1×)', () => globalThis.__terrenoCache.scale === 2, on => { globalThis.__terrenoCache.scale = on ? 2 : 1; }],
+    ['Suavização alta (desmarcado: normal)', () => globalThis.__terrenoCache.smoothing === 'high', on => { globalThis.__terrenoCache.smoothing = on ? 'high' : 'low'; }],
+  ]) {
+    const row = document.createElement('label');
+    row.style.paddingLeft = '14px';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = read();
+    box.addEventListener('change', () => { write(box.checked); box.blur(); });
+    row.append(box, document.createTextNode(label));
+    costs.append(row);
+  }
+  const partsTitle = document.createElement('div');
+  partsTitle.className = 'hint';
+  partsTitle.textContent = 'Partes do terreno:';
+  costs.append(partsTitle);
   for (const [key, label] of TERRAIN_PARTS) {
     const row = document.createElement('label');
     row.style.paddingLeft = '14px';

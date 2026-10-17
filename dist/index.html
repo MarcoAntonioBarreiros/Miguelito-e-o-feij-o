@@ -1087,7 +1087,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"1fc6df5","subject":"Experimental: perfil do quadro 2D (?perfil=1/2) e teste de custo no pain","builtAt":"2026-10-17 20:14"};
+window.__BEANS_BUILD__ = {"commit":"7f2e7a8","subject":"Experimental: teste de custo por parte do terreno; modo nativo (fundo e ","builtAt":"2026-10-17 20:15"};
 (() => {
 'use strict';
 const __modules = {
@@ -18872,7 +18872,9 @@ function createRhizosphereGeometry({ state, painters }) {
   function cached(ctx, key, box, paint) {
     if (!canCache || typeof ctx.getTransform !== 'function') { paint(ctx); return; }
     const m = ctx.getTransform();
-    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * 2 * 4) / 4;
+    // experimental (painel "Teste de custo"): escala do cache e suavizacao da copia
+    const tune = globalThis.__terrenoCache;
+    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * (tune?.scale ?? 2) * 4) / 4;
     let entry = drawCache.get(key);
     // Só na cinemática do fim de fase (finalRootPulse existe enquanto ela
     // roda): o afastamento atravessa uns 9 degraus de zoom seguidos e
@@ -18895,7 +18897,7 @@ function createRhizosphereGeometry({ state, painters }) {
     entry.frame = cacheFrame;
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = tune?.smoothing ?? 'high';
     ctx.drawImage(entry.canvas, entry.x, entry.y, entry.w, entry.h);
     ctx.restore();
   }

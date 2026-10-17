@@ -143,7 +143,9 @@ export function createRhizosphereGeometry({ state, painters }) {
   function cached(ctx, key, box, paint) {
     if (!canCache || typeof ctx.getTransform !== 'function') { paint(ctx); return; }
     const m = ctx.getTransform();
-    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * 2 * 4) / 4;
+    // experimental (painel "Teste de custo"): escala do cache e suavizacao da copia
+    const tune = globalThis.__terrenoCache;
+    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * (tune?.scale ?? 2) * 4) / 4;
     let entry = drawCache.get(key);
     // Só na cinemática do fim de fase (finalRootPulse existe enquanto ela
     // roda): o afastamento atravessa uns 9 degraus de zoom seguidos e
@@ -166,7 +168,7 @@ export function createRhizosphereGeometry({ state, painters }) {
     entry.frame = cacheFrame;
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = tune?.smoothing ?? 'high';
     ctx.drawImage(entry.canvas, entry.x, entry.y, entry.w, entry.h);
     ctx.restore();
   }
