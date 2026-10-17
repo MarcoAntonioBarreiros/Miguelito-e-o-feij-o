@@ -139,7 +139,17 @@ function build() {
   }
 
   const entries = moduleScripts.map(match => resolveImport(htmlPath, match[1]));
-  const bundle = createBundle(entries).replace(/<\/script/gi, '<\\/script');
+  // Efeitos 2,5D: o renderizador WebGL nao entra no HTML (seria baixado por
+  // todos). Vai como modulos ES separados em dist/vfx-25d/ e o jogo publicado
+  // o importa sob demanda, relativo a pagina.
+  const VFX_IMPORT_DEV = "import('../../experimental/2_5d/gl/renderer-25d.js')";
+  const VFX_IMPORT_DIST = "import('./vfx-25d/gl/renderer-25d.js')";
+  let rawBundle = createBundle(entries);
+  if (!rawBundle.includes(VFX_IMPORT_DEV)) {
+    throw new Error('Importacao dos Efeitos 2,5D nao encontrada no bundle (app.js mudou?)');
+  }
+  rawBundle = rawBundle.replace(VFX_IMPORT_DEV, VFX_IMPORT_DIST);
+  const bundle = rawBundle.replace(/<\/script/gi, '<\\/script');
   const stamp = JSON.stringify(buildStamp()).replace(/<\/script/gi, '<\\/script');
   let inserted = false;
   const bundledHtml = html.replace(moduleScriptPattern, () => {
@@ -157,6 +167,14 @@ function build() {
   console.log(`Built ${path.relative(root, outIndex)} and ${path.relative(root, outNamed)}`);
   console.log(`Bundled ${modules.size} modules from ${entries.map(moduleId).join(', ')}`);
   
+  const vfxSource = path.join(root, 'experimental', '2_5d');
+  const vfxDist = path.join(dist, 'vfx-25d');
+  fs.rmSync(vfxDist, { recursive: true, force: true });
+  for (const sub of ['gl', 'vendor']) {
+    fs.cpSync(path.join(vfxSource, sub), path.join(vfxDist, sub), { recursive: true });
+  }
+  console.log('Copied 2,5D effects to dist/vfx-25d');
+
   const assetsDir = path.join(root, 'assets');
   const distAssetsDir = path.join(dist, 'assets');
   if (fs.existsSync(assetsDir)) {
