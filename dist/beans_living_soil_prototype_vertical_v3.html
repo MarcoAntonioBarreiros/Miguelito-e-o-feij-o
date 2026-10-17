@@ -1087,7 +1087,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"f118a30","subject":"UI: menu de pausa, nomes dos organismos só antes da apresentação e retra","builtAt":"2026-10-17 16:33"};
+window.__BEANS_BUILD__ = {"commit":"b933c47","subject":"Unity: luz ambiente e feixes calibrados contra a versao WebGL","builtAt":"2026-10-17 17:50"};
 (() => {
 'use strict';
 const __modules = {
@@ -45757,7 +45757,10 @@ function read25DPreference(locationLike) {
   try {
     const params = new URLSearchParams(locationLike?.search || '');
     const value = (params.get('render') || '').toLowerCase();
-    return value === '25d' || value === '2.5d' || value === '2,5d';
+    if (value === '2d') return false;
+    if (value === '25d' || value === '2.5d' || value === '2,5d') return true;
+    // a demonstracao publicada liga o 2,5D por padrao (build-web-demo.cjs)
+    return globalThis.MIGUELITO_RENDER_25D_DEFAULT === true;
   } catch (_) {
     return false;
   }

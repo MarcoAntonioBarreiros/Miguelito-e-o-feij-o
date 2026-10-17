@@ -654,10 +654,20 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     lights.push({ x, y, z, r, cr: cr * i, cg: cg * i, cb: cb * i, slot, key });
   }
 
+  const NIGHT_AMBIENT = shared.uAmbient.value.clone();
+  const DAY_AMBIENT = new THREE.Color(.42, .45, .46);
+  let daylight = 0;
+
   function collectLights(time, camCX, camCY, visW, visH) {
     lights.length = 0;
     const level = state.level || {};
     const player = state.player;
+    // Superficie (abertura da fase 1 e cinematica final): ceu aberto, luz do
+    // dia vinda de cima. Transicao suave para nao "acender" de uma vez.
+    const atSurface = Boolean(state.introFall) || document.body.classList.contains('phase-finale');
+    daylight += ((atSurface ? 1 : 0) - daylight) * .08;
+    shared.uAmbient.value.copy(NIGHT_AMBIENT).lerp(DAY_AMBIENT, daylight);
+    if (daylight > .02) pushLight(camCX - visW * .3, camCY + visH * 1.4, 1400, 9000, 1, .95, .86, 1.15 * daylight, 0, 200);
     const ys = (level.platforms || []).map(p => p.y).filter(Number.isFinite);
     const topY = ys.length ? Math.min(...ys) : 200;
     // feixes da superficie (os dois mais proximos fazem sombra e luz volumetrica)
@@ -907,7 +917,7 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
   panel.setAttribute('aria-label', 'Painel do renderizador 2,5D');
   panel.innerHTML = `
     <style>
-      #panel-25d{position:fixed;left:12px;bottom:12px;z-index:60;font:600 12px/1.35 Inter,system-ui,sans-serif;
+      #panel-25d{position:fixed;right:12px;bottom:12px;z-index:60;font:600 12px/1.35 Inter,system-ui,sans-serif;
         color:#dff7f4;background:rgba(4,18,22,.82);border:1px solid rgba(108,231,223,.35);border-radius:12px;
         padding:10px 12px;min-width:220px;backdrop-filter:blur(6px);box-shadow:0 8px 30px rgba(0,0,0,.45)}
       #panel-25d h2{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6ce7df}
@@ -920,18 +930,49 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
       #panel-25d .stats{margin-top:6px;color:#9fc9c4;font-weight:500;font-variant-numeric:tabular-nums}
       #panel-25d .hint{margin-top:4px;color:#7fa9a4;font-weight:500}
       #panel-25d[hidden]{display:none}
+      #panel-25d .collapse{all:unset;cursor:pointer;display:flex;justify-content:space-between;width:100%}
+      #panel-25d.closed .body{display:none}
+      #panel-25d.closed h2{margin:0}
+      #panel-25d .phase{margin:0 0 6px;justify-content:space-between}
+      #panel-25d select{font:inherit;background:#0b2a2f;color:#dff7f4;border:1px solid rgba(108,231,223,.45);border-radius:6px;padding:2px 4px}
     </style>
-    <h2>Rizosfera 2,5D</h2>
+    <h2><button type="button" class="collapse" aria-expanded="true">Rizosfera 2,5D <span>▾</span></button></h2>
+    <div class="body">
     <div class="mode">
       <button type="button" data-mode="25d">2,5D</button>
       <button type="button" data-mode="2d">2D original</button>
     </div>
+    <label class="phase">Fase
+      <select data-phase>
+        <option value="">—</option>
+        <option value="1">1 · Primeiros passos</option>
+        <option value="2">2 · Recrutar e estabelecer</option>
+        <option value="3">3 · Rhizobium e FBN</option>
+        <option value="4">4 · Azospirillum</option>
+        <option value="5">5 · Micorriza</option>
+        <option value="6">6 · Ferro e biocontrole</option>
+        <option value="7">7 · Trichoderma × Rhizoctonia</option>
+        <option value="8">8 · Fósforo</option>
+        <option value="9">9 · Meloidogyne</option>
+        <option value="10">10 · Ralstonia</option>
+      </select>
+    </label>
     <div class="toggles"></div>
     <div class="stats"></div>
-    <div class="hint">G alterna 2,5D/2D · V esconde</div>`;
+    <div class="hint">G alterna 2,5D/2D · V esconde</div>
+    </div>`;
   for (const type of ['pointerdown', 'touchstart', 'mousedown', 'keydown']) {
     panel.addEventListener(type, e => e.stopPropagation(), { passive: true });
   }
+  const collapse = panel.querySelector('.collapse');
+  const setClosed = closed => {
+    panel.classList.toggle('closed', closed);
+    collapse.setAttribute('aria-expanded', String(!closed));
+    collapse.querySelector('span').textContent = closed ? '▸' : '▾';
+  };
+  collapse.addEventListener('click', () => { setClosed(!panel.classList.contains('closed')); collapse.blur(); });
+  // fechado por padrao em tela baixa (celular deitado): nao cobre o jogo
+  setClosed(window.innerHeight < 640);
   const toggles = panel.querySelector('.toggles');
   for (const [key, label] of PANEL_ITEMS) {
     const row = document.createElement('label');
@@ -942,6 +983,25 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     row.append(box, document.createTextNode(label));
     toggles.append(row);
   }
+  // Pular para uma fase (demonstracao): mesmo formato de campanha que o jogo
+  // guarda na sessao, com as habilidades liberadas.
+  const phaseSelect = panel.querySelector('[data-phase]');
+  try {
+    const saved = JSON.parse(sessionStorage.getItem('miguelito:campaign:v2') || 'null');
+    if (saved?.phase) phaseSelect.value = String(saved.phase);
+  } catch (_) {}
+  phaseSelect.addEventListener('change', () => {
+    const phase = Number(phaseSelect.value);
+    if (!phase) return;
+    try {
+      sessionStorage.setItem('miguelito:campaign:v2', JSON.stringify({
+        seed: 'demo-25d', phase,
+        unlocks: { doubleJump: true, dash: true, pulse: true, jetpack: true },
+        totalScore: 0, history: [], narrationSeen: [],
+      }));
+    } catch (_) {}
+    location.reload();
+  });
   const modeButtons = [...panel.querySelectorAll('[data-mode]')];
   const syncMode = () => modeButtons.forEach(b => b.setAttribute('aria-pressed', String((b.dataset.mode === '25d') === isActive())));
   modeButtons.forEach(b => b.addEventListener('click', () => { setActive(b.dataset.mode === '25d'); syncMode(); b.blur(); }));

@@ -17,7 +17,10 @@ export function read25DPreference(locationLike) {
   try {
     const params = new URLSearchParams(locationLike?.search || '');
     const value = (params.get('render') || '').toLowerCase();
-    return value === '25d' || value === '2.5d' || value === '2,5d';
+    if (value === '2d') return false;
+    if (value === '25d' || value === '2.5d' || value === '2,5d') return true;
+    // a demonstracao publicada liga o 2,5D por padrao (build-web-demo.cjs)
+    return globalThis.MIGUELITO_RENDER_25D_DEFAULT === true;
   } catch (_) {
     return false;
   }
