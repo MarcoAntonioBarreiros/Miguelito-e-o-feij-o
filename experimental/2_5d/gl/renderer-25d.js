@@ -1301,7 +1301,7 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
       </details>
       <div class="stats"></div>
       <div class="gpu"></div>
-      <div class="hint">G alterna 2,5D/2D · V esconde</div>
+      <div class="hint">G alterna 2,5D/2D · V esconde · aparece com ?painel=1</div>
     </div>`;
   for (const type of ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'wheel']) {
     panel.addEventListener(type, e => e.stopPropagation(), { passive: true });
@@ -1464,7 +1464,7 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
 
   window.addEventListener('keydown', e => {
     if (e.repeat || e.target?.closest?.('input,textarea,select')) return;
-    if (e.code === 'KeyG') { setActive(!isActive()); syncMode(); }
+    if (e.code === 'KeyG') setTimeout(syncMode, 50);   // o jogo trata a tecla G
     if (e.code === 'KeyV') panel.hidden = !panel.hidden;
   });
 

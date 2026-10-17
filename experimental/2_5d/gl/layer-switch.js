@@ -19,7 +19,13 @@ export function read25DPreference(locationLike) {
     const value = (params.get('render') || '').toLowerCase();
     if (value === '2d') return false;
     if (value === '25d' || value === '2.5d' || value === '2,5d') return true;
-    // a demonstracao publicada liga o 2,5D por padrao (build-web-demo.cjs)
+    // escolha do jogador no menu de pausa (Efeitos 2,5D), guardada no navegador
+    try {
+      const saved = globalThis.localStorage?.getItem('miguelito:vfx-25d');
+      if (saved === '1') return true;
+      if (saved === '0') return false;
+    } catch (_) {}
+    // padrao: desligado (a demonstracao publicada liga por build-web-demo.cjs)
     return globalThis.MIGUELITO_RENDER_25D_DEFAULT === true;
   } catch (_) {
     return false;

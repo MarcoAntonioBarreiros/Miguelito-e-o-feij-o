@@ -102,9 +102,11 @@ window.miguelitoPerfil = frameProfiler;
 // "comutavel" para que fundo, terreno e efeitos possam ir a camadas separadas;
 // o Three.js e carregado sob demanda e, se falhar, o 2D continua no comando.
 const render25DRequested = read25DPreference(window.location);
-const layerSwitch = render25DRequested ? createLayerSwitch(canvas) : null;
+// O comutador existe sempre: os Efeitos 2,5D podem ser ligados pelo menu a
+// qualquer momento. Desligado, ele so repassa as chamadas ao contexto real.
+const layerSwitch = createLayerSwitch(canvas);
 let renderer25D = null;
-let render25DActive = render25DRequested;
+let render25DActive = false;
 const load25DRenderer = () => import('../../experimental/2_5d/gl/renderer-25d.js');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
@@ -1774,7 +1776,8 @@ window.addEventListener('keydown', event => {
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'KeyT' && !event.repeat) toggleRecoveryPlatforms();
   if (event.code === 'KeyM' && !event.repeat) toggleGameAudio();
-  if (event.code === 'KeyL' && !event.repeat) toggleLighting();
+  if (event.code === 'KeyL' && !event.repeat && !render25DActive) toggleLighting();
+  if (event.code === 'KeyG' && !event.repeat) setVfx(!render25DActive);
   if (event.code === BIOLOGICAL_PARALLAX_KEY && !event.repeat) toggleBiologicalParallax();
   if (event.code === 'Tab') {
     event.preventDefault();
@@ -1944,7 +1947,7 @@ function drawWorldLayers25D(layer) {
   }
 }
 
-if (layerSwitch) {
+{
   // Exporta o terreno exatamente como o jogo o desenha, numa janela do mundo.
   // Usado para levar a MESMA cena para a prova de conceito em Unity
   // (experimental/2_5d/tools/export-scene.cjs). Nao altera a partida.
@@ -1967,28 +1970,123 @@ if (layerSwitch) {
     }
     return off.toDataURL('image/png');
   };
-  load25DRenderer().then(module => {
+}
+
+// ---- Efeitos 2,5D (menu de pausa, tecla G) ----------------------------------
+// Desligado: nada do 2,5D e baixado (Three.js e shaders vem sob demanda).
+// Ligado: se o jogo ficar abaixo de VFX_MIN_FPS por alguns segundos, volta
+// sozinho ao 2D e avisa — protecao para aparelhos de escola desconhecidos.
+const VFX_MIN_FPS = 20;
+const vfxButton = document.querySelector('[data-mobile-action="toggle-25d"]');
+let vfxLoading = null;
+const showPanel25D = /[?&]painel=1/.test(window.location.search) || globalThis.MIGUELITO_RENDER_25D_DEFAULT === true;
+
+function saveVfxPreference(on) {
+  try { localStorage.setItem('miguelito:vfx-25d', on ? '1' : '0'); } catch (_) {}
+}
+
+function syncVfxUi() {
+  vfxButton?.setAttribute('aria-pressed', String(render25DActive));
+  // A luz do 2D nao vale com o 2,5D ligado (a luz e a do 2,5D)
+  if (lightingToggleButton) {
+    lightingToggleButton.disabled = render25DActive;
+    lightingToggleButton.closest('.pause-row')?.classList.toggle('is-disabled', render25DActive);
+  }
+}
+
+function ensureRenderer25D() {
+  if (renderer25D) return Promise.resolve(renderer25D);
+  if (vfxLoading) return vfxLoading;
+  vfxLoading = load25DRenderer().then(module => {
     renderer25D = module.createRenderer25D({
       mainCanvas: canvas,
       state: sim.state,
       getAgents: () => sim.ecology?.agents || null,
       quality: new URLSearchParams(window.location.search).get('q') || 'high',
     });
-    module.mount25DPanel?.({
-      renderer25D,
-      isActive: () => render25DActive,
-      setActive: value => { render25DActive = value; },
-    });
+    if (showPanel25D) {
+      module.mount25DPanel?.({
+        renderer25D,
+        isActive: () => render25DActive,
+        setActive: value => setVfx(value, { save: false, quiet: true }),
+      });
+    }
     window.miguelito25D = renderer25D;
-    // Para comparar (e para os testes): true = 2,5D, false = 2D original.
-    window.miguelito25DMode = value => {
-      if (typeof value === 'boolean') render25DActive = value;
-      return render25DActive;
-    };
+    return renderer25D;
   }).catch(error => {
     console.error('[2,5D] o renderizador WebGL nao carregou; seguindo em 2D', error);
+    vfxLoading = null;
+    throw error;
   });
+  return vfxLoading;
 }
+
+const vfxGuard = { since: 0, frames: 0, slowWindows: 0, fps: 0, warm: false };
+window.miguelitoVfxGuard = vfxGuard;
+function resetVfxGuard() { Object.assign(vfxGuard, { since: 0, frames: 0, slowWindows: 0, fps: 0, warm: false }); }
+
+async function setVfx(on, { save = true, quiet = false } = {}) {
+  if (!on) {
+    render25DActive = false;
+    renderer25D?.setVisible(false);
+    if (save) saveVfxPreference(false);
+    syncVfxUi();
+    if (!quiet) narrate(sim.state, 'system.vfx-off');
+    return;
+  }
+  try {
+    await ensureRenderer25D();
+    render25DActive = true;
+    resetVfxGuard();
+    if (save) saveVfxPreference(true);
+    syncVfxUi();
+    if (!quiet) narrate(sim.state, 'system.vfx-on');
+  } catch (_) {
+    render25DActive = false;
+    if (save) saveVfxPreference(false);
+    syncVfxUi();
+    narrate(sim.state, 'system.vfx-failed');
+  }
+}
+
+// Mede o FPS so com o jogo rodando de verdade (fora de pausa, cartao ou aba
+// escondida). Janelas de 2 s; a primeira depois de ligar/retomar e descartada
+// (compilacao de shaders, carga de texturas); duas seguidas abaixo do limite
+// desligam os efeitos.
+function watchVfxPerformance(now) {
+  if (!render25DActive) return;
+  const running = sim.state.gameState === 'play' && !pauseMenu.isOpen
+    && !(window.miguelitoTutorial?.isOpen) && document.visibilityState === 'visible';
+  if (!running) { vfxGuard.since = 0; vfxGuard.frames = 0; vfxGuard.warm = false; return; }
+  if (!vfxGuard.since) { vfxGuard.since = now; vfxGuard.frames = 0; return; }
+  vfxGuard.frames++;
+  const elapsed = now - vfxGuard.since;
+  if (elapsed < 2000) return;
+  const fps = vfxGuard.frames * 1000 / elapsed;
+  vfxGuard.fps = Math.round(fps);
+  vfxGuard.since = now; vfxGuard.frames = 0;
+  if (!vfxGuard.warm) { vfxGuard.warm = true; return; }
+  vfxGuard.slowWindows = fps < VFX_MIN_FPS ? vfxGuard.slowWindows + 1 : 0;
+  if (vfxGuard.slowWindows >= 2) {
+    setVfx(false, { quiet: true });
+    narrate(sim.state, 'system.vfx-slow');
+  }
+}
+
+vfxButton?.addEventListener('click', event => {
+  event.preventDefault();
+  setVfx(!render25DActive);
+  vfxButton.blur();
+});
+
+// Para comparar (e para os testes): true = 2,5D, false = 2D original.
+window.miguelito25DMode = value => {
+  if (typeof value === 'boolean') setVfx(value, { save: false, quiet: true });
+  return render25DActive;
+};
+
+if (render25DRequested) setVfx(true, { save: false, quiet: true });
+syncVfxUi();
 
 function renderWorld() {
   if (renderer25D && render25DActive) {
@@ -2151,6 +2249,7 @@ function loop(now) {
     // avancado (um cartao de tutorial aberto congela o jogo, nao a cena).
     phaseFinale.update(dt);
     renderWorld();
+    watchVfxPerformance(now);
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);
     const finaleVisible = phaseFinale.active;

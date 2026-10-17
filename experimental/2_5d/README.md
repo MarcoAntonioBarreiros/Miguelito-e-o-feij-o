@@ -15,6 +15,27 @@ motor atual.
 
 ---
 
+## 0. Estado atual (17/10/2026) — decisão tomada
+
+- **Caminho escolhido:** manter o jogo original (Canvas 2D) e oferecer os efeitos
+  2,5D como opção. Reescrever o desenho em WebGL ou portar para a Unity ficou
+  para depois, se o 2,5D virar o visual principal.
+- **Desempenho do 2D corrigido:** o gargalo era o cache do terreno
+  (`src/render/rhizosphere-geometry.js`): imagens guardadas em 2× a escala da
+  câmera e copiadas com `imageSmoothingQuality = 'high'`, ou seja, uma redução de
+  imagem grande refeita a cada quadro. Com cache em 1× e suavização normal, o 2D
+  original foi de ~22 para 60 fps (Intel Arc integrada) e o 2,5D de ~17 para
+  ~38–41 fps, sem diferença visível. São duas linhas a levar para a versão publicada.
+- **Menu de pausa → "Efeitos 2,5D" (tecla G):** desligado por padrão; ao ligar, o
+  Three.js é baixado sob demanda e o jogo segue do mesmo ponto. Escolha salva no
+  navegador (`miguelito:vfx-25d`). Se o jogo rodar abaixo de **20 fps** por duas
+  janelas seguidas de 2 s (fora de pausa/cartões), volta sozinho ao 2D e avisa.
+  A "Luz e atmosfera" do 2D fica desativada enquanto o 2,5D estiver ligado.
+- O painel de calibração só aparece com `?painel=1` (e na demonstração publicada).
+- Testado e descartado: interceptar as chamadas do Canvas para mandar as imagens
+  direto à GPU (`?nativo=1`): ficou mais lento (22 fps contra 41), porque os traços
+  continuam no Canvas e passam a ser vários envios por quadro.
+
 ## 1. Como testar
 
 ### WebGL (o jogo inteiro, dez fases)
@@ -24,18 +45,21 @@ git checkout experimental/visual-2_5d
 python -m http.server 8000
 ```
 
-Abra `http://127.0.0.1:8000/?render=25d`.
+Abra `http://127.0.0.1:8000/` e ligue **Efeitos 2,5D** no menu de pausa (ou **G**).
+Para calibrar, `http://127.0.0.1:8000/?painel=1`.
 
 | Tecla / controle | Efeito |
 |---|---|
-| **G** | alterna 2,5D e 2D original no mesmo quadro |
-| **V** | mostra ou esconde o painel 2,5D |
+| **G** / menu de pausa | liga e desliga os Efeitos 2,5D |
+| **V** | mostra ou esconde o painel 2,5D (com `?painel=1`) |
 | Painel → *Fase* | pula para qualquer fase (habilidades liberadas) |
 | Painel → caixas | liga e desliga cada efeito, para ver o que cada um acrescenta |
+| Painel → *Teste de custo* | pula partes do quadro 2D para medir o custo de cada uma |
+| `?perfil=1` / `?perfil=2` | perfil do quadro 2D no console (`miguelitoPerfil.report()`) |
 | `?q=low` | menos partículas (teste em celular) |
-| `?render=2d` | força o renderizador original |
+| `?render=25d` / `?render=2d` | força um dos modos ao abrir |
 
-Sem `?render=25d` o jogo carrega exatamente como na `main`: o Three.js nem é baixado.
+Com os efeitos desligados o Three.js nem é baixado.
 
 Versão em pacote único (para hospedar em qualquer lugar):
 `node experimental/2_5d/tools/build-web-demo.cjs <pasta>` (precisa do `esbuild`).
