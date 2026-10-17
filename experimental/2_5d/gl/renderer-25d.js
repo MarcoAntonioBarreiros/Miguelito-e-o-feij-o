@@ -369,7 +369,10 @@ function createSpriteBatch(image, shared, maxTexture) {
   let count = 0;
   // normal map: pintado a mao (<folha>_n.png) se existir, senao gerado
   (async () => {
-    const authored = await loadAuthoredNormal(image.src);
+    // normal map pintado a mao so e procurado quando pedido (?normais=arquivo):
+    // sem isso cada folha geraria um 404 no console.
+    const wantsAuthored = /[?&]normais=arquivo/.test(location.search);
+    const authored = wantsAuthored ? await loadAuthoredNormal(image.src) : null;
     const run = () => {
       const nm = authored || generateSpriteNormalMap(image);
       const nt = new THREE.Texture(nm);

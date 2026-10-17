@@ -30,12 +30,16 @@ SCENE="$REPO/experimental/2_5d/unity/scene-export/fase4"
 cp "$SCENE/level.json" "$DEST/Resources/level.json"
 cp "$SCENE"/terrain_*.png "$ART/terrain/"
 
-# normal maps na convencao da Unity (verde para cima), mesma medida da folha
+# normal maps na convencao da Unity (verde para cima), mesma medida da folha.
+# Arquivos temporarios ficam fora do projeto.
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 for dir in miguelito organisms bacillus terrain; do
   for f in "$ART/$dir"/*.png; do
     case "$f" in *_n.png) continue;; esac
     out="${f%.png}_n.png"
-    $NORMALS "$f" "$out.tmp.png" && python3 - "$out.tmp.png" "$out" "$f" <<'PY'
+    tmp="$TMP/$(basename "$out")"
+    $NORMALS "$f" "$tmp" && python3 - "$tmp" "$out" "$f" <<'PY'
 import sys
 from PIL import Image
 tmp, out, src = sys.argv[1:4]
@@ -47,7 +51,6 @@ size = Image.open(src).size
 if im.size != size: im = im.resize(size, Image.BILINEAR)
 im.save(out)
 PY
-    rm -f "$out.tmp.png"
   done
 done
 echo "Pronto: abra o projeto na Unity. A cena Assets/Miguelito25D/Scenes/Rizosfera25D.unity e montada sozinha."
