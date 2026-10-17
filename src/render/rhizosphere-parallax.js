@@ -552,6 +552,7 @@ export function createRhizosphereParallax({
 
   function render(ctx, camera = {}, viewport = {}) {
     if (!enabled || !ctx) return;
+    const R = (name, fn) => (globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
     const zoom = Math.max(0.01, Number(camera.zoom) || 1);
     const viewportWidth = Math.max(1, (Number(viewport.width) || width || 1280) / zoom);
     const viewportHeight = Math.max(1, (Number(viewport.height) || height || 720) / zoom);
@@ -561,7 +562,7 @@ export function createRhizosphereParallax({
     const cameraY = Number(camera.cameraY) || 0;
     ctx.save();
     resetCanvasState(ctx);
-    drawTiled(
+    R('  fundo/fundo profundo (cache)', () => drawTiled(
       ctx,
       deepCache,
       cameraX,
@@ -570,8 +571,8 @@ export function createRhizosphereParallax({
       vertical.deep,
       viewportWidth,
       deepMotion,
-    );
-    drawTiledFilaments(
+    ));
+    R('  fundo/filamentos', () => drawTiledFilaments(
       ctx,
       deepFilaments,
       cameraX,
@@ -581,8 +582,8 @@ export function createRhizosphereParallax({
       elapsed,
       deepMotion,
       filamentMotionScale,
-    );
-    drawTiled(
+    ));
+    R('  fundo/biologia (cache)', () => drawTiled(
       ctx,
       biologyCache,
       cameraX,
@@ -591,8 +592,8 @@ export function createRhizosphereParallax({
       vertical.biology,
       viewportWidth,
       biologyMotion,
-    );
-    drawParticles(ctx, camera, { width: viewportWidth, height: viewportHeight });
+    ));
+    R('  fundo/particulas', () => drawParticles(ctx, camera, { width: viewportWidth, height: viewportHeight }));
     ctx.restore();
     stats.renderCount++;
   }

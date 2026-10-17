@@ -48,6 +48,7 @@ import {
 } from './tutorial-pause.js';
 import { createRenderer } from '../render/renderer.js';
 import { createLayerSwitch, read25DPreference } from '../../experimental/2_5d/gl/layer-switch.js';
+import { createFrameProfiler, readProfilePreference } from '../../experimental/2_5d/gl/frame-profiler.js';
 import { BIOLOGICAL_PARALLAX_KEY } from '../render/rhizosphere-parallax.js';
 import { createPlatformVisuals } from './platform-visuals.js';
 import { createRhizosphereLighting, readLightingPreference } from '../render/rhizosphere-lighting.js';
@@ -92,6 +93,9 @@ import {
 const canvas = document.querySelector('canvas');
 const responsiveCanvas = createResponsiveCanvas({ canvas, windowObject: window });
 const ctx = canvas.getContext('2d');
+// ?perfil=1: mede o custo de cada parte do quadro 2D (experimental)
+const frameProfiler = createFrameProfiler(ctx, readProfilePreference(window.location));
+window.miguelitoPerfil = frameProfiler;
 // EXPERIMENTAL (branch experimental/visual-2_5d): renderizador 2,5D em WebGL.
 // So existe com ?render=25d na URL. Sem o parametro nada abaixo roda e o jogo
 // desenha exatamente como na main. Com ele, o renderizador recebe um canvas
@@ -1992,6 +1996,7 @@ function renderWorld() {
     return;
   }
   renderer25D?.setVisible(false);
+  if (frameProfiler.active || Object.values(window.miguelitoCusto2D || {}).some(Boolean)) { renderWorldProfiled(); return; }
   // Limpeza defensiva em coordenadas de TELA, antes de qualquer zoom/camera:
   // garante que nenhum quadro residual sobreviva na faixa que o fundo do mundo
   // nao cobrir. Precisa vir ANTES de cameraView.apply — depois do zoom, um
@@ -2047,6 +2052,50 @@ function renderWorld() {
     // acrescenta feixes e primeiro plano. So visual; nao le nada da fisica.
     lighting?.render(ctx, { finaleActive: phaseFinale.active });
     platformVisuals.renderLabel(ctx);
+  } finally {
+    ctx.restore();
+  }
+}
+
+// Mesmo quadro de renderWorld, em trechos medidos (?perfil=1) e com trechos
+// que podem ser pulados pelo painel ("Teste de custo"): pular um trecho mostra
+// quanto FPS ele custa NESTE aparelho, inclusive celular e tablet.
+window.miguelitoCusto2D = { fundo: false, terreno: false, luz: false, efeitos: false };
+function renderWorldProfiled() {
+  const P = frameProfiler;
+  const skip = window.miguelitoCusto2D;
+  P.frame();
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  ctx.save();
+  try {
+    cameraView.apply(ctx);
+    renderer.prepareFrame();
+    if (!skip.fundo) P.run('fundo (gradiente + backdrop + paralaxe)', () => renderer.drawBackground());
+    if (!skip.efeitos) P.run('mundo (raizes, exsudatos, jogador, microbios)', () => renderer.drawWorld());
+    else { ctx.save(); ctx.translate(-(sim.state.cameraX || 0), 0); renderer.drawPlayer(); ctx.restore(); }
+    P.run('final/superficie', () => phaseFinale.renderWorldLayer(ctx));
+    if (!skip.terreno) P.run('terreno (plataformas)', () => { sim.state.level.traversalDebugVisible = showDebug; platformVisuals.drawWorld(ctx); });
+    if (!skip.luz) P.run('profundidade das plataformas (luz)', () => lighting?.renderPlatformDepth(ctx));
+    const subs = [
+      ['rhizoctoniaControl', rhizoctoniaControl], ['ralstoniaControl', ralstoniaControl],
+      ['ecology', sim.ecology], ['meloidogyne', sim.meloidogyneLifecycle], ['inoculants', sim.beneficialInoculants],
+      ['siderophores', sim.pseudomonasSiderophores], ['opportunisticFungus', sim.opportunisticFungus],
+      ['azospirillum', sim.azospirillumRootGrowth], ['rhizobium', sim.rhizobiumNodulation],
+      ['nitrogenRoot', sim.nitrogenRootDevelopment], ['trichodermaColonies', sim.trichodermaColonies],
+      ['trichoderma', sim.trichoderma], ['trichoRhizoctonia', trichodermaRhizoctoniaControl],
+      ['trichoMeloidogyne', trichodermaMeloidogyneControl], ['mycorrhizaStructures', sim.mycorrhizaStructures],
+      ['mycorrhiza', sim.mycorrhiza], ['goal', sim.goal], ['gameplay', sim.gameplay],
+      ['bacillus', sim.bacillusBioprotection], ['phosphate', sim.phosphateSolubilization], ['fixedBlocks', fixedBlockRuntime],
+    ];
+    if (!skip.efeitos) {
+      P.run('siderophores (depositos)', () => sim.pseudomonasSiderophores.renderDeposits(ctx));
+      for (const [name, sys] of subs) P.run(name, () => sys.render(ctx));
+    }
+    if (!skip.luz) P.run('iluminacao 2D (escurecer + recortes + feixes)', () => lighting?.render(ctx, { finaleActive: phaseFinale.active }));
+    P.run('rotulos', () => platformVisuals.renderLabel(ctx));
   } finally {
     ctx.restore();
   }

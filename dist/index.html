@@ -1087,7 +1087,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"81f9398","subject":"2,5D: texto do mundo fora da luz e do bloom (vai direto ao canvas do jog","builtAt":"2026-10-17 19:46"};
+window.__BEANS_BUILD__ = {"commit":"27e6c30","subject":"2,5D: Fe3+ com nucleo emissivo em HDR (o bloom pega e responde ao contro","builtAt":"2026-10-17 20:06"};
 (() => {
 'use strict';
 const __modules = {
@@ -1122,6 +1122,7 @@ const { biologicalGroupsForProgress, VICTORY_AUDIO_FALLBACK_SECONDS } = __requir
 const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");
 const { createRenderer } = __require("src/render/renderer.js");
 const { createLayerSwitch, read25DPreference } = __require("experimental/2_5d/gl/layer-switch.js");
+const { createFrameProfiler, readProfilePreference } = __require("experimental/2_5d/gl/frame-profiler.js");
 const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");
 const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");
 const { createRhizosphereLighting, readLightingPreference } = __require("src/render/rhizosphere-lighting.js");
@@ -1150,6 +1151,9 @@ const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo:
 const canvas = document.querySelector('canvas');
 const responsiveCanvas = createResponsiveCanvas({ canvas, windowObject: window });
 const ctx = canvas.getContext('2d');
+// ?perfil=1: mede o custo de cada parte do quadro 2D (experimental)
+const frameProfiler = createFrameProfiler(ctx, readProfilePreference(window.location));
+window.miguelitoPerfil = frameProfiler;
 // EXPERIMENTAL (branch experimental/visual-2_5d): renderizador 2,5D em WebGL.
 // So existe com ?render=25d na URL. Sem o parametro nada abaixo roda e o jogo
 // desenha exatamente como na main. Com ele, o renderizador recebe um canvas
@@ -3050,6 +3054,7 @@ function renderWorld() {
     return;
   }
   renderer25D?.setVisible(false);
+  if (frameProfiler.active || Object.values(window.miguelitoCusto2D || {}).some(Boolean)) { renderWorldProfiled(); return; }
   // Limpeza defensiva em coordenadas de TELA, antes de qualquer zoom/camera:
   // garante que nenhum quadro residual sobreviva na faixa que o fundo do mundo
   // nao cobrir. Precisa vir ANTES de cameraView.apply — depois do zoom, um
@@ -3105,6 +3110,50 @@ function renderWorld() {
     // acrescenta feixes e primeiro plano. So visual; nao le nada da fisica.
     lighting?.render(ctx, { finaleActive: phaseFinale.active });
     platformVisuals.renderLabel(ctx);
+  } finally {
+    ctx.restore();
+  }
+}
+
+// Mesmo quadro de renderWorld, em trechos medidos (?perfil=1) e com trechos
+// que podem ser pulados pelo painel ("Teste de custo"): pular um trecho mostra
+// quanto FPS ele custa NESTE aparelho, inclusive celular e tablet.
+window.miguelitoCusto2D = { fundo: false, terreno: false, luz: false, efeitos: false };
+function renderWorldProfiled() {
+  const P = frameProfiler;
+  const skip = window.miguelitoCusto2D;
+  P.frame();
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  ctx.save();
+  try {
+    cameraView.apply(ctx);
+    renderer.prepareFrame();
+    if (!skip.fundo) P.run('fundo (gradiente + backdrop + paralaxe)', () => renderer.drawBackground());
+    if (!skip.efeitos) P.run('mundo (raizes, exsudatos, jogador, microbios)', () => renderer.drawWorld());
+    else { ctx.save(); ctx.translate(-(sim.state.cameraX || 0), 0); renderer.drawPlayer(); ctx.restore(); }
+    P.run('final/superficie', () => phaseFinale.renderWorldLayer(ctx));
+    if (!skip.terreno) P.run('terreno (plataformas)', () => { sim.state.level.traversalDebugVisible = showDebug; platformVisuals.drawWorld(ctx); });
+    if (!skip.luz) P.run('profundidade das plataformas (luz)', () => lighting?.renderPlatformDepth(ctx));
+    const subs = [
+      ['rhizoctoniaControl', rhizoctoniaControl], ['ralstoniaControl', ralstoniaControl],
+      ['ecology', sim.ecology], ['meloidogyne', sim.meloidogyneLifecycle], ['inoculants', sim.beneficialInoculants],
+      ['siderophores', sim.pseudomonasSiderophores], ['opportunisticFungus', sim.opportunisticFungus],
+      ['azospirillum', sim.azospirillumRootGrowth], ['rhizobium', sim.rhizobiumNodulation],
+      ['nitrogenRoot', sim.nitrogenRootDevelopment], ['trichodermaColonies', sim.trichodermaColonies],
+      ['trichoderma', sim.trichoderma], ['trichoRhizoctonia', trichodermaRhizoctoniaControl],
+      ['trichoMeloidogyne', trichodermaMeloidogyneControl], ['mycorrhizaStructures', sim.mycorrhizaStructures],
+      ['mycorrhiza', sim.mycorrhiza], ['goal', sim.goal], ['gameplay', sim.gameplay],
+      ['bacillus', sim.bacillusBioprotection], ['phosphate', sim.phosphateSolubilization], ['fixedBlocks', fixedBlockRuntime],
+    ];
+    if (!skip.efeitos) {
+      P.run('siderophores (depositos)', () => sim.pseudomonasSiderophores.renderDeposits(ctx));
+      for (const [name, sys] of subs) P.run(name, () => sys.render(ctx));
+    }
+    if (!skip.luz) P.run('iluminacao 2D (escurecer + recortes + feixes)', () => lighting?.render(ctx, { finaleActive: phaseFinale.active }));
+    P.run('rotulos', () => platformVisuals.renderLabel(ctx));
   } finally {
     ctx.restore();
   }
@@ -19754,6 +19803,7 @@ function createRhizosphereGeometry({ state, painters }) {
 
   let lastRenderMs = 0;
 
+  const R = (name, fn) => (globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
   function draw(ctx, view, seedOf) {
     const started = typeof performance !== 'undefined' ? performance.now() : 0;
     cacheFrame++;
@@ -19768,7 +19818,7 @@ function createRhizosphereGeometry({ state, painters }) {
     const arch = buildArchitecture(layout, platforms, seedOf);
     const time = state.time || 0;
 
-    drawSky(ctx, view, surface);
+    R('  terreno/ceu', () => drawSky(ctx, view, surface));
     // Arquitetura radicular: principal e laterais livres mais atrás; laterais
     // que alimentam blocos um pouco mais à frente.
     // Como no original: ramificações finas atrás, depois a principal, e as
@@ -19783,32 +19833,32 @@ function createRhizosphereGeometry({ state, painters }) {
             : root.layer === 'link' ? LINK_ROOT_PALETTE : MUTED_ROOT_PALETTE;
           const fade = root.layer === 'link' ? .2 : .5;
           const pad = Math.max(...root.widths) + 14;
-          cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
+          R('  terreno/raizes corpo (cache)', () => cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
             x: box.minX - pad, y: box.minY - pad, w: box.maxX - box.minX + pad * 2, h: box.maxY - box.minY + pad * 2,
-          }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' }));
-          drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' });
+          }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' })));
+          R('  terreno/pelos radiculares', () => drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' }));
         }
       }
     }
-    drawCeiling(ctx, view, platforms, surface);
-    drawGround(ctx, view, surface);
-    for (const plant of plants) {
+    R('  terreno/teto', () => drawCeiling(ctx, view, platforms, surface));
+    R('  terreno/chao', () => drawGround(ctx, view, surface));
+    R('  terreno/plantas', () => { for (const plant of plants) {
       if (inX(plant.x - 120, plant.x + 120, 60)) drawPlant(ctx, plant, surface, view);
-    }
+    } });
     for (const platform of platforms) {
       if (platform.type !== 'soil' || !inX(platform.x, platform.x + platform.w)) continue;
       const massSeed = seedOf(platform);
       const bottom = massBottom(platform, platforms, floor);
       if (platform.y > view.bottom || bottom < view.top) continue;
-      cached(ctx, `mass:${massSeed}:${Math.round(platform.x)}:${Math.round(platform.y)}:${Math.round(platform.w)}:${Math.round(bottom)}`, {
+      R('  terreno/massas (cache)', () => cached(ctx, `mass:${massSeed}:${Math.round(platform.x)}:${Math.round(platform.y)}:${Math.round(platform.w)}:${Math.round(bottom)}`, {
         x: platform.x - 96, y: platform.y - 12, w: platform.w + 192, h: bottom - platform.y + 72,
-      }, g => drawSoilMass(g, platform, platforms, FULL_VIEW, floor, massSeed));
+      }, g => drawSoilMass(g, platform, platforms, FULL_VIEW, floor, massSeed)));
     }
     links.forEach((link, index) => {
       const { block } = link;
       if (!inX(block.x, block.x + block.w, 40)) return;
       if (block.y > view.bottom || block.y + block.h < view.top) return;
-      drawAggregate(ctx, link, seedOf(block));
+      R('  terreno/agregados', () => drawAggregate(ctx, link, seedOf(block)));
     });
     trimCache();
     if (started) lastRenderMs = performance.now() - started;
@@ -43365,7 +43415,8 @@ function createRenderer({
     // a faixa [0, cameraX] descoberta a esquerda quando cameraX > 0, e os quadros
     // antigos apareciam ali como fantasma. Ancorado em x=0.
     ctx.fillRect(0, cameraY, viewportWidth, viewportHeight);
-    rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport);
+    const R = (name, fn) => (globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
+    R('  fundo/imagem (backdrop)', () => rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport));
     parallaxBackground.render(ctx, parallaxCamera, parallaxViewport);
   }
 
@@ -45648,6 +45699,7 @@ function createRhizosphereParallax({
 
   function render(ctx, camera = {}, viewport = {}) {
     if (!enabled || !ctx) return;
+    const R = (name, fn) => (globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
     const zoom = Math.max(0.01, Number(camera.zoom) || 1);
     const viewportWidth = Math.max(1, (Number(viewport.width) || width || 1280) / zoom);
     const viewportHeight = Math.max(1, (Number(viewport.height) || height || 720) / zoom);
@@ -45657,7 +45709,7 @@ function createRhizosphereParallax({
     const cameraY = Number(camera.cameraY) || 0;
     ctx.save();
     resetCanvasState(ctx);
-    drawTiled(
+    R('  fundo/fundo profundo (cache)', () => drawTiled(
       ctx,
       deepCache,
       cameraX,
@@ -45666,8 +45718,8 @@ function createRhizosphereParallax({
       vertical.deep,
       viewportWidth,
       deepMotion,
-    );
-    drawTiledFilaments(
+    ));
+    R('  fundo/filamentos', () => drawTiledFilaments(
       ctx,
       deepFilaments,
       cameraX,
@@ -45677,8 +45729,8 @@ function createRhizosphereParallax({
       elapsed,
       deepMotion,
       filamentMotionScale,
-    );
-    drawTiled(
+    ));
+    R('  fundo/biologia (cache)', () => drawTiled(
       ctx,
       biologyCache,
       cameraX,
@@ -45687,8 +45739,8 @@ function createRhizosphereParallax({
       vertical.biology,
       viewportWidth,
       biologyMotion,
-    );
-    drawParticles(ctx, camera, { width: viewportWidth, height: viewportHeight });
+    ));
+    R('  fundo/particulas', () => drawParticles(ctx, camera, { width: viewportWidth, height: viewportHeight }));
     ctx.restore();
     stats.renderCount++;
   }
@@ -45813,6 +45865,84 @@ function createLayerSwitch(canvas) {
   };
 }
 Object.assign(__exports, { read25DPreference, createLayerSwitch });
+},
+"experimental/2_5d/gl/frame-profiler.js": (__exports, __require) => {
+// Perfil do quadro 2D (so com ?perfil=1): mede quanto cada parte do desenho
+// custa. Depois de cada trecho forca o canvas a terminar o que foi pedido
+// (getImageData de 1 pixel), entao o tempo inclui a rasterizacao, nao so a
+// chamada. Serve para comparar as partes entre si, nao como FPS real.
+
+function readProfilePreference(locationLike) {
+  try { const v = new URLSearchParams(locationLike?.search || '').get('perfil'); return v === '1' ? 'flush' : v === '2' ? 'cpu' : false; } catch (_) { return false; }
+}
+
+function createFrameProfiler(ctx, active) {
+  const acc = new Map();
+  let frames = 0;
+  // contagem de operacoes por trecho (drawImage com area, preenchimentos,
+  // tracos, com sombra borrada) — diz O QUE pesa dentro de cada trecho
+  let current = null;
+  if (active) {
+    const proto = CanvasRenderingContext2D.prototype;
+    const wrap = (name, count) => {
+      const orig = proto[name];
+      proto[name] = function (...args) {
+        if (current) count(current, this, args);
+        return orig.apply(this, args);
+      };
+    };
+    const bump = (e, k, v = 1) => { e.ops[k] = (e.ops[k] || 0) + v; };
+    const blur = (e, c) => { if (c.shadowBlur > 0 && c.shadowColor !== 'rgba(0, 0, 0, 0)') bump(e, 'comSombra'); };
+    wrap('drawImage', (e, c, a) => {
+      bump(e, 'drawImage');
+      const src = a[0];
+      const tag = src?.tagName === 'CANVAS' ? 'canvas' : 'img';
+      bump(e, 'drawImage:' + tag);
+      const w = a.length >= 8 ? a[7] : a.length >= 4 ? a[3] : (src?.width || 0);
+      const h = a.length >= 8 ? a[8] : a.length >= 4 ? a[4] : (src?.height || 0);
+      const m = c.getTransform();
+      bump(e, 'pxImagem', Math.abs(w * h * m.a * m.d) / 1000);
+      blur(e, c);
+    });
+    for (const n of ['fill', 'stroke', 'fillRect', 'strokeRect', 'fillText', 'clip', 'putImageData']) wrap(n, (e, c) => { bump(e, n); blur(e, c); });
+    for (const n of ['createLinearGradient', 'createRadialGradient', 'createPattern']) wrap(n, e => bump(e, 'gradiente/padrao'));
+  }
+  // 'flush': forca a rasterizacao em cada trecho; 'cpu': so o tempo das chamadas
+  const flush = active === 'flush' ? () => { try { ctx.getImageData(0, 0, 1, 1); } catch (_) {} } : () => {};
+  const api = {
+    active: Boolean(active),
+    frame() { frames++; },
+    run(name, fn) {
+      if (!active) return fn();
+      flush();
+      const e = acc.get(name) || { ms: 0, n: 0, ops: {} };
+      acc.set(name, e);
+      const t0 = performance.now();
+      const prev = current;
+      current = e;
+      try { return fn(); } finally {
+        flush();
+        current = prev;
+        e.ms += performance.now() - t0; e.n++;
+      }
+    },
+    reset() { acc.clear(); frames = 0; },
+    report() {
+      const f = Math.max(1, frames);
+      const rows = [...acc.entries()].map(([name, e]) => ({
+        name, msPerFrame: +(e.ms / f).toFixed(3),
+        ops: Object.fromEntries(Object.entries(e.ops).map(([k, v]) => [k, +(v / f).toFixed(1)])),
+      }));
+      rows.sort((a, b) => b.msPerFrame - a.msPerFrame);
+      const total = rows.reduce((s, r) => s + r.msPerFrame, 0);
+      return { frames, totalMs: +total.toFixed(2), rows };
+    },
+  };
+  // trechos internos de modulos do jogo (so medem com o perfil ligado)
+  if (active) globalThis.__perfRun = (name, fn) => api.run(name, fn);
+  return api;
+}
+Object.assign(__exports, { readProfilePreference, createFrameProfiler });
 },
 "src/render/rhizosphere-lighting.js": (__exports, __require) => {
 // Iluminação e atmosfera da rizosfera.

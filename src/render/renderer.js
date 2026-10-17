@@ -85,7 +85,8 @@ export function createRenderer({
     // a faixa [0, cameraX] descoberta a esquerda quando cameraX > 0, e os quadros
     // antigos apareciam ali como fantasma. Ancorado em x=0.
     ctx.fillRect(0, cameraY, viewportWidth, viewportHeight);
-    rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport);
+    const R = (name, fn) => (globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
+    R('  fundo/imagem (backdrop)', () => rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport));
     parallaxBackground.render(ctx, parallaxCamera, parallaxViewport);
   }
 

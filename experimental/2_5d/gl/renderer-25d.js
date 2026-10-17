@@ -1241,6 +1241,10 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
         </select>
       </label>
       <div class="toggles"></div>
+      <details class="cost"><summary>Teste de custo (2D original)</summary>
+        <div class="hint">Desmarque uma parte e veja o FPS do 2D original subir: é quanto ela custa neste aparelho.</div>
+        <div class="costs"></div>
+      </details>
       <details><summary>Calibrar luz</summary>
         <div class="sliders"></div>
         <div class="row"><button type="button" data-copy>Copiar valores</button><button type="button" data-reset>Padrão</button></div>
@@ -1275,6 +1279,22 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     box.addEventListener('change', () => { renderer25D.settings[key] = box.checked; box.blur(); });
     row.append(box, document.createTextNode(label));
     toggles.append(row);
+  }
+
+  const COSTS = [['fundo', 'Fundo (imagem + paralaxe)'], ['terreno', 'Terreno (solo e raízes)'], ['luz', 'Luz 2D do original'], ['efeitos', 'Organismos e efeitos']];
+  const costs = panel.querySelector('.costs');
+  for (const [key, label] of COSTS) {
+    const row = document.createElement('label');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = !(window.miguelitoCusto2D?.[key]);
+    box.addEventListener('change', () => {
+      if (window.miguelitoCusto2D) window.miguelitoCusto2D[key] = !box.checked;
+      if (!box.checked && isActive()) { setActive(false); syncMode(); }
+      box.blur();
+    });
+    row.append(box, document.createTextNode(label));
+    costs.append(row);
   }
 
   const defaults = { ...renderer25D.tuning };

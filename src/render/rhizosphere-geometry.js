@@ -1074,6 +1074,7 @@ export function createRhizosphereGeometry({ state, painters }) {
 
   let lastRenderMs = 0;
 
+  const R = (name, fn) => (globalThis.__perfRun ? globalThis.__perfRun(name, fn) : fn());
   function draw(ctx, view, seedOf) {
     const started = typeof performance !== 'undefined' ? performance.now() : 0;
     cacheFrame++;
@@ -1088,7 +1089,7 @@ export function createRhizosphereGeometry({ state, painters }) {
     const arch = buildArchitecture(layout, platforms, seedOf);
     const time = state.time || 0;
 
-    drawSky(ctx, view, surface);
+    R('  terreno/ceu', () => drawSky(ctx, view, surface));
     // Arquitetura radicular: principal e laterais livres mais atrás; laterais
     // que alimentam blocos um pouco mais à frente.
     // Como no original: ramificações finas atrás, depois a principal, e as
@@ -1103,32 +1104,32 @@ export function createRhizosphereGeometry({ state, painters }) {
             : root.layer === 'link' ? LINK_ROOT_PALETTE : MUTED_ROOT_PALETTE;
           const fade = root.layer === 'link' ? .2 : .5;
           const pad = Math.max(...root.widths) + 14;
-          cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
+          R('  terreno/raizes corpo (cache)', () => cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
             x: box.minX - pad, y: box.minY - pad, w: box.maxX - box.minX + pad * 2, h: box.maxY - box.minY + pad * 2,
-          }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' }));
-          drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' });
+          }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' })));
+          R('  terreno/pelos radiculares', () => drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' }));
         }
       }
     }
-    drawCeiling(ctx, view, platforms, surface);
-    drawGround(ctx, view, surface);
-    for (const plant of plants) {
+    R('  terreno/teto', () => drawCeiling(ctx, view, platforms, surface));
+    R('  terreno/chao', () => drawGround(ctx, view, surface));
+    R('  terreno/plantas', () => { for (const plant of plants) {
       if (inX(plant.x - 120, plant.x + 120, 60)) drawPlant(ctx, plant, surface, view);
-    }
+    } });
     for (const platform of platforms) {
       if (platform.type !== 'soil' || !inX(platform.x, platform.x + platform.w)) continue;
       const massSeed = seedOf(platform);
       const bottom = massBottom(platform, platforms, floor);
       if (platform.y > view.bottom || bottom < view.top) continue;
-      cached(ctx, `mass:${massSeed}:${Math.round(platform.x)}:${Math.round(platform.y)}:${Math.round(platform.w)}:${Math.round(bottom)}`, {
+      R('  terreno/massas (cache)', () => cached(ctx, `mass:${massSeed}:${Math.round(platform.x)}:${Math.round(platform.y)}:${Math.round(platform.w)}:${Math.round(bottom)}`, {
         x: platform.x - 96, y: platform.y - 12, w: platform.w + 192, h: bottom - platform.y + 72,
-      }, g => drawSoilMass(g, platform, platforms, FULL_VIEW, floor, massSeed));
+      }, g => drawSoilMass(g, platform, platforms, FULL_VIEW, floor, massSeed)));
     }
     links.forEach((link, index) => {
       const { block } = link;
       if (!inX(block.x, block.x + block.w, 40)) return;
       if (block.y > view.bottom || block.y + block.h < view.top) return;
-      drawAggregate(ctx, link, seedOf(block));
+      R('  terreno/agregados', () => drawAggregate(ctx, link, seedOf(block)));
     });
     trimCache();
     if (started) lastRenderMs = performance.now() - started;
