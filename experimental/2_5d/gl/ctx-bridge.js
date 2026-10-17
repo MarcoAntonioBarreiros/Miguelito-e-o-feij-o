@@ -22,10 +22,31 @@ export function isLitSpriteImage(image) {
  * @param {CanvasRenderingContext2D} real contexto do canvas de sobreposicao
  * @param {(sprite:object)=>void} onSprite recebe cada sprite capturado
  */
-export function createBridgeContext(real, onSprite) {
+export function createBridgeContext(real, onSprite, { textTarget = null } = {}) {
   const bound = new Map();
   let capture = true;
   let order = 0;
+
+  // Texto nao passa pela luz nem pelo bloom: vai direto para o canvas do jogo,
+  // que fica por cima da imagem WebGL. Copia o estado de desenho do momento
+  // (matriz, fonte, cor, sombra) para sair identico ao original.
+  const TEXT_STATE = ['font', 'fillStyle', 'strokeStyle', 'lineWidth', 'lineJoin', 'lineCap', 'miterLimit',
+    'textAlign', 'textBaseline', 'direction', 'globalAlpha', 'shadowColor', 'shadowBlur', 'shadowOffsetX',
+    'shadowOffsetY', 'filter', 'letterSpacing', 'wordSpacing', 'fontKerning'];
+  function drawText(kind, args) {
+    const target = textTarget?.();
+    if (!capture || !target) return real[kind](...args);
+    target.save();
+    target.setTransform(real.getTransform());
+    for (const k of TEXT_STATE) if (k in real) { try { target[k] = real[k]; } catch (_) {} }
+    const op = real.globalCompositeOperation;
+    target.globalCompositeOperation = op === 'lighter' || op === 'screen' ? op : 'source-over';
+    target[kind](...args);
+    target.restore();
+    return undefined;
+  }
+  const fillText = (...args) => drawText('fillText', args);
+  const strokeText = (...args) => drawText('strokeText', args);
 
   function drawImage(image, ...args) {
     if (!capture || !isLitSpriteImage(image) || !image.complete || !image.naturalWidth) {
@@ -54,6 +75,8 @@ export function createBridgeContext(real, onSprite) {
   const proxy = new Proxy(real, {
     get(target, prop) {
       if (prop === 'drawImage') return drawImage;
+      if (prop === 'fillText') return fillText;
+      if (prop === 'strokeText') return strokeText;
       if (prop === '__real') return target;
       const value = target[prop];
       if (typeof value !== 'function') return value;

@@ -567,8 +567,10 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     const terrain = make('terrain');
     const fx = make('fx');
     const captured = [];
-    const terrainBridge = createBridgeContext(terrain.ctx, s => captured.push(s));
-    const fxBridge = createBridgeContext(fx.ctx, s => captured.push(s));
+    // o canvas do jogo tem o mesmo tamanho das camadas (escala 1)
+    const textTarget = () => (textOverlay ? realCtx : null);
+    const terrainBridge = createBridgeContext(terrain.ctx, s => captured.push(s), { textTarget });
+    const fxBridge = createBridgeContext(fx.ctx, s => captured.push(s), { textTarget });
     return { bg, terrain, fx, captured, terrainBridge, fxBridge };
   }
 
@@ -609,6 +611,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   let shaftXs = [];
   let lastExudateState = new Map();
   let camAnchor = null;
+  const textOverlay = true;
 
   function rebuildTargets() {
     rt?.scene.dispose(); rt?.occ.dispose(); rt?.vis.dispose(); rt?.vol.dispose(); rt?.volB.dispose();
@@ -818,6 +821,14 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       const f = .85 + .15 * Math.sin(time * 3 + o.e.x * .01);
       pushLight(o.e.x, -o.e.y, 45, 280, .7, 1.0, .42, 1.3 * f, i === 0 ? 4 : 0, 50);
     });
+    // depositos de Fe3+: emitem (laranja), proporcional ao estoque
+    const iron = (level.ironDeposits || [])
+      .filter(d => d.stock > .08 && Number.isFinite(d.x) && Math.abs(d.x - camCX) < visW)
+      .slice(0, 4);
+    for (const d of iron) {
+      const ratio = Math.min(1, d.stock / Math.max(.01, d.maxStock || 1));
+      pushLight(d.x, -d.y, 30, 220, 1.0, .58, .26, (.9 + .8 * ratio) * (.9 + .1 * Math.sin(time * 1.7 + (d.phase || 0))), 0, 45);
+    }
     for (const c of level.checkpoints || []) {
       if (!Number.isFinite(c.x) || Math.abs(c.x - camCX) > visW) continue;
       pushLight(c.x + 10, -(c.y + 10), 50, 240, .35, .95, .9, c.active ? 1.2 : .45, 0, 30);
@@ -879,6 +890,13 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     }
     const time = Number(state.time) || 0;
     shared.uTime.value = time;
+
+    // 0. o canvas do jogo, por cima, comeca limpo: recebe so o texto do mundo
+    // (abaixo) e o que o jogo desenhar depois do mundo (cartao da cinematica)
+    realCtx.save();
+    realCtx.setTransform(1, 0, 0, 1, 0, 0);
+    realCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+    realCtx.restore();
 
     // 1. o jogo desenha nas tres camadas
     for (const L of [layers.bg, layers.terrain, layers.fx]) {
@@ -1029,10 +1047,6 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     // 11. o canvas do jogo fica transparente por cima: so recebe o que o jogo
     // desenha depois do mundo (cartao da cinematica). Nada volta da GPU.
     setVisible(true);
-    realCtx.save();
-    realCtx.setTransform(1, 0, 0, 1, 0, 0);
-    realCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
-    realCtx.restore();
 
     stats.ms = performance.now() - t0;
     stats.sprites = layers.captured.length;
