@@ -239,14 +239,14 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
         t.along += segLen;
         t.length += segLen;
         // pelos radiculares na zona de maturacao (um pouco atras da ponta)
-        if (isRoot && t.length > 40 && random() < .55 && t.width < 9) {
+        if (isRoot && t.length > 40 && random() < .45 && t.width < 9) {
           const back = 18 + random() * 22;
           const hx = t.x - Math.cos(ang) * back;
           const hy = t.y - Math.sin(ang) * back;
           const side = random() < .5 ? 1 : -1;
           const ha = ang + side * (1.2 + random() * .5);
-          const hl = 6 + random() * 9;
-          addSegment(hx, hy, hx + Math.cos(ha) * hl, hy + Math.sin(ha) * hl, .9, .5, time + .4 + random() * .6, KIND.hair, 0);
+          const hl = 4 + random() * 6;
+          addSegment(hx, hy, hx + Math.cos(ha) * hl, hy + Math.sin(ha) * hl, .6, .3, time + .4 + random() * .6, KIND.hair, 0);
         }
         t.x = nx; t.y = ny;
         // ramificacao subapical

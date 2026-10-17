@@ -62,7 +62,7 @@ namespace Miguelito25D
             cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;
 
             BuildPost();
-            Light2DKit.Global(new GameObject("Luz global (ambiente)"), new Color(.42f, .58f, .62f), .30f);
+            Light2DKit.Global(new GameObject("Luz global (ambiente)"), new Color(.42f, .58f, .62f), .42f);
             BuildBackground();
             BuildGrowth();
             BuildTerrain();
@@ -133,8 +133,8 @@ namespace Miguelito25D
         {
             var rnd = new System.Random(4242);
             float R() => (float)rnd.NextDouble();
-            far = Network("Raizes ao fundo (paralaxe .35)", -60, 11, .42f, .5f, .35f);
-            mid = Network("Raizes intermediarias (paralaxe .18)", -40, 23, .62f, .3f, .18f);
+            far = Network("Raizes ao fundo (paralaxe .35)", -60, 11, .2f, .55f, .35f);
+            mid = Network("Raizes intermediarias (paralaxe .18)", -40, 23, .34f, .35f, .18f);
             hyphae = Network("Hifas micorrizicas", -5, 37, 1f, 0f, 0f);
             for (float x = level.x0 - 200; x < level.x1 + 1400; x += 300 + R() * 300)
                 far.Spawn(new Vector2(x, level.top - 420), -Mathf.PI / 2 + (R() - .5f) * .35f, RootGrowthNetwork.Kind.Root, 6 + R() * 5, 34, 1500 + R() * 500);
@@ -289,12 +289,12 @@ namespace Miguelito25D
                 m.radiusPx = a.radius; m.phase = a.phase;
                 // colonia vira uma luz so
                 var pos = new Vector2(a.x, a.y);
-                if (AgentLight.TryGetValue(a.type, out var col) && lit.Count < 14 && !lit.Any(q => (q - pos).magnitude < 110))
+                if (AgentLight.TryGetValue(a.type, out var col) && lit.Count < 30 && !lit.Any(q => (q - pos).magnitude < 90))
                 {
                     lit.Add(pos);
                     var lg = new GameObject("bioluminescencia");
                     lg.transform.SetParent(go.transform, false);
-                    Light2DKit.Point(lg, col, .45f, .05f, 1.7f);
+                    Light2DKit.Point(lg, col, .9f, .1f, 2.2f);
                 }
             }
         }
@@ -329,7 +329,8 @@ namespace Miguelito25D
                 var em = ps.emission; em.rateOverTime = rate;
                 var shape = ps.shape; shape.shapeType = ParticleSystemShapeType.Box; shape.scale = box;
                 var noise = ps.noise; noise.enabled = true; noise.strength = .15f; noise.frequency = .2f; noise.scrollSpeed = .05f;
-                var vel = ps.velocityOverLifetime; vel.enabled = true; vel.y = new ParticleSystem.MinMaxCurve(-.04f, .02f);
+                var vel = ps.velocityOverLifetime; vel.enabled = true;
+                vel.x = new ParticleSystem.MinMaxCurve(-.01f, .01f); vel.y = new ParticleSystem.MinMaxCurve(-.04f, .02f); vel.z = new ParticleSystem.MinMaxCurve(0f, 0f);
                 var fade = ps.colorOverLifetime; fade.enabled = true;
                 var g = new Gradient();
                 g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },

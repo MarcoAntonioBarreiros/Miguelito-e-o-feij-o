@@ -130,7 +130,7 @@ namespace Miguelito25D
             // w = -1: bitangente = +n, igual ao sentido em que v cresce
             var t = new Vector4(d.x, d.y, 0, -1);
             for (int j = 0; j < 4; j++) tangents.Add(t);
-            Color c = kind == Kind.Root ? rootColor * (hair ? 1.2f : 1f) : hyphaColor;
+            Color c = kind == Kind.Root ? rootColor * (hair ? .8f : 1f) : hyphaColor;
             float g = c.r * .2126f + c.g * .7152f + c.b * .0722f;
             c = Color.Lerp(c, new Color(g, g, g), desaturate) * tint;
             c.a = kind == Kind.Hypha ? .8f : 1f;
@@ -174,14 +174,14 @@ namespace Miguelito25D
                     float w1 = t.width * Mathf.Max(.25f, 1 - (t.length + segLen) / t.maxLength);
                     AddSegment(t.p, next, w0, w1, t.along, t.kind, false);
                     t.along += segLen; t.length += segLen;
-                    if (root && t.length > 40 && R() < .55f && t.width < 9)
+                    if (root && t.length > 40 && R() < .45f && t.width < 9)
                     {
                         float back = 18 + R() * 22;
                         Vector2 h = t.p - new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * back;
                         float side = R() < .5f ? 1 : -1;
                         float ha = ang + side * (1.2f + R() * .5f);
-                        float hl = 6 + R() * 9;
-                        AddSegment(h, h + new Vector2(Mathf.Cos(ha), Mathf.Sin(ha)) * hl, .9f, .5f, 0, Kind.Root, true);
+                        float hl = 4 + R() * 6;
+                        AddSegment(h, h + new Vector2(Mathf.Cos(ha), Mathf.Sin(ha)) * hl, .6f, .3f, 0, Kind.Root, true);
                     }
                     t.p = next;
                     if (t.length - t.lastBranch > t.nextBranch && t.generation < (root ? 2 : 4))
