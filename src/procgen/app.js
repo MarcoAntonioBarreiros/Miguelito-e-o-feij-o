@@ -1991,6 +1991,7 @@ function renderWorld() {
     renderer25D.renderFrame(drawWorldLayers25D);
     return;
   }
+  renderer25D?.setVisible(false);
   // Limpeza defensiva em coordenadas de TELA, antes de qualquer zoom/camera:
   // garante que nenhum quadro residual sobreviva na faixa que o fundo do mundo
   // nao cobrir. Precisa vir ANTES de cameraView.apply — depois do zoom, um

@@ -104,6 +104,7 @@ uniform sampler2D uNormal;
 uniform float uHasNormal;
 uniform float uFloor;     // piso de leitura: a arte nunca some no escuro
 uniform float uRimGain;
+uniform float uLightScale;
 varying vec2 vUv;
 varying vec2 vU;
 varying vec2 vV;
@@ -119,7 +120,7 @@ void main() {
   vec3 rim;
   vec3 light = accumulateLight(vWorld + vec3(0.0, 0.0, 6.0), N, .55, .12, rim);
   // a arte e o ponto de partida: luz modula, nao substitui
-  vec3 lit = c.rgb * (uFloor + uAmbient + light * .55) + rim * c.rgb * uRimGain;
+  vec3 lit = c.rgb * (uFloor + uAmbient + light * .6 * uLightScale) + rim * c.rgb * uRimGain;
   vec3 col = mix(c.rgb, lit, uLightingOn);
   gl_FragColor = vec4(col * a, a);
 }`;
@@ -362,6 +363,7 @@ function createSpriteBatch(image, shared, maxTexture) {
       uHasNormal: { value: 0 },
       uFloor: { value: .26 },
       uRimGain: { value: .3 },
+      uLightScale: { value: 1 },
     },
     vertexShader: SPRITE_VERT,
     fragmentShader: SPRITE_FRAG,
@@ -446,7 +448,26 @@ function createSpriteBatch(image, shared, maxTexture) {
 
 export function createRenderer25D({ mainCanvas, state, getAgents = () => null, quality = 'high' }) {
   const realCtx = mainCanvas.getContext('2d');
+  // O canvas WebGL vai para a pagina, ATRAS do canvas do jogo, com o mesmo
+  // enquadramento CSS. A primeira versao copiava o quadro da GPU para o canvas
+  // 2D a cada quadro (drawImage): isso obriga a GPU a devolver a imagem para a
+  // CPU e travava em ~12 fps mesmo com placa de video.
   const glCanvas = document.createElement('canvas');
+  glCanvas.setAttribute('aria-hidden', 'true');
+  Object.assign(glCanvas.style, {
+    position: 'fixed', left: '0', top: '0', width: '100vw', height: '100dvh',
+    objectFit: 'contain', zIndex: '0', pointerEvents: 'none', display: 'none',
+  });
+  document.body.prepend(glCanvas);
+  const mainCanvasStyle = { background: mainCanvas.style.background, position: mainCanvas.style.position, zIndex: mainCanvas.style.zIndex };
+  let visible = false;
+  function setVisible(on) {
+    if (on === visible) return;
+    visible = on;
+    glCanvas.style.display = on ? 'block' : 'none';
+    if (on) Object.assign(mainCanvas.style, { background: 'transparent', position: 'relative', zIndex: '1' });
+    else Object.assign(mainCanvas.style, mainCanvasStyle);
+  }
   const renderer = new THREE.WebGLRenderer({
     canvas: glCanvas, antialias: false, alpha: false,
     powerPreference: 'high-performance', preserveDrawingBuffer: false,
@@ -469,16 +490,24 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     lighting: true, shadows: true, volumetric: true, bloom: true, growth: true,
     particles: true, grade: true, sprites: true,
   };
+  // Controles finos (painel). Padrao entre a 1a versao (luz viva, estourava)
+  // e a 2a (cor fiel, mas apagada).
+  const tuning = {
+    exposure: 1.1, ambient: 1, lights: 1.15, bloom: .5, shafts: 1, rim: 1.2, fog: 1, spriteLight: 1,
+  };
+  try { Object.assign(tuning, JSON.parse(localStorage.getItem('miguelito:25d:tuning') || '{}')); } catch (_) {}
 
   // ---- camadas 2D do jogo -----------------------------------------------
   function buildLayers() {
-    const make = (name, opts) => {
-      const canvas = makeLayerCanvas(W, H);
+    const make = (name, opts, scale = 1) => {
+      const canvas = makeLayerCanvas(Math.round(W * scale), Math.round(H * scale));
       const ctx = canvas.getContext('2d');
       const tex = canvasTexture(canvas, opts);
-      return { name, canvas, ctx, tex };
+      return { name, canvas, ctx, tex, scale };
     };
-    const bg = make('bg');
+    // o fundo e desfocado e enevoado de qualquer forma: meia resolucao basta
+    // e corta 3/4 do envio desta camada para a GPU
+    const bg = make('bg', {}, .5);
     const terrain = make('terrain');
     const fx = make('fx');
     const captured = [];
@@ -538,7 +567,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     shared.uVis.value = rt.vis.texture;
     shared.uResolution.value.set(W, H);
     bloom?.dispose?.();
-    bloom = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), .38, .35, 1.12);
+    bloom = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), .5, .4, 1.0);
   }
 
   function rebuild() {
@@ -548,8 +577,9 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     for (const m of Object.values(meshes)) { scene.remove(m); occScene.remove(m); }
     layers = buildLayers();
     meshes.bg = screenMesh(layerMaterial(layers.bg.tex, {
-      depth: -420, lit: .45, volume: .25, detail: .5, gain: 3, lodBlur: 1.1, lodVolume: 3.5, wrap: .8, brightness: .36, rim: .2,
+      depth: -420, lit: .45, volume: .25, detail: .5, gain: 3, lodBlur: .3, lodVolume: 2.5, wrap: .8, brightness: .36, rim: .2,
     }));
+    meshes.bg.material.uniforms.uTexel.value.set(1 / layers.bg.canvas.width, 1 / layers.bg.canvas.height);
     meshes.terrain = screenMesh(layerMaterial(layers.terrain.tex, {
       depth: 0, lit: 1, volume: 1, detail: .35, gain: 7, lodVolume: 2.6, wrap: .25, spec: .35, ao: .9, rim: .9,
     }));
@@ -627,23 +657,28 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     shaftXs = [];
     for (let x = 300 + (seed % 400); x < endX + 600; x += 640 + ((seed >> (x % 7)) % 360)) shaftXs.push(x);
 
-    const far = createGrowthLayer({ shared, z: -320, seed: seed ^ 0x51, dim: .3, opacity: .8, maxSegments: 14000 });
-    const mid = createGrowthLayer({ shared, z: -120, seed: seed ^ 0x77, dim: .5, opacity: .9, maxSegments: 12000 });
-    const hyph = createGrowthLayer({ shared, z: -20, seed: seed ^ 0x99, dim: .9, opacity: .7, maxSegments: 16000, thicken: 0 });
-    far.mesh.renderOrder = 5; mid.mesh.renderOrder = 12; hyph.mesh.renderOrder = 25;
-    growth.push(far, mid, hyph);
+    // Tres planos de raiz atras do jogo. Profundidade se le por paralaxe
+    // (perspectiva real), tamanho, contraste e cor: o plano mais distante tem
+    // raizes grossas e escuras que atravessam a tela inteira.
+    const deep = createGrowthLayer({ shared, z: -760, seed: seed ^ 0x21, dim: .22, opacity: .95, maxSegments: 9000 });
+    const far = createGrowthLayer({ shared, z: -340, seed: seed ^ 0x51, dim: .26, opacity: .9, maxSegments: 14000 });
+    const mid = createGrowthLayer({ shared, z: -130, seed: seed ^ 0x77, dim: .42, opacity: .95, maxSegments: 12000 });
+    const hyph = createGrowthLayer({ shared, z: -20, seed: seed ^ 0x99, dim: .9, opacity: .75, maxSegments: 16000, thicken: 0 });
+    deep.mesh.renderOrder = 3; far.mesh.renderOrder = 5; mid.mesh.renderOrder = 12; hyph.mesh.renderOrder = 25;
+    growth.push(far, mid, hyph, deep);
     for (const g of growth) scene.add(g.mesh);
 
-    // raizes de fundo descem da superficie; sementes deterministicas por fase.
-    // Ficam ATRAS do plano de jogo: dao profundidade sem disputar a leitura
-    // das plataformas (raiz em primeiro plano tapava a rota).
+    const r0 = deep.random;
+    for (let x = -900; x < endX + 1600; x += 420 + r0() * 380) {
+      deep.spawn({ x, y: -(topY - 900), angle: -Math.PI / 2 + (r0() - .5) * .5, width: 26 + r0() * 18, speed: 40, maxLength: 2600 + r0() * 600 });
+    }
     const r = far.random;
-    for (let x = -200; x < endX + 400; x += 300 + r() * 300) {
-      far.spawn({ x, y: -(topY - 420), angle: -Math.PI / 2 + (r() - .5) * .35, width: 6 + r() * 5, speed: 34, maxLength: 1500 + r() * 500 });
+    for (let x = -400; x < endX + 900; x += 260 + r() * 260) {
+      far.spawn({ x, y: -(topY - 520), angle: -Math.PI / 2 + (r() - .5) * .4, width: 9 + r() * 7, speed: 34, maxLength: 1700 + r() * 500 });
     }
     const r2 = mid.random;
-    for (let x = 0; x < endX + 400; x += 520 + r2() * 520) {
-      mid.spawn({ x, y: -(topY - 380), angle: -Math.PI / 2 + (r2() - .5) * .4, width: 8 + r2() * 4, speed: 30, maxLength: 1300 + r2() * 400 });
+    for (let x = -100; x < endX + 500; x += 460 + r2() * 460) {
+      mid.spawn({ x, y: -(topY - 400), angle: -Math.PI / 2 + (r2() - .5) * .4, width: 12 + r2() * 6, speed: 30, maxLength: 1400 + r2() * 400 });
     }
     // hifas: rede micorrizica saindo de algumas plataformas de raiz
     const r4 = hyph.random;
@@ -655,7 +690,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
         hyph.spawn({ x: cx, y: cy, angle: -Math.PI / 2 + (r4() - .5) * 2.2, kind: 'hypha', width: 1.1, speed: 40, maxLength: 120 + r4() * 120 });
       }
     }
-    far.prewarm(40); mid.prewarm(26); hyph.prewarm(4);
+    deep.prewarm(60); far.prewarm(45); mid.prewarm(30); hyph.prewarm(4);
     lastExudateState = new Map();
   }
 
@@ -680,6 +715,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   // ---- luzes ------------------------------------------------------------
   const lights = [];
   function pushLight(x, y, z, r, cr, cg, cb, i, slot = 0, key = 0) {
+    i *= tuning.lights;
     lights.push({ x, y, z, r, cr: cr * i, cg: cg * i, cb: cb * i, slot, key });
   }
 
@@ -696,7 +732,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     const introStage = state.introFall?.stage;
     const atSurface = introStage === 'title' || introStage === 'surface' || document.body.classList.contains('phase-finale');
     daylight += ((atSurface ? 1 : 0) - daylight) * .08;
-    shared.uAmbient.value.copy(NIGHT_AMBIENT).lerp(DAY_AMBIENT, daylight);
+    shared.uAmbient.value.copy(NIGHT_AMBIENT).lerp(DAY_AMBIENT, daylight).multiplyScalar(tuning.ambient);
+    shared.uFogDensity.value = .0026 * tuning.fog;
     if (daylight > .02) pushLight(camCX - visW * .3, camCY + visH * 1.4, 1400, 9000, 1, .95, .86, .72 * daylight, 0, 200);
     const ys = (level.platforms || []).map(p => p.y).filter(Number.isFinite);
     const topY = ys.length ? Math.min(...ys) : 200;
@@ -790,7 +827,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     // 1. o jogo desenha nas tres camadas
     for (const L of [layers.bg, layers.terrain, layers.fx]) {
       L.ctx.setTransform(1, 0, 0, 1, 0, 0);
-      L.ctx.clearRect(0, 0, W, H);
+      L.ctx.clearRect(0, 0, L.canvas.width, L.canvas.height);
+      if (L.scale !== 1) L.ctx.setTransform(L.scale, 0, 0, L.scale, 0, 0);
     }
     layers.captured.length = 0;
     layers.terrainBridge.setCapture(settings.sprites);
@@ -835,6 +873,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     let segs = 0;
     const bounds = { x0: cx - visW * 1.2, x1: cx + visW * 1.2 };
     for (const g of growth) {
+      // 1 px de tela no plano z da camada
+      g.setPixelSize(((dist - g.z) * 2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2))) / H);
       g.mesh.visible = settings.growth;
       if (settings.growth) g.step(dtReal, time, bounds);
       segs += g.segments;
@@ -845,9 +885,9 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     const active = collectLights(time, cx, cy, visW, visH);
     // Na superficie o fundo repete partes do primeiro plano (planta, ceu):
     // desfoque e nevoa ali viravam um halo azul em volta das folhas.
-    meshes.bg.material.uniforms.uLodBlur.value = 1.1 * (1 - daylight);
+    meshes.bg.material.uniforms.uLodBlur.value = .3 * (1 - daylight);
     meshes.bg.material.uniforms.uDepth.value = -420 * (1 - daylight) - 1;
-    meshes.terrain.material.uniforms.uRim.value = .9 * (1 - .85 * daylight);
+    meshes.terrain.material.uniforms.uRim.value = tuning.rim * (1 - .85 * daylight);
     const toUv = (x, y) => [ (x - camX) / visW, 1 - ((-y) - camY) / visH ];
 
     // 6. oclusao (terreno + sprites) em meia resolucao
@@ -896,7 +936,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       renderer.setRenderTarget(rt.vol);
       blurPass.render(renderer);
       meshes.vol.material.uniforms.uVol.value = rt.vol.texture;
-      meshes.vol.material.uniforms.uStrength.value = 1 - daylight;
+      meshes.vol.material.uniforms.uStrength.value = tuning.shafts * (1 - daylight);
     }
 
     // 9. cena principal em HDR
@@ -907,7 +947,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
 
     // 10. bloom + grade final
     if (settings.bloom) {
-      bloom.strength = .38 * (1 - daylight);
+      bloom.strength = tuning.bloom * (1 - daylight);
       bloom.render(renderer, null, rt.scene, 0, false);
     }
     const shake = Number(state.shake) || 0;
@@ -918,15 +958,17 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     finalPass.material.uniforms.uScene.value = rt.scene.texture;
     finalPass.material.uniforms.uTime.value = time;
     finalPass.material.uniforms.uGrade.value = settings.grade ? 1 : 0;
+    finalPass.material.uniforms.uExposure.value = tuning.exposure;
+    for (const b of batches.values()) b.mesh.material.uniforms.uLightScale.value = tuning.spriteLight;
     renderer.setRenderTarget(null);
     finalPass.render(renderer);
 
-    // 11. devolve ao canvas do jogo (HUD, cartoes e cinematica continuam por cima)
+    // 11. o canvas do jogo fica transparente por cima: so recebe o que o jogo
+    // desenha depois do mundo (cartao da cinematica). Nada volta da GPU.
+    setVisible(true);
     realCtx.save();
     realCtx.setTransform(1, 0, 0, 1, 0, 0);
-    realCtx.globalAlpha = 1;
-    realCtx.globalCompositeOperation = 'copy';
-    realCtx.drawImage(glCanvas, 0, 0);
+    realCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
     realCtx.restore();
 
     stats.ms = performance.now() - t0;
@@ -937,9 +979,17 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     if (fpsAcc > .5) { stats.fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
   }
 
+  const gl = renderer.getContext();
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  const gpuName = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'desconhecida';
+
   return {
     renderFrame,
     settings,
+    tuning,
+    saveTuning() { try { localStorage.setItem('miguelito:25d:tuning', JSON.stringify(tuning)); } catch (_) {} },
+    setVisible,
+    gpuName,
     stats,
     renderer,
     toggle(name) { if (name in settings) settings[name] = !settings[name]; return settings[name]; },
@@ -959,9 +1009,20 @@ const PANEL_ITEMS = [
   ['grade', 'Correção de cor e vinheta'],
 ];
 
+const PANEL_SLIDERS = [
+  ['exposure', 'Exposição', .5, 1.8, .05],
+  ['ambient', 'Luz ambiente', 0, 2.5, .05],
+  ['lights', 'Intensidade das luzes', 0, 2.5, .05],
+  ['spriteLight', 'Luz nos sprites', 0, 2, .05],
+  ['rim', 'Contorno do terreno', 0, 2.5, .05],
+  ['bloom', 'Bloom', 0, 1.5, .05],
+  ['shafts', 'Feixes', 0, 2.5, .05],
+  ['fog', 'Névoa de profundidade', 0, 3, .05],
+];
+
 /**
- * Painel para comparar efeito por efeito. G alterna 2,5D / 2D original,
- * V mostra ou esconde o painel. Nada aqui passa pelo input do jogo.
+ * Painel para comparar efeito por efeito e calibrar. G alterna 2,5D / 2D
+ * original, V mostra ou esconde. FPS medido pela pagina nos dois modos.
  */
 export function mount25DPanel({ renderer25D, isActive, setActive }) {
   const panel = document.createElement('section');
@@ -970,73 +1031,133 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
   panel.innerHTML = `
     <style>
       #panel-25d{position:fixed;right:12px;bottom:12px;z-index:60;font:600 12px/1.35 Inter,system-ui,sans-serif;
-        color:#dff7f4;background:rgba(4,18,22,.82);border:1px solid rgba(108,231,223,.35);border-radius:12px;
-        padding:10px 12px;min-width:220px;backdrop-filter:blur(6px);box-shadow:0 8px 30px rgba(0,0,0,.45)}
+        color:#dff7f4;background:rgba(4,18,22,.86);border:1px solid rgba(108,231,223,.35);border-radius:12px;
+        padding:10px 12px;width:268px;max-height:calc(100dvh - 24px);overflow:auto;backdrop-filter:blur(6px);
+        box-shadow:0 8px 30px rgba(0,0,0,.45)}
       #panel-25d h2{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6ce7df}
-      #panel-25d label{display:flex;gap:8px;align-items:center;padding:2px 0;cursor:pointer}
-      #panel-25d input{accent-color:#6ce7df}
-      #panel-25d .mode{display:flex;gap:6px;margin:4px 0 8px}
-      #panel-25d .mode button{flex:1;border:1px solid rgba(108,231,223,.45);background:transparent;color:#dff7f4;
-        border-radius:8px;padding:5px 6px;font:inherit;cursor:pointer}
-      #panel-25d .mode button[aria-pressed=true]{background:#6ce7df;color:#062326}
-      #panel-25d .stats{margin-top:6px;color:#9fc9c4;font-weight:500;font-variant-numeric:tabular-nums}
-      #panel-25d .hint{margin-top:4px;color:#7fa9a4;font-weight:500}
-      #panel-25d[hidden]{display:none}
       #panel-25d .collapse{all:unset;cursor:pointer;display:flex;justify-content:space-between;width:100%}
       #panel-25d.closed .body{display:none}
       #panel-25d.closed h2{margin:0}
-      #panel-25d .phase{margin:0 0 6px;justify-content:space-between}
+      #panel-25d label{display:flex;gap:8px;align-items:center;padding:2px 0;cursor:pointer}
+      #panel-25d input[type=checkbox]{accent-color:#6ce7df}
+      #panel-25d .mode{display:flex;gap:6px;margin:4px 0 8px}
+      #panel-25d .mode button{flex:1;border:1px solid rgba(108,231,223,.45);background:transparent;color:#dff7f4;
+        border-radius:8px;padding:6px;font:inherit;cursor:pointer}
+      #panel-25d .mode button[aria-pressed=true]{background:#6ce7df;color:#062326}
+      #panel-25d .phase{justify-content:space-between;margin-bottom:6px}
       #panel-25d select{font:inherit;background:#0b2a2f;color:#dff7f4;border:1px solid rgba(108,231,223,.45);border-radius:6px;padding:2px 4px}
+      #panel-25d .sl{display:grid;grid-template-columns:1fr 38px;gap:2px 6px;align-items:center;margin:2px 0}
+      #panel-25d .sl span{font-weight:500;color:#bfe3de}
+      #panel-25d .sl output{text-align:right;font-variant-numeric:tabular-nums;color:#9fc9c4}
+      #panel-25d .sl input{grid-column:1/3;width:100%;accent-color:#6ce7df}
+      #panel-25d details{margin-top:6px}
+      #panel-25d summary{cursor:pointer;color:#6ce7df}
+      #panel-25d .row{display:flex;gap:6px;margin-top:6px}
+      #panel-25d .row button{flex:1;border:1px solid rgba(108,231,223,.35);background:transparent;color:#dff7f4;border-radius:6px;padding:4px;font:inherit;cursor:pointer}
+      #panel-25d .stats{margin-top:8px;color:#dff7f4;font-variant-numeric:tabular-nums}
+      #panel-25d .gpu{color:#9fc9c4;font-weight:500;word-break:break-word}
+      #panel-25d .warn{color:#ffd28a;font-weight:500}
+      #panel-25d .hint{margin-top:4px;color:#7fa9a4;font-weight:500}
+      #panel-25d[hidden]{display:none}
     </style>
     <h2><button type="button" class="collapse" aria-expanded="true">Rizosfera 2,5D <span>▾</span></button></h2>
     <div class="body">
-    <div class="mode">
-      <button type="button" data-mode="25d">2,5D</button>
-      <button type="button" data-mode="2d">2D original</button>
-    </div>
-    <label class="phase">Fase
-      <select data-phase>
-        <option value="">—</option>
-        <option value="1">1 · Primeiros passos</option>
-        <option value="2">2 · Recrutar e estabelecer</option>
-        <option value="3">3 · Rhizobium e FBN</option>
-        <option value="4">4 · Azospirillum</option>
-        <option value="5">5 · Micorriza</option>
-        <option value="6">6 · Ferro e biocontrole</option>
-        <option value="7">7 · Trichoderma × Rhizoctonia</option>
-        <option value="8">8 · Fósforo</option>
-        <option value="9">9 · Meloidogyne</option>
-        <option value="10">10 · Ralstonia</option>
-      </select>
-    </label>
-    <div class="toggles"></div>
-    <div class="stats"></div>
-    <div class="hint">G alterna 2,5D/2D · V esconde</div>
+      <div class="mode">
+        <button type="button" data-mode="25d">2,5D</button>
+        <button type="button" data-mode="2d">2D original</button>
+      </div>
+      <label class="phase">Fase
+        <select data-phase>
+          <option value="">—</option>
+          <option value="1">1 · Primeiros passos</option>
+          <option value="2">2 · Recrutar e estabelecer</option>
+          <option value="3">3 · Rhizobium e FBN</option>
+          <option value="4">4 · Azospirillum</option>
+          <option value="5">5 · Micorriza</option>
+          <option value="6">6 · Ferro e biocontrole</option>
+          <option value="7">7 · Trichoderma × Rhizoctonia</option>
+          <option value="8">8 · Fósforo</option>
+          <option value="9">9 · Meloidogyne</option>
+          <option value="10">10 · Ralstonia</option>
+        </select>
+      </label>
+      <div class="toggles"></div>
+      <details><summary>Calibrar luz</summary>
+        <div class="sliders"></div>
+        <div class="row"><button type="button" data-copy>Copiar valores</button><button type="button" data-reset>Padrão</button></div>
+      </details>
+      <div class="stats"></div>
+      <div class="gpu"></div>
+      <div class="hint">G alterna 2,5D/2D · V esconde</div>
     </div>`;
-  for (const type of ['pointerdown', 'touchstart', 'mousedown', 'keydown']) {
+  for (const type of ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'wheel']) {
     panel.addEventListener(type, e => e.stopPropagation(), { passive: true });
   }
+
   const collapse = panel.querySelector('.collapse');
   const setClosed = closed => {
     panel.classList.toggle('closed', closed);
     collapse.setAttribute('aria-expanded', String(!closed));
     collapse.querySelector('span').textContent = closed ? '▸' : '▾';
+    try { localStorage.setItem('miguelito:25d:panel-closed', closed ? '1' : '0'); } catch (_) {}
   };
   collapse.addEventListener('click', () => { setClosed(!panel.classList.contains('closed')); collapse.blur(); });
-  // fechado por padrao em tela baixa (celular deitado): nao cobre o jogo
-  setClosed(window.innerHeight < 640);
+  let startClosed = false;
+  try { startClosed = localStorage.getItem('miguelito:25d:panel-closed') === '1'; } catch (_) {}
+  setClosed(startClosed);
+
   const toggles = panel.querySelector('.toggles');
   for (const [key, label] of PANEL_ITEMS) {
     const row = document.createElement('label');
     const box = document.createElement('input');
     box.type = 'checkbox';
+    box.id = `panel25d-${key}`;
     box.checked = renderer25D.settings[key];
     box.addEventListener('change', () => { renderer25D.settings[key] = box.checked; box.blur(); });
     row.append(box, document.createTextNode(label));
     toggles.append(row);
   }
-  // Pular para uma fase (demonstracao): mesmo formato de campanha que o jogo
-  // guarda na sessao, com as habilidades liberadas.
+
+  const defaults = { ...renderer25D.tuning };
+  const DEFAULT_TUNING = { exposure: 1.1, ambient: 1, lights: 1.15, bloom: .5, shafts: 1, rim: 1.2, fog: 1, spriteLight: 1 };
+  const sliders = panel.querySelector('.sliders');
+  const inputs = {};
+  for (const [key, label, min, max, step] of PANEL_SLIDERS) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sl';
+    const name = document.createElement('span');
+    name.textContent = label;
+    const out = document.createElement('output');
+    const input = document.createElement('input');
+    Object.assign(input, { type: 'range', min, max, step, id: `panel25d-t-${key}` });
+    input.value = renderer25D.tuning[key];
+    out.textContent = Number(input.value).toFixed(2);
+    input.addEventListener('input', () => {
+      renderer25D.tuning[key] = Number(input.value);
+      out.textContent = Number(input.value).toFixed(2);
+      renderer25D.saveTuning();
+    });
+    inputs[key] = { input, out };
+    wrap.append(name, out, input);
+    sliders.append(wrap);
+  }
+  panel.querySelector('[data-reset]').addEventListener('click', e => {
+    Object.assign(renderer25D.tuning, DEFAULT_TUNING);
+    for (const [k, { input, out }] of Object.entries(inputs)) { input.value = DEFAULT_TUNING[k]; out.textContent = Number(DEFAULT_TUNING[k]).toFixed(2); }
+    renderer25D.saveTuning();
+    e.currentTarget.blur();
+  });
+  panel.querySelector('[data-copy]').addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    const text = JSON.stringify(renderer25D.tuning);
+    try { await navigator.clipboard.writeText(text); btn.textContent = 'Copiado'; }
+    catch (_) { btn.textContent = text; }
+    setTimeout(() => { btn.textContent = 'Copiar valores'; }, 2500);
+    btn.blur();
+  });
+  void defaults;
+
+  // Pular para uma fase: mesmo formato de campanha que o jogo guarda na sessao
   const phaseSelect = panel.querySelector('[data-phase]');
   try {
     const saved = JSON.parse(sessionStorage.getItem('miguelito:campaign:v2') || 'null');
@@ -1054,6 +1175,7 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     } catch (_) {}
     location.reload();
   });
+
   const modeButtons = [...panel.querySelectorAll('[data-mode]')];
   const syncMode = () => modeButtons.forEach(b => b.setAttribute('aria-pressed', String((b.dataset.mode === '25d') === isActive())));
   modeButtons.forEach(b => b.addEventListener('click', () => { setActive(b.dataset.mode === '25d'); syncMode(); b.blur(); }));
@@ -1065,12 +1187,22 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     if (e.code === 'KeyG') { setActive(!isActive()); syncMode(); }
     if (e.code === 'KeyV') panel.hidden = !panel.hidden;
   });
+
+  // FPS medido pela propria pagina (requestAnimationFrame), igual nos dois
+  // modos: assim da para comparar o 2D original com o 2,5D na mesma maquina.
+  let frames = 0, since = performance.now(), fps = 0;
+  const tick = now => { frames++; if (now - since >= 500) { fps = Math.round(frames * 1000 / (now - since)); frames = 0; since = now; } requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
   const stats = panel.querySelector('.stats');
+  const gpu = panel.querySelector('.gpu');
+  const integrated = /intel|uhd|iris|arc\(tm\) graphics|microsoft basic|swiftshader|llvmpipe/i.test(renderer25D.gpuName);
+  gpu.innerHTML = `GPU do navegador: ${renderer25D.gpuName.replace(/^ANGLE \((.*)\)$/, '$1')}` +
+    (integrated ? '<div class="warn">O navegador está usando a GPU integrada. No Windows: Configurações › Sistema › Tela › Gráficos › navegador → Alto desempenho.</div>' : '');
   setInterval(() => {
     const s = renderer25D.stats;
     stats.textContent = isActive()
-      ? `${s.fps} fps · GPU+CPU ${s.ms.toFixed(1)} ms · ${s.lights} luzes · ${s.sprites} sprites · ${s.segments} segmentos`
-      : 'renderizador 2D original';
+      ? `${fps} fps (2,5D) · CPU ${s.ms.toFixed(1)} ms · ${s.lights} luzes · ${s.sprites} sprites`
+      : `${fps} fps (2D original)`;
   }, 500);
   if (new URLSearchParams(location.search).get('painel') === '0') panel.hidden = true;
   return panel;

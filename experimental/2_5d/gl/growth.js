@@ -42,6 +42,7 @@ attribute float aAlong; // distancia acumulada ao longo do eixo (para as celulas
 uniform float uTime;
 uniform float uZ;
 uniform float uThicken;
+uniform float uPx;       // tamanho de 1 pixel de tela em unidades do mundo, nesta profundidade
 varying vec2 vWorld;
 varying float vAcross;
 varying float vAlong;
@@ -60,6 +61,8 @@ void main() {
   float w = mix(aInfo.x, aInfo.y, aSide.y);
   if (aInfo.w < .5) w *= 1.0 + uThicken * clamp(age / 40.0, 0.0, 1.0); // espessamento
   w *= mix(.35, 1.0, grow);
+  // fio fino nunca abaixo de ~1,6 px na tela: sem isso a hifa virava tracejado
+  w = max(w, (aInfo.w > .5 ? 1.6 : 1.0) * uPx);
   p += nrm * aSide.x * w * .5;
   vWorld = p;
   vAcross = aSide.x;
@@ -164,6 +167,7 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
       uDim: { value: dim },
       uOpacity: { value: opacity },
       uThicken: { value: thicken },
+      uPx: { value: 1 },
       uRootColor: { value: new THREE.Color('#cfaa72').convertSRGBToLinear() },
       uHyphaColor: { value: new THREE.Color('#d9c8ee').convertSRGBToLinear() },
     },
@@ -286,6 +290,8 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
 
   return {
     mesh,
+    z,
+    setPixelSize(px) { material.uniforms.uPx.value = px; },
     spawn,
     step(dt, time, bounds) { step(dt, time, bounds); flush(); },
     /** Avanca o crescimento sem esperar (para nao comecar a fase vazia). */
