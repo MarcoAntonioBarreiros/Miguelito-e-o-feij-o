@@ -134,56 +134,83 @@ Rodou no seu Unity 2022.3.44f1 (modelo *Universal 2D*, URP 14.0.11).
 
 ---
 
-## 5. Comparação
+## 5. Primeira rodada de testes e correção da luz WebGL
 
-| Critério | WebGL (motor atual + Three.js) | Unity URP 2D |
+O teste do Marco na primeira versão WebGL apontou quatro problemas reais, e a
+Unity se saiu melhor neles:
+
+| Problema relatado | Causa | Correção |
 |---|---|---|
-| **Qualidade gráfica** | Luz, sombras, volume, névoa, bloom e profundidade em perspectiva já no nível da demonstração. Sombras saem do contorno orgânico real do terreno. | Equivalente no que o URP 2D oferece pronto (Light2D, sombras, volume, pós). Sombra precisa de contorno manual (aqui retângulos). Teto mais alto se um dia houver 3D de verdade. |
-| **Animação** | Mantém todas as regras atuais de quadro (`player-sprite.js`, `organism-sprites.js`) sem cópia. | Folhas importam bem; regras de estado e ritmo teriam de ser reescritas (aqui só corrida/parado). Animator e Sprite Library ajudam em projetos novos. |
-| **Desempenho** | Não medido em GPU real: o ambiente de testes só tem rasterizador de software (~10–30 ms de CPU por quadro, 12 fps lá). Precisa ser lido no painel numa máquina sua e num celular. | Medido: 196–268 FPS no editor do seu PC. Build WebGL da Unity não foi gerado nem medido. |
-| **Facilidade de desenvolvimento** | Shaders e luzes escritos à mão; sem editor visual de cena. O fluxo atual (Claude Code, testes em Node, Phase Lab) continua valendo. | Editor visual, Shader Graph, profiler, inspeção de luz ao vivo. Exige C# e o ciclo de importação/compilação do editor. |
-| **Manutenção** | Um código só; o renderizador é um módulo opcional que pode ser desligado. Risco: shaders próprios a manter. | Duas bases (JS publicada + C#) durante anos de migração, ou congelar o jogo atual. Atualizações de URP mexem em APIs (este experimento já esbarrou em uma: `TextureImporter.spritesheet` foi removido). |
-| **Distribuição web** | Igual à atual: página estática no GitHub Pages; +~0,7 MB de Three.js, carregado só no modo 2,5D. | Build WebGL da Unity traz runtime em WebAssembly baixado a cada visita e é mais pesado em celular (não medido aqui). Ganha APK/loja nativa. |
-| **Esforço para migrar as mecânicas** | ~120 linhas de integração; nenhuma mecânica reescrita. | Reescrever ~54 mil linhas (procgen com validadores, 20 sistemas biológicos, tutoriais, campanha, áudio) e ~25 mil linhas de testes. O jogador sozinho deu ~180 linhas de C# (física, entrada e animação) e cobre só o núcleo. |
+| Sprites "lavados" | tone mapping ACES dessatura e achata os tons médios; névoa volumétrica somada por cima de tudo | ombro de cor que deixa intacto tudo abaixo de 72% e só comprime o que passa disso, preservando matiz; curva S leve depois; feixes sem véu entre os raios |
+| Superfície estoura | luz do dia + ambiente somavam acima de 1, bloom pegava o céu inteiro; fundo desfocado e com névoa duplicava a planta (halo azul) | soma das luzes satura suave perto de 1,3; bloom desligado na superfície; fundo sem desfoque/névoa na superfície; sol mais fraco |
+| Exsudato estoura | brilho emissivo forte + luz forte + bloom com limiar baixo | emissão do desenho do jogo reduzida, bloom só acima de 1,12 e mais contido |
+| Luz volumétrica pixelada | calculada em 1/4 da resolução sobre a máscara em 1/8, poucos passos, listras finas | meia resolução, 40 passos com ruído intercalado, desfoque separável em dois passes, raios largos e lentos, fonte sempre acima do quadro |
+
+![Antes e depois: exsudato (cima) e feixes (baixo)](docs/correcao-luz-antes-depois.jpg)
+
+*À esquerda, a primeira versão; à direita, a corrigida.*
+
+![Superfície: 2D original e 2,5D corrigido](docs/superficie-ab.jpg)
+
+Nenhum dos quatro era limite do WebGL: eram escolhas de pós-processamento e de
+resolução que a Unity já traz calibradas no URP 2D. É justamente essa a
+diferença real entre as duas rotas — veja a seção 6.
 
 ---
 
-## 6. Recomendação
+## 6. Comparação (revisada após o teste)
 
-**Ficar no motor atual e evoluir com a camada WebGL.** A Unity não oferece
-vantagem suficiente para justificar abandonar o motor neste projeto.
+| Critério | WebGL (motor atual + Three.js) | Unity URP 2D |
+|---|---|---|
+| **Qualidade gráfica** | Depois da correção, chega ao mesmo tipo de resultado: luz, sombras, volume, névoa, profundidade em perspectiva. As sombras saem do contorno orgânico real do terreno. Mas cada efeito é escrito e calibrado à mão, e a primeira versão mostrou que errar a calibração estraga a arte. | Melhor de saída: o 2D Renderer já vem com mistura de luz, falloff e volume calibrados, e os sprites mantêm a cor. Sombra precisa de contorno manual (aqui retângulos). Teto mais alto se um dia houver 3D de verdade. |
+| **Animação** | Mantém todas as regras atuais de quadro (`player-sprite.js`, `organism-sprites.js`) sem cópia. | Folhas importam bem; regras de estado e ritmo teriam de ser reescritas (aqui só corrida/parado). |
+| **Desempenho** | Ainda não medido em GPU real (o ambiente de testes só tem renderização por software). O painel mostra FPS e ms; falta a leitura no seu PC e num celular. | Medido: 196–268 FPS no editor do seu PC. Build WebGL da Unity não foi gerado nem medido. |
+| **Facilidade de desenvolvimento** | Sem editor visual de luz: ajustar é editar shader e recarregar. O fluxo atual (Claude Code, testes em Node, Phase Lab) continua valendo. | Editor visual, luz ajustável ao vivo, Shader Graph, profiler. Exige C# e o ciclo de importação/compilação. |
+| **Manutenção** | Um código só; o renderizador é um módulo opcional que pode ser desligado. Risco: shaders próprios a manter e testar em vários navegadores/GPUs. | Duas bases (JS publicada + C#) durante a migração, ou congelar o jogo atual. Atualizações de URP mudam APIs (já aconteceu aqui com `TextureImporter.spritesheet`). |
+| **Distribuição web** | Igual à atual: página estática; +~0,7 MB de Three.js, carregado só no modo 2,5D. | Build WebGL traz runtime em WebAssembly baixado a cada visita, mais pesado em celular (não medido aqui). Ganha APK/loja nativa. |
+| **Esforço para migrar as mecânicas** | ~120 linhas de integração; nenhuma mecânica reescrita. | Reescrever ~54 mil linhas (procgen com validadores, 20 sistemas biológicos, tutoriais, campanha, áudio) e ~25 mil linhas de testes. O jogador sozinho deu ~180 linhas de C# e cobre só o núcleo. |
 
-Os motivos, em ordem de peso:
+---
 
-1. **O ganho visual é equivalente.** Tudo que o URP 2D deu nesta cena — luz 2D,
-   normal maps, sombras, volume, bloom, partículas — a versão WebGL também dá,
-   e ainda relê o terreno orgânico desenhado pelo jogo, que na Unity virou uma
-   imagem estática.
-2. **O custo é desproporcional.** A migração reescreveria o que dá identidade ao
-   jogo (geração procedural validada por agentes simulados, os sistemas
-   microbiológicos, tutoriais e campanha). Na WebGL nada disso foi tocado e as
-   dez fases já rodam em 2,5D.
-3. **A distribuição continua sem instalação.** O jogo segue abrindo por link no
-   navegador da escola e do celular, como hoje.
+## 7. Viabilidade e recomendação
+
+**A rota WebGL é viável para a qualidade de luz que as duas demos mostraram**, e
+continua sendo a recomendação, mas com a ressalva que o teste deixou clara: a
+qualidade não vem pronta. A Unity entrega iluminação boa no primeiro dia; no
+WebGL ela depende de calibração cuidadosa, testada em máquina real.
+
+- **O que sustenta a viabilidade:** os quatro defeitos tinham causa conhecida e
+  foram corrigidos sem mexer em nenhuma mecânica. Nada do que a Unity mostrou
+  nesta cena (luz 2D com normal map, sombra, volume, bloom, partículas) está
+  fora do alcance do WebGL2.
+- **O que ainda decide:** desempenho numa GPU real e num celular intermediário.
+  Se o 2,5D completo não sustentar 30 FPS no celular mesmo com `?q=low`, a
+  rota WebGL continua valendo para computador e escola, com o 2D original como
+  modo leve.
+- **Por que não migrar mesmo assim:** a vantagem da Unity é o pipeline de luz
+  pronto e o editor; o custo é reescrever as ~54 mil linhas que fazem o jogo
+  ser o que é. Para este projeto, calibrar a luz é muito mais barato que
+  reescrever a simulação.
 
 A Unity passa a valer se o objetivo mudar: aplicativo nativo em loja, console,
-VR/AR integrado ao portal da rizosfera, ou cenas realmente 3D. Nesse caso, o
+AR integrado ao portal da rizosfera, ou cenas realmente 3D. Nesse caso, o
 caminho mais barato seria manter a simulação em JS como "servidor de regras" e
-usar a Unity só como cliente visual — e não portar tudo para C#.
+usar a Unity só como cliente visual.
 
 ### Próximos passos sugeridos (não feitos)
 
-- Ler o FPS do painel numa máquina sua e num celular intermediário; ajustar
-  `?q=low` (menos passos nas sombras e nos feixes) se o celular cair abaixo de 30.
+- **Medir:** FPS do painel no seu PC e num celular intermediário.
+- **Calibrar com referência:** usar a cena da Unity como alvo de cor e
+  intensidade lado a lado, fase por fase.
 - Ligar a luz a eventos biológicos: nódulo ativo emite, sideróforo brilha, zona
   necrótica apaga as luzes próximas.
 - Pintar à mão os normal maps do Miguelito (`run_n.png` etc.) onde o gerado
-  achatar detalhes do rosto; o renderizador já aceita.
+  achatar o rosto; o renderizador já aceita.
 - Conferir a fase 10 e a cinemática final em GPU real.
 
 ---
 
-## 7. Arquivos
+## 8. Arquivos
 
 ```
 experimental/2_5d/

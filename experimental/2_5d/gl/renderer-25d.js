@@ -174,42 +174,56 @@ void main() {
 }`;
 
 // Feixes volumetricos (dispersao em tela, a partir das luzes da superficie).
+// Meia resolucao, 40 passos com jitter de ruido de gradiente intercalado e
+// depois desfoque separavel: sem o serrilhado/bloco da primeira versao.
 const VOL_FRAG = /* glsl */`
 uniform sampler2D uOcc;
 uniform vec4 uShaft[2];   // xy: luz em uv, z: intensidade, w: ativo
 uniform vec3 uShaftColor;
 uniform float uTime;
 varying vec2 vUv;
-float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
+float ign(vec2 px) { return fract(52.9829189 * fract(dot(px, vec2(.06711056, .00583715)))); }
 float h1(float x) { return fract(sin(x * 127.1) * 43758.5453); }
 float noise1(float x) { float i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(h1(i), h1(i + 1.0), f); }
 vec3 rays(vec4 s) {
   if (s.w < .5) return vec3(0.0);
   vec2 d = (s.xy - vUv);
-  const int N = 28;
-  vec2 stepv = d / float(N) * .92;
-  vec2 p = vUv + stepv * hash(vUv);
-  float decay = 1.0, acc = 0.0;
+  const int N = 40;
+  vec2 stepv = d / float(N) * .95;
+  vec2 p = vUv + stepv * ign(gl_FragCoord.xy + fract(uTime * 7.0) * 37.0);
+  float decay = 1.0, acc = 0.0, wsum = 0.0;
   for (int k = 0; k < N; k++) {
-    vec2 o = textureLod(uOcc, clamp(p, 0.0, 1.0), 2.0).rg;
+    vec2 o = textureLod(uOcc, clamp(p, 0.0, 1.0), 1.0).rg;
     float open = 1.0 - clamp(o.r + o.g * .8, 0.0, 1.0);
     acc += open * decay;
-    decay *= .955;
+    wsum += decay;
+    decay *= .97;
     p += stepv;
   }
-  acc /= float(N);
-  // feixe: forte perto da fonte, some com a distancia; contraste vem das
-  // sombras das plataformas cortando o raio
+  acc /= wsum;
   float dist = length(d * vec2(1.6, 1.0));
-  float fall = exp(-dist * 1.35);
-  float cone = smoothstep(.75, .05, abs(d.x) * 1.4);
-  // fissuras na superficie: o feixe chega em raios, que oscilam devagar
+  float fall = exp(-dist * 1.6);
+  float cone = smoothstep(.8, .05, abs(d.x) * 1.4);
+  // fissuras: variacao angular larga e lenta (nada de listras finas)
   float ang = atan(d.x, d.y);
-  float streak = noise1(ang * 26.0 + uTime * .05) * .7 + noise1(ang * 61.0 - uTime * .08) * .3;
-  streak = smoothstep(.35, .95, streak);
-  return uShaftColor * pow(acc, 3.0) * s.z * fall * cone * (.25 + 1.6 * streak);
+  float streak = noise1(ang * 24.0 + uTime * .04) * .65 + noise1(ang * 47.0 - uTime * .06) * .35;
+  streak = smoothstep(.45, .95, streak);
+  return uShaftColor * acc * acc * s.z * fall * cone * (.08 + 1.5 * streak);
 }
 void main() { gl_FragColor = vec4(rays(uShaft[0]) + rays(uShaft[1]), 1.0); }`;
+
+const BLUR_FRAG = /* glsl */`
+uniform sampler2D uSrc;
+uniform vec2 uDir;
+varying vec2 vUv;
+void main() {
+  vec3 c = texture(uSrc, vUv).rgb * .2270270;
+  c += texture(uSrc, vUv + uDir * 1.3846154).rgb * .3162162;
+  c += texture(uSrc, vUv - uDir * 1.3846154).rgb * .3162162;
+  c += texture(uSrc, vUv + uDir * 3.2307692).rgb * .0702703;
+  c += texture(uSrc, vUv - uDir * 3.2307692).rgb * .0702703;
+  gl_FragColor = vec4(c, 1.0);
+}`;
 
 const VOL_COMPOSITE_FRAG = /* glsl */`
 uniform sampler2D uVol;
@@ -224,8 +238,15 @@ uniform float uTime;
 uniform float uExposure;
 uniform float uGrade;
 varying vec2 vUv;
-vec3 aces(vec3 x) {
-  return clamp((x * (2.51 * x + .03)) / (x * (2.43 * x + .59) + .14), 0.0, 1.0);
+// Ombro que preserva matiz e saturacao: abaixo de .72 a cor da arte passa
+// intacta; so o que passa disso e comprimido, pelo canal mais alto. O ACES
+// anterior lavava os sprites (dessatura e achata os medios).
+vec3 shoulder(vec3 c) {
+  float m = max(max(c.r, c.g), c.b);
+  const float knee = .72;
+  if (m <= knee) return c;
+  float mm = knee + (1.0 - knee) * (1.0 - exp(-(m - knee) / (1.0 - knee)));
+  return c * (mm / m);
 }
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + fract(uTime) * 91.7) * 43758.5453); }
 void main() {
@@ -239,16 +260,19 @@ void main() {
   col.g = texture(uScene, uv).g;
   col.b = texture(uScene, uv - cc * ca).b;
   col *= uExposure;
-  vec3 mapped = aces(col);
+  vec3 mapped = shoulder(col);
   // grade: sombras puxadas para verde-azulado, luzes levemente quentes
   float l = dot(mapped, vec3(.2126, .7152, .0722));
   vec3 shadowTint = vec3(.92, 1.02, 1.06);
   vec3 lightTint = vec3(1.04, 1.0, .95);
   mapped *= mix(mix(vec3(1.0), shadowTint, uGrade), mix(vec3(1.0), lightTint, uGrade), smoothstep(.15, .8, l));
-  mapped = mix(vec3(l), mapped, 1.0 + .08 * uGrade);
+  mapped = clamp(mix(vec3(l), mapped, 1.0 + .06 * uGrade), 0.0, 1.0);
   float vig = smoothstep(.85, .25, r2 * 1.6);
   mapped *= mix(1.0, mix(.62, 1.0, vig), uGrade);
   vec3 outc = pow(max(mapped, 0.0), vec3(1.0 / 2.2));
+  // curva S leve no espaco de exibicao: devolve o contraste que o ombro
+  // (mais fiel a cor da arte) nao aplica
+  outc = mix(outc, outc * outc * (3.0 - 2.0 * outc), .28 * uGrade);
   outc += (hash(vUv * 731.0) - .5) * .018 * uGrade;
   gl_FragColor = vec4(outc, 1.0);
 }`;
@@ -500,7 +524,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   let lastExudateState = new Map();
 
   function rebuildTargets() {
-    rt?.scene.dispose(); rt?.occ.dispose(); rt?.vis.dispose(); rt?.vol.dispose();
+    rt?.scene.dispose(); rt?.occ.dispose(); rt?.vis.dispose(); rt?.vol.dispose(); rt?.volB.dispose();
     const hdr = { type: THREE.HalfFloatType, depthBuffer: false };
     rt = {
       scene: new THREE.WebGLRenderTarget(W, H, hdr),
@@ -508,12 +532,13 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
         depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter,
       }),
       vis: new THREE.WebGLRenderTarget(W >> 1, H >> 1, { depthBuffer: false }),
-      vol: new THREE.WebGLRenderTarget(W >> 2, H >> 2, { depthBuffer: false, type: THREE.HalfFloatType }),
+      vol: new THREE.WebGLRenderTarget(W >> 1, H >> 1, { depthBuffer: false, type: THREE.HalfFloatType }),
+      volB: new THREE.WebGLRenderTarget(W >> 1, H >> 1, { depthBuffer: false, type: THREE.HalfFloatType }),
     };
     shared.uVis.value = rt.vis.texture;
     shared.uResolution.value.set(W, H);
     bloom?.dispose?.();
-    bloom = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), .55, .5, 1.05);
+    bloom = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), .38, .35, 1.12);
   }
 
   function rebuild() {
@@ -529,7 +554,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       depth: 0, lit: 1, volume: 1, detail: .35, gain: 7, lodVolume: 2.6, wrap: .25, spec: .35, ao: .9, rim: .9,
     }));
     meshes.fx = screenMesh(layerMaterial(layers.fx.tex, {
-      depth: 0, lit: .6, volume: .35, detail: .2, gain: 3, lodVolume: 2.0, wrap: .7, spec: .3, rim: .5, glow: 1.6,
+      depth: 0, lit: .6, volume: .35, detail: .2, gain: 3, lodVolume: 2.0, wrap: .7, spec: .3, rim: .5, glow: .7,
     }));
     meshes.vol = screenMesh(new THREE.ShaderMaterial({
       uniforms: { uVol: { value: null }, uStrength: { value: 1 } },
@@ -565,6 +590,10 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       uShaftColor: { value: new THREE.Color(0.55, 0.85, 1.0) }, uTime: { value: 0 },
     },
     vertexShader: SCREEN_VERT, fragmentShader: VOL_FRAG,
+  }));
+  const blurPass = new THREE.FullScreenQuad(new THREE.ShaderMaterial({
+    uniforms: { uSrc: { value: null }, uDir: { value: new THREE.Vector2() } },
+    vertexShader: SCREEN_VERT, fragmentShader: BLUR_FRAG,
   }));
   const finalPass = new THREE.FullScreenQuad(new THREE.ShaderMaterial({
     uniforms: {
@@ -655,7 +684,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   }
 
   const NIGHT_AMBIENT = shared.uAmbient.value.clone();
-  const DAY_AMBIENT = new THREE.Color(.42, .45, .46);
+  const DAY_AMBIENT = new THREE.Color(.36, .38, .39);
   let daylight = 0;
 
   function collectLights(time, camCX, camCY, visW, visH) {
@@ -664,10 +693,11 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     const player = state.player;
     // Superficie (abertura da fase 1 e cinematica final): ceu aberto, luz do
     // dia vinda de cima. Transicao suave para nao "acender" de uma vez.
-    const atSurface = Boolean(state.introFall) || document.body.classList.contains('phase-finale');
+    const introStage = state.introFall?.stage;
+    const atSurface = introStage === 'title' || introStage === 'surface' || document.body.classList.contains('phase-finale');
     daylight += ((atSurface ? 1 : 0) - daylight) * .08;
     shared.uAmbient.value.copy(NIGHT_AMBIENT).lerp(DAY_AMBIENT, daylight);
-    if (daylight > .02) pushLight(camCX - visW * .3, camCY + visH * 1.4, 1400, 9000, 1, .95, .86, 1.15 * daylight, 0, 200);
+    if (daylight > .02) pushLight(camCX - visW * .3, camCY + visH * 1.4, 1400, 9000, 1, .95, .86, .72 * daylight, 0, 200);
     const ys = (level.platforms || []).map(p => p.y).filter(Number.isFinite);
     const topY = ys.length ? Math.min(...ys) : 200;
     // feixes da superficie (os dois mais proximos fazem sombra e luz volumetrica)
@@ -675,9 +705,12 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       .map(x => ({ x, d: Math.abs(x - camCX) }))
       .sort((a, b) => a.d - b.d)
       .slice(0, 3);
+    // a fonte fica sempre acima do quadro: o feixe entra pela borda de cima,
+    // quase paralelo, em vez de nascer de um ponto visivel (estrela falsa)
+    const sourceY = Math.min(topY - 700, camCY * -1 - visH * .5 - visH * .45);
     shafts.forEach((s, i) => {
       const flick = .92 + .08 * Math.sin(time * .7 + s.x);
-      pushLight(s.x, -(topY - 260), 320, 1600, .55, .82, 1.0, 1.9 * flick, i < 2 ? i + 1 : 0, 100);
+      pushLight(s.x, -sourceY, 320, 2300, .55, .82, 1.0, 1.9 * flick, i < 2 ? i + 1 : 0, 100);
     });
     if (player) {
       const px = player.x + player.w / 2, py = player.y + player.h * .35;
@@ -691,7 +724,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       .slice(0, 8);
     ex.forEach((o, i) => {
       const f = .85 + .15 * Math.sin(time * 3 + o.e.x * .01);
-      pushLight(o.e.x, -o.e.y, 45, 260, .7, 1.0, .42, 1.7 * f, i === 0 ? 4 : 0, 50);
+      pushLight(o.e.x, -o.e.y, 45, 280, .7, 1.0, .42, 1.3 * f, i === 0 ? 4 : 0, 50);
     });
     for (const c of level.checkpoints || []) {
       if (!Number.isFinite(c.x) || Math.abs(c.x - camCX) > visW) continue;
@@ -810,6 +843,11 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
 
     // 5. luzes
     const active = collectLights(time, cx, cy, visW, visH);
+    // Na superficie o fundo repete partes do primeiro plano (planta, ceu):
+    // desfoque e nevoa ali viravam um halo azul em volta das folhas.
+    meshes.bg.material.uniforms.uLodBlur.value = 1.1 * (1 - daylight);
+    meshes.bg.material.uniforms.uDepth.value = -420 * (1 - daylight) - 1;
+    meshes.terrain.material.uniforms.uRim.value = .9 * (1 - .85 * daylight);
     const toUv = (x, y) => [ (x - camX) / visW, 1 - ((-y) - camY) / visH ];
 
     // 6. oclusao (terreno + sprites) em meia resolucao
@@ -841,13 +879,24 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       shaftU[0].set(0, 0, 0, 0); shaftU[1].set(0, 0, 0, 0);
       active.filter(L => L.slot === 1 || L.slot === 2).forEach(L => {
         const [u, v] = toUv(L.x, L.y);
-        shaftU[L.slot - 1].set(u, v, .9, 1);
+        shaftU[L.slot - 1].set(u, v, .75, 1);
       });
       volPass.material.uniforms.uOcc.value = rt.occ.texture;
       volPass.material.uniforms.uTime.value = time;
       renderer.setRenderTarget(rt.vol);
       volPass.render(renderer);
+      // desfoque separavel em dois passes (meia resolucao)
+      const bw = 1.5 / (W >> 1), bh = 1.5 / (H >> 1);
+      blurPass.material.uniforms.uSrc.value = rt.vol.texture;
+      blurPass.material.uniforms.uDir.value.set(bw, 0);
+      renderer.setRenderTarget(rt.volB);
+      blurPass.render(renderer);
+      blurPass.material.uniforms.uSrc.value = rt.volB.texture;
+      blurPass.material.uniforms.uDir.value.set(0, bh);
+      renderer.setRenderTarget(rt.vol);
+      blurPass.render(renderer);
       meshes.vol.material.uniforms.uVol.value = rt.vol.texture;
+      meshes.vol.material.uniforms.uStrength.value = 1 - daylight;
     }
 
     // 9. cena principal em HDR
@@ -857,7 +906,10 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     renderer.render(scene, camera);
 
     // 10. bloom + grade final
-    if (settings.bloom) bloom.render(renderer, null, rt.scene, 0, false);
+    if (settings.bloom) {
+      bloom.strength = .38 * (1 - daylight);
+      bloom.render(renderer, null, rt.scene, 0, false);
+    }
     const shake = Number(state.shake) || 0;
     finalPass.material.uniforms.uShake.value.set(
       shake ? (Math.random() - .5) * shake * 24 / W : 0,
