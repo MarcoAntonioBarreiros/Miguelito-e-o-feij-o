@@ -1976,9 +1976,8 @@ function drawWorldLayers25D(layer) {
 
 // ---- Efeitos 2,5D (menu de pausa, tecla G) ----------------------------------
 // Desligado: nada do 2,5D e baixado (Three.js e shaders vem sob demanda).
-// Ligado: se o jogo ficar abaixo de VFX_MIN_FPS por alguns segundos, volta
-// sozinho ao 2D e avisa — protecao para aparelhos de escola desconhecidos.
-const VFX_MIN_FPS = 20;
+// Ligado: fica ligado ate o jogador desligar (sem desligamento automatico:
+// desligar sozinho no meio da partida atrapalhava mais do que ajudava).
 const vfxButton = document.querySelector('[data-mobile-action="toggle-25d"]');
 let vfxLoading = null;
 const showPanel25D = /[?&]painel=1/.test(window.location.search) || globalThis.MIGUELITO_RENDER_25D_DEFAULT === true;
@@ -2023,10 +2022,6 @@ function ensureRenderer25D() {
   return vfxLoading;
 }
 
-const vfxGuard = { since: 0, frames: 0, slowWindows: 0, fps: 0, warm: false };
-window.miguelitoVfxGuard = vfxGuard;
-function resetVfxGuard() { Object.assign(vfxGuard, { since: 0, frames: 0, slowWindows: 0, fps: 0, warm: false }); }
-
 async function setVfx(on, { save = true, quiet = false } = {}) {
   if (!on) {
     render25DActive = false;
@@ -2039,7 +2034,6 @@ async function setVfx(on, { save = true, quiet = false } = {}) {
   try {
     await ensureRenderer25D();
     render25DActive = true;
-    resetVfxGuard();
     if (save) saveVfxPreference(true);
     syncVfxUi();
     if (!quiet) narrate(sim.state, 'system.vfx-on');
@@ -2048,30 +2042,6 @@ async function setVfx(on, { save = true, quiet = false } = {}) {
     if (save) saveVfxPreference(false);
     syncVfxUi();
     narrate(sim.state, 'system.vfx-failed');
-  }
-}
-
-// Mede o FPS so com o jogo rodando de verdade (fora de pausa, cartao ou aba
-// escondida). Janelas de 2 s; a primeira depois de ligar/retomar e descartada
-// (compilacao de shaders, carga de texturas); duas seguidas abaixo do limite
-// desligam os efeitos.
-function watchVfxPerformance(now) {
-  if (!render25DActive) return;
-  const running = sim.state.gameState === 'play' && !pauseMenu.isOpen
-    && !(window.miguelitoTutorial?.isOpen) && document.visibilityState === 'visible';
-  if (!running) { vfxGuard.since = 0; vfxGuard.frames = 0; vfxGuard.warm = false; return; }
-  if (!vfxGuard.since) { vfxGuard.since = now; vfxGuard.frames = 0; return; }
-  vfxGuard.frames++;
-  const elapsed = now - vfxGuard.since;
-  if (elapsed < 2000) return;
-  const fps = vfxGuard.frames * 1000 / elapsed;
-  vfxGuard.fps = Math.round(fps);
-  vfxGuard.since = now; vfxGuard.frames = 0;
-  if (!vfxGuard.warm) { vfxGuard.warm = true; return; }
-  vfxGuard.slowWindows = fps < VFX_MIN_FPS ? vfxGuard.slowWindows + 1 : 0;
-  if (vfxGuard.slowWindows >= 2) {
-    setVfx(false, { quiet: true });
-    narrate(sim.state, 'system.vfx-slow');
   }
 }
 
@@ -2251,7 +2221,6 @@ function loop(now) {
     // avancado (um cartao de tutorial aberto congela o jogo, nao a cena).
     phaseFinale.update(dt);
     renderWorld();
-    watchVfxPerformance(now);
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);
     const finaleVisible = phaseFinale.active;
