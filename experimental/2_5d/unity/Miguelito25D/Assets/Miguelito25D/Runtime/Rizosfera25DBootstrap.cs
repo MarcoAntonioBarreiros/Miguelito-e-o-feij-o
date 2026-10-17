@@ -62,7 +62,7 @@ namespace Miguelito25D
             cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;
 
             BuildPost();
-            Light2DKit.Global(new GameObject("Luz global (ambiente)"), new Color(.42f, .58f, .62f), .42f);
+            Light2DKit.Global(new GameObject("Luz global (ambiente)"), new Color(.42f, .58f, .62f), .58f);
             BuildBackground();
             BuildGrowth();
             BuildTerrain();
@@ -204,8 +204,8 @@ namespace Miguelito25D
             player.x = first.x + 30; player.y = first.y - 60;
             var lantern = new GameObject("Lanterna");
             lantern.transform.SetParent(go.transform, false);
-            lantern.transform.localPosition = new Vector3(.3f, .45f, 0);
-            Light2DKit.Point(lantern, new Color(1f, .82f, .58f), 1.0f, .3f, 4.4f, shadows: true, shadowIntensity: .75f, volume: .04f);
+            lantern.transform.localPosition = new Vector3(.45f, .6f, 0);
+            Light2DKit.Point(lantern, new Color(1f, .82f, .58f), .85f, .2f, 4.4f, shadows: true, shadowIntensity: .75f, volume: .04f);
             player.onJump = pos => Burst(pos, new Color(.85f, 1f, .76f), 8);
         }
 
@@ -219,7 +219,7 @@ namespace Miguelito25D
                 go.transform.SetParent(root);
                 go.transform.position = Px.World(x, level.top - 260, 0f);
                 go.transform.rotation = Quaternion.Euler(0, 0, 180f + ((float)rnd.NextDouble() - .5f) * 24f);
-                Light2DKit.Spot(go, new Color(.55f, .82f, 1f), 1.15f, 16f, 18f, 58f, shadows: true, volume: .1f);
+                Light2DKit.Spot(go, new Color(.55f, .82f, 1f), 1.7f, 16f, 18f, 58f, shadows: true, volume: .08f);
             }
         }
 
