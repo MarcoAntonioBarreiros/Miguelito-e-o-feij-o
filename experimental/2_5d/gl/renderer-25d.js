@@ -818,9 +818,10 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     // compressao da perspectiva.
     const far = createGrowthLayer({ shared, z: -340, seed: seed ^ 0x51, dim: .28, desat: .55, follow: .35, opacity: 1, maxSegments: 14000, lightGain: .5 });
     const mid = createGrowthLayer({ shared, z: -130, seed: seed ^ 0x77, dim: .5, desat: .35, follow: .18, opacity: 1, maxSegments: 12000, lightGain: .78 });
-    const hyph = createGrowthLayer({ shared, z: -20, seed: seed ^ 0x99, dim: .9, opacity: .45, maxSegments: 16000, thicken: 0 });
-    far.mesh.renderOrder = 5; mid.mesh.renderOrder = 12; hyph.mesh.renderOrder = 25;
-    growth.push(far, mid, hyph);
+    far.mesh.renderOrder = 5; mid.mesh.renderOrder = 12;
+    // Sem hifas decorativas: a micorriza que aparece e a do proprio jogo
+    // (simulacao). Hifas so de enfeite confundiam com a mecanica.
+    growth.push(far, mid);
     for (const g of growth) scene.add(g.mesh);
 
     const r = far.random;
@@ -831,15 +832,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     for (let x = 0; x < endX + 800; x += 520 + r2() * 520) {
       mid.spawn({ x, y: -(topY - 380), angle: -Math.PI / 2 + (r2() - .5) * .4, width: 8 + r2() * 4, speed: 30, maxLength: 1300 + r2() * 400 });
     }
-    // hifas: poucas, discretas (o proprio jogo ja desenha a micorriza dele)
-    const r4 = hyph.random;
-    for (const p of (level?.platforms || [])) {
-      if (p.recovery || r4() < .8) continue;
-      const cx = p.x + p.w * (.2 + r4() * .6);
-      const cy = -(p.y + p.h * .75);
-      hyph.spawn({ x: cx, y: cy, angle: -Math.PI / 2 + (r4() - .5) * 1.6, kind: 'hypha', width: 1.1, speed: 40, maxLength: 90 + r4() * 80 });
-    }
-    far.prewarm(40); mid.prewarm(26); hyph.prewarm(4);
+    far.prewarm(40); mid.prewarm(26);
     camAnchor = null;
     lastExudateState = new Map();
   }
@@ -847,16 +840,13 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
   // Coletar um exsudato e um evento biologico: a raiz responde com uma onda de
   // raizes laterais e pelos, e as hifas avancam em direcao ao ponto.
   function reactToGameplay(level, time) {
-    const hyph = growth[2], mid = growth[1];
-    if (!hyph) return;
+    const mid = growth[1];
+    if (!mid) return;
     for (const ex of level?.exudates || []) {
       const was = lastExudateState.get(ex);
       lastExudateState.set(ex, ex.taken);
       if (was === false && ex.taken) {
-        const r = hyph.random;
-        for (let k = 0; k < 7; k++) {
-          hyph.spawn({ x: ex.x, y: -ex.y, angle: r() * TAU, kind: 'hypha', width: 1.2, speed: 70, maxLength: 110 + r() * 140 });
-        }
+        const r = mid.random;
         mid.spawn({ x: ex.x + 30, y: -ex.y + 120, angle: -Math.PI / 2 + (r() - .5) * 1.4, width: 5, speed: 55, maxLength: 360, generation: 1 });
       }
     }
@@ -1202,7 +1192,7 @@ const PANEL_ITEMS = [
   ['shadows', 'Sombras'],
   ['volumetric', 'Feixes volumétricos'],
   ['sprites', 'Sprites com normal map'],
-  ['growth', 'Raízes e hifas crescendo'],
+  ['growth', 'Raízes de fundo crescendo'],
   ['particles', 'Partículas em profundidade'],
   ['bloom', 'Bloom'],
   ['grade', 'Correção de cor e vinheta'],
