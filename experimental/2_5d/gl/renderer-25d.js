@@ -1358,10 +1358,10 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     costs.append(row);
   }
   // como o terreno guarda e copia as imagens prontas (cache)
-  globalThis.__terrenoCache = globalThis.__terrenoCache || { scale: 2, smoothing: 'high' };
+  globalThis.__terrenoCache = globalThis.__terrenoCache || { scale: 1, smoothing: 'low' };
   const cacheOpts = document.createElement('div');
   cacheOpts.className = 'hint';
-  cacheOpts.textContent = 'Imagens prontas do terreno (marcar = original):';
+  cacheOpts.textContent = 'Imagens prontas do terreno (marcar = como era antes):';
   costs.append(cacheOpts);
   for (const [label, read, write] of [
     ['Cache em 2× (desmarcado: 1×)', () => globalThis.__terrenoCache.scale === 2, on => { globalThis.__terrenoCache.scale = on ? 2 : 1; }],

@@ -143,9 +143,13 @@ export function createRhizosphereGeometry({ state, painters }) {
   function cached(ctx, key, box, paint) {
     if (!canCache || typeof ctx.getTransform !== 'function') { paint(ctx); return; }
     const m = ctx.getTransform();
-    // experimental (painel "Teste de custo"): escala do cache e suavizacao da copia
+    // Escala do cache: 1x a da camera (antes 2x). Com 2x cada copia era uma
+    // REDUCAO de imagem grande em suavizacao alta, refeita a cada quadro: no
+    // notebook de teste (Intel Arc) isso sozinho levava o quadro de ~17 para
+    // ~38 fps. Em 1x a copia e praticamente 1:1 e a nitidez fica a mesma.
+    // O painel experimental ("Teste de custo") ainda deixa voltar ao 2x/alta.
     const tune = globalThis.__terrenoCache;
-    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * (tune?.scale ?? 2) * 4) / 4;
+    const q = Math.ceil(Math.max(1, Math.hypot(m.a, m.b)) * (tune?.scale ?? 1) * 4) / 4;
     let entry = drawCache.get(key);
     // Só na cinemática do fim de fase (finalRootPulse existe enquanto ela
     // roda): o afastamento atravessa uns 9 degraus de zoom seguidos e
@@ -168,7 +172,7 @@ export function createRhizosphereGeometry({ state, painters }) {
     entry.frame = cacheFrame;
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = tune?.smoothing ?? 'high';
+    ctx.imageSmoothingQuality = tune?.smoothing ?? 'low';
     ctx.drawImage(entry.canvas, entry.x, entry.y, entry.w, entry.h);
     ctx.restore();
   }
