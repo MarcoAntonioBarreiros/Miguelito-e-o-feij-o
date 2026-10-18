@@ -21,6 +21,7 @@ uniform vec3 uTint;
 uniform float uDrift;
 uniform float uSelf;
 uniform float uPixelScale;
+uniform float uBeam;     // 1 = so aparece dentro dos feixes (poeira no raio de luz)
 varying vec3 vCol;
 varying float vFade;
 void main() {
@@ -37,6 +38,27 @@ void main() {
   vec3 rim;
   vec3 light = accumulateLightAt(p, vec3(0.0, 0.0, 1.0), 1.0, 0.0, suv, rim);
   vec3 c = uTint * (light * 1.4 + uSelf);
+  if (uBeam > .5) {
+    // So os feixes (luzes com raio negativo = foco) acendem a particula. O cone
+    // aqui e um pouco mais largo que o da luz: algumas escapam pela borda.
+    vec3 beam = vec3(0.0);
+    for (int i = 0; i < MAX_LIGHTS; i++) {
+      if (i >= uLightCount) break;
+      vec4 lp = uLightPos[i];
+      if (lp.w >= 0.0) continue;
+      vec3 L = lp.xyz - p;
+      float d = length(L);
+      float q = d / -lp.w;
+      if (q > 1.0) continue;
+      float att = (1.0 - q * q); att *= att;
+      float cy = L.y / max(length(L.xy), 1e-3);
+      float cone = smoothstep(.80, .985, cy);
+      beam += uLightCol[i].rgb * att * cone * shadowFor(uLightCol[i].w, suv);
+    }
+    // esporos (camada com brilho proprio) ficam poucos e discretos fora do feixe
+    float keep = step(.55, aSeed.w);
+    c = uTint * (beam * 2.2 + uSelf * .35 * keep);
+  }
   vCol = applyFog(c, p.z) * (0.55 + 0.45 * sin(uTime * (1.0 + aSeed.w * 2.0) + aSeed.w * 30.0));
   float s = uSize * (0.5 + aSeed.w) * uPixelScale / max(1.0, -mv.z);
   gl_PointSize = clamp(s, 1.0, 26.0);
@@ -73,6 +95,7 @@ export function createParticleField({ shared, count, zMin, depth, size, tint, dr
       uDrift: { value: drift },
       uSelf: { value: self },
       uPixelScale: { value: 1000 },
+      uBeam: { value: 0 },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,
@@ -87,6 +110,7 @@ export function createParticleField({ shared, count, zMin, depth, size, tint, dr
   points.frustumCulled = false;
   return {
     points,
+    setBeamOnly(on) { material.uniforms.uBeam.value = on ? 1 : 0; },
     update(camera, viewportHeight) {
       material.uniforms.uCenter.value.set(camera.position.x, camera.position.y, 0);
       // tamanho em pixels na distancia 1: altura da tela / (2 tan(fov/2))
