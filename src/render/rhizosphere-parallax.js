@@ -593,7 +593,11 @@ export function createRhizosphereParallax({
       viewportWidth,
       biologyMotion,
     ));
-    R('  fundo/particulas', () => drawParticles(ctx, camera, { width: viewportWidth, height: viewportHeight }));
+    // The depth renderer supplies its own dust and narrow illuminated core.
+    // Keep the Canvas dust only on targets without that presentation layer.
+    if (!ctx.__glDepthParticles) {
+      R('  fundo/particulas', () => drawParticles(ctx, camera, { width: viewportWidth, height: viewportHeight }));
+    }
     ctx.restore();
     stats.renderCount++;
   }

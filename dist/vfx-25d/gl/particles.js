@@ -8,10 +8,14 @@
 
 import * as THREE from '../vendor/three.bundle.min.js';
 import { LIGHTING_GLSL } from './shading.js';
+import { BEAM_CORE_GLSL } from './beam-core.js';
+import { SHAFT_PROFILE_GLSL } from './shaft-profile.js';
 
 const VERT = /* glsl */`
 #define LIGHT_IN_VERTEX
 ${LIGHTING_GLSL}
+${BEAM_CORE_GLSL}
+${SHAFT_PROFILE_GLSL}
 attribute vec4 aSeed;   // xyz posicao no volume (0..1), w aleatorio
 uniform vec3 uBox;      // tamanho do volume
 uniform vec3 uCenter;   // centro do volume (segue a camera)
@@ -22,8 +26,10 @@ uniform float uDrift;
 uniform float uSelf;
 uniform float uPixelScale;
 uniform float uBeam;     // 1 = so aparece dentro dos feixes (poeira no raio de luz)
+uniform vec4 uBeamCore[2]; // w = peso do feixe; perfil geometrico compartilhado
 varying vec3 vCol;
 varying float vFade;
+varying float vDensity;
 void main() {
   vec3 drift = vec3(sin(uTime * .21 + aSeed.w * 40.0) * 18.0,
                     uDrift * uTime * (0.4 + aSeed.w),
@@ -34,43 +40,42 @@ void main() {
   p.z = uZMin + aSeed.z * uBox.z;
   vec4 mv = viewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mv;
-  vec2 suv = clamp(gl_Position.xy / gl_Position.w * .5 + .5, 0.0, 1.0);
+  vec2 suv = gl_Position.xy / gl_Position.w * .5 + .5;
   vec3 rim;
   vec3 light = accumulateLightAt(p, vec3(0.0, 0.0, 1.0), 1.0, 0.0, suv, rim);
   vec3 c = uTint * (light * 1.4 + uSelf);
-  if (uBeam > .5) {
-    // So os feixes (luzes com raio negativo = foco) acendem a particula. O cone
-    // aqui e um pouco mais largo que o da luz: algumas escapam pela borda.
-    vec3 beam = vec3(0.0);
-    float inBeam = 0.0;
-    for (int i = 0; i < MAX_LIGHTS; i++) {
-      if (i >= uLightCount) break;
-      vec4 lp = uLightPos[i];
-      if (lp.w >= 0.0) continue;
-      vec3 L = lp.xyz - p;
-      float d = length(L);
-      float q = d / -lp.w;
-      if (q > 1.0) continue;
-      float att = (1.0 - q * q); att *= att;
-      float cy = L.y / max(length(L.xy), 1e-3);
-      float cone = smoothstep(.80, .985, cy);
-      beam += uLightCol[i].rgb * att * cone * shadowFor(uLightCol[i].w, suv);
-      // faixa visivel do feixe: a fonte fica muito acima, entao o cone cobre a
-      // tela toda; o que se ve e uma coluna em volta do x da luz que alarga
-      // devagar para baixo
-      float beamHalf = 130.0 + max(0.0, L.y) * .08;
-      float dx = abs(L.x) / beamHalf;
-      inBeam = max(inBeam, exp(-dx * dx) * step(.01, uLightCol[i].r + uLightCol[i].g));
-    }
-    // esporos (camada com brilho proprio) ficam poucos e discretos fora do feixe
-    float keep = step(.55, aSeed.w);
-    c = uTint * (beam * 2.2 + uSelf * .35 * keep);
-    // fora do feixe: mais apagada, mais fria/cinza e mais rala (no feixe nada muda)
-    float lum = dot(c, vec3(.2126, .7152, .0722));
-    vec3 outside = mix(vec3(lum), c, .35) * .16 * step(.62, aSeed.w);
-    c = mix(outside, c, smoothstep(.15, .7, inBeam));
+  float core = 0.0;
+  vec3 beam = vec3(0.0);
+  // Mesmo angulo e mesmas cristas luminosas do volume, no plano projetado.
+  // O pedestal/halo amplo e excluido: apenas o contraste central das fissuras.
+  vec2 beamPoint = planeWorld(suv).xy;
+  for (int i = 0; i < MAX_LIGHTS; i++) {
+    if (i >= uLightCount) break;
+    vec4 lp = uLightPos[i];
+    vec4 lc = uLightCol[i];
+    if (lp.w >= 0.0 || lc.w < .5 || lc.w > 2.5) continue;
+    int slot = int(lc.w + .5) - 1;
+    float inCore = shaftParticleCore(lp.xy - beamPoint, uTime) * uBeamCore[slot].w;
+    float visibility = shadowFor(lc.w, suv);
+    inCore *= visibility * uLightingOn;
+    vec3 L = lp.xyz - p;
+    float q = clamp(length(L) / -lp.w, 0.0, 1.0);
+    float att = 1.0 - q * q; att *= att;
+    beam += lc.rgb * att * inCore;
+    core = max(core, inCore);
   }
-  vCol = applyFog(c, p.z) * (0.55 + 0.45 * sin(uTime * (1.0 + aSeed.w * 2.0) + aSeed.w * 30.0));
+  vDensity = 1.0;
+  if (uBeam > .5) {
+    // Densidade e emissao sao coisas diferentes. Fora da faixa central sobra
+    // apenas uma poeira rara/estatica; nenhuma luz local nem brilho proprio.
+    vec3 dust = uTint * uAmbient * .045;
+    c = dust + uTint * (beam * 2.2 + uSelf * core);
+    vDensity = mix(.12 * step(.82, aSeed.w), 1.0, core);
+  }
+  // A nevoa atenua o ponto; misturar a COR da nevoa aqui faria pontos apagados
+  // emitirem azul e cintilarem fora do raio (ate quando c fosse zero).
+  float fogTransmission = exp(-uFogDensity * max(0.0, -p.z));
+  vCol = c * fogTransmission * mix(1.0, beamTwinkle(uTime, aSeed.w), core);
   float s = uSize * (0.5 + aSeed.w) * uPixelScale / max(1.0, -mv.z);
   gl_PointSize = clamp(s, 1.0, 26.0);
   vFade = smoothstep(1.0, 3.0, gl_PointSize);
@@ -79,10 +84,11 @@ void main() {
 const FRAG = /* glsl */`
 varying vec3 vCol;
 varying float vFade;
+varying float vDensity;
 void main() {
   vec2 d = gl_PointCoord - .5;
   float r = dot(d, d) * 4.0;
-  float a = exp(-r * 3.2) * vFade;
+  float a = exp(-r * 3.2) * vFade * vDensity;
   if (a < .01) discard;
   gl_FragColor = vec4(vCol * a, a);
 }`;
@@ -107,6 +113,7 @@ export function createParticleField({ shared, count, zMin, depth, size, tint, dr
       uSelf: { value: self },
       uPixelScale: { value: 1000 },
       uBeam: { value: 0 },
+      uBeamCore: shared.uBeamCore || { value: [new THREE.Vector4(), new THREE.Vector4()] },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,

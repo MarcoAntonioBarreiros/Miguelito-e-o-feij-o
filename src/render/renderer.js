@@ -4,6 +4,7 @@ import { drawArbuscule } from '../procgen/hyphal-growth.js';
 import { createMicrobeRenderer } from './microbes.js';
 import { createNecroticZone } from './necrotic-zone.js';
 import { createPlayerSprite } from './player-sprite.js';
+import { jetpackPose } from './player-equipment.js';
 import { resolvePlayerSkin } from './player-skins.js';
 import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from './bacillus-sprite.js';
 import { organismSprites } from './organism-sprites.js';
@@ -549,7 +550,11 @@ export function createRenderer({
     if (!sprite?.draw(ctx, player, time, state.gameState)) drawAstronautBody(player);
 
     drawFungalAttachment(player, time);
-    drawJetpack(player, time);
+    // The WebGL bridge extracts the body into a later GPU pass. Keep equipment
+    // painted after that body too, rather than hiding its gauge behind the bag.
+    if (typeof ctx.__glPlayerEquipment === 'function') {
+      ctx.__glPlayerEquipment(target => drawJetpack(player, time, target));
+    } else drawJetpack(player, time, ctx);
 
     if (player.canPhosphateSolubilization) {
       ctx.shadowBlur = 16;
@@ -576,7 +581,7 @@ export function createRenderer({
   // tamanho do personagem NÃO são tocados: é puramente visual.
   // Cápsula (retângulo de pontas arredondadas) desenhada com arcos. ctx.roundRect
   // resolveria em uma linha, mas não existe em todo navegador que o jogo suporta.
-  function capsulePath(x, y, w, h, r) {
+  function capsulePath(ctx, x, y, w, h, r) {
     const radius = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -591,13 +596,18 @@ export function createRenderer({
     ctx.closePath();
   }
 
-  function drawJetpack(player, time) {
+  function drawJetpack(player, time, ctx) {
     if (!player.canJetpack) return;
     const energy = Math.max(0, Math.min(1, player.jetpackEnergy || 0));
-    // Sobre a mochila, um pouco acima do centro do corpo — no quadril o medidor
-    // ficava solto, sem parecer parte do equipamento.
-    const coreX = -13;
-    const coreY = -6;
+    // The last sprite frame supplies the bag's actual centre and scale. The
+    // player's facing/rotation already surrounds this drawing, so the capsule,
+    // nozzle and thrust remain attached when the character turns or changes pose.
+    const pose = jetpackPose(sprite?.attachment('backpack'));
+    ctx.save();
+    ctx.translate(pose.x, pose.y);
+    ctx.scale(pose.scale, pose.scale);
+    const coreX = 0;
+    const coreY = 0;
 
     // Medidor da mochila: uma cápsula de combustível, não um retângulo solto.
     // O nível sobe de baixo para cima e as marcas correspondem aos TETOS que as
@@ -616,14 +626,14 @@ export function createRenderer({
 
     // Corpo escuro da cápsula (sem depender de roundRect, que nem todo browser
     // antigo expõe).
-    capsulePath(left, top, capsuleW, capsuleH, radius);
+    capsulePath(ctx, left, top, capsuleW, capsuleH, radius);
     ctx.fillStyle = 'rgba(4,26,24,.85)';
     ctx.fill();
 
     // Líquido: recorta pela cápsula e preenche a fração de baixo para cima.
     if (energy > 0) {
       ctx.save();
-      capsulePath(left + 1, innerTop, capsuleW - 2, innerH, radius - 1);
+      capsulePath(ctx, left + 1, innerTop, capsuleW - 2, innerH, radius - 1);
       ctx.clip();
       const filled = innerH * energy;
       const fillTop = innerTop + innerH - filled;
@@ -650,7 +660,7 @@ export function createRenderer({
 
     // Contorno: acende junto com a carga.
     ctx.globalAlpha = .35 + energy * .5;
-    capsulePath(left, top, capsuleW, capsuleH, radius);
+    capsulePath(ctx, left, top, capsuleW, capsuleH, radius);
     ctx.strokeStyle = energy <= 0 ? '#4d7a70' : '#8ef0c6';
     ctx.lineWidth = 1.1;
     ctx.shadowColor = '#8ef0c6';
@@ -676,7 +686,7 @@ export function createRenderer({
       const flicker = .78 + Math.sin(time * 38) * .22;
       const length = 16 * flicker;
       // O jato sai do BICO da cápsula, não de um ponto solto no corpo.
-      const nozzleY = top + capsuleH + 2;
+      const nozzleY = top + capsuleH + 2.6;
       const gradient = ctx.createLinearGradient(coreX, nozzleY, coreX, nozzleY + length);
       gradient.addColorStop(0, 'rgba(230,255,246,.98)');
       gradient.addColorStop(.35, 'rgba(112,229,214,.8)');
@@ -714,7 +724,8 @@ export function createRenderer({
       ctx.lineWidth = 1.4;
       for (let index = 0; index < traces; index++) {
         const phase = (time * 1.6 + index / traces) % 1;
-        const y = 24 - phase * 26;
+        const groundY = (player.h / 2 - pose.y) / pose.scale;
+        const y = groundY * (1 - phase);
         ctx.globalAlpha = .12 + (1 - phase) * .5;
         ctx.beginPath();
         ctx.moveTo(coreX - 2 + Math.sin(phase * 6 + index) * 3, y);
@@ -723,6 +734,7 @@ export function createRenderer({
       }
       ctx.restore();
     }
+    ctx.restore();
   }
 
   function drawAstronautBody(player) {

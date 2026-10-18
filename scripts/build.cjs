@@ -34,7 +34,7 @@ function collectModule(file) {
   if (modules.has(normalized)) return;
   if (!fs.existsSync(normalized)) throw new Error(`Imported module not found: ${normalized}`);
 
-  const source = fs.readFileSync(normalized, 'utf8');
+  const source = fs.readFileSync(normalized, 'utf8').replace(/\r\n/g, '\n');
   const imports = parseImports(normalized, source);
   modules.set(normalized, { source, imports });
   for (const dependency of imports) collectModule(dependency.file);

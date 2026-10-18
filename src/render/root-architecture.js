@@ -130,7 +130,7 @@ function sideBranches(parent, random, platforms, { count, order, maxLen, widthSc
  * Monta todas as raízes de uma planta.
  * `links`: laterais que precisam chegar a blocos ({ attachY, entry:[x,y], side, band }).
  */
-export function growPlantRoots({ plant, surface, tipY, links, platforms, mainWidth }) {
+export function growPlantRoots({ plant, surface, tipY, links, platforms, mainWidth, organic = false }) {
   const random = seededRandom(plant.seed * 7 + 13);
   const roots = [];
   // Principal: desce sinuosa, com gravitropismo forte.
@@ -195,7 +195,106 @@ export function growPlantRoots({ plant, surface, tipY, links, platforms, mainWid
       roots.push(...sideBranches(lateral, random, platforms, { count: Math.floor(points.length / 9), order: 2, maxLen: 30, widthScale: .4 }));
     }
   }
+  if (organic) applyOrganicArchitecture({ roots, main, plant, surface, tipY, links });
   return { roots, main };
+}
+
+// Optional presentation profile. Build the original seeded architecture first:
+// its tissue seeds, branch identities, widths and platform endpoints survive.
+// The main root's long coherent bends then carry every attached branch, rather
+// than bending individual trunk slices independently.
+function applyOrganicArchitecture({ roots, main, plant, surface, tipY, links }) {
+  const original = new Map(roots.map(root => [root, root.points]));
+  const mainPoints = main.points;
+  const phase = seededRandom(plant.seed * 17 + 31)() * TAU;
+  const height = Math.max(120, tipY - surface);
+  const smooth = value => { const t = clamp(value, 0, 1); return t * t * (3 - 2 * t); };
+  const offset = y => {
+    if (plant.goal) return 0; // the separately drawn goal collar stays anchored
+    const down = y - surface;
+    const neck = smooth(down / Math.min(110, height * .24));
+    return neck * (Math.sin(down / 125 + phase) * 27 + Math.sin(down / 53 + phase * .63) * 7);
+  };
+  const key = p => `${p[0]},${p[1]}`;
+  const moved = new Map();
+  const softened = (points, keep = 1, yToo = true) => points.map((p, i) => {
+    if (i === 0 || i >= points.length - keep) return [...p];
+    const a = points[i - 1], b = points[i + 1];
+    return [p[0] * .6 + (a[0] + b[0]) * .2, yToo ? p[1] * .6 + (a[1] + b[1]) * .2 : p[1]];
+  });
+  const remember = (before, after) => before.forEach((p, i) => moved.set(key(p), [after[i][0] - p[0], after[i][1] - p[1]]));
+  const storeTextureOrigin = root => { root.textureOrigin = [...root.points[0]]; root.organic = true; };
+  for (const root of roots) storeTextureOrigin(root);
+
+  // Principal first; y and the cervical endpoint never move.
+  main.points = plant.goal ? mainPoints.map(p => [...p])
+    : softened(mainPoints, 1, false).map(([x, y], i) => i === 0 ? [...mainPoints[0]] : [x + offset(y), y]);
+  main.organic = true;
+  remember(mainPoints, main.points);
+
+  for (const order of [1, 2]) {
+    for (const root of roots) {
+      if (root.main || root.order !== order) continue;
+      const points = original.get(root), start = points[0];
+      const link = root.linkIndex === undefined ? null : links.find(item => item.index === root.linkIndex);
+      const fixed = link ? Math.max(1, link.blockCenters?.length || 1) : 1;
+      const soft = softened(points, fixed);
+      let inherited = moved.get(key(start));
+      if (!inherited && order === 1) {
+        // Free laterals begin slightly INSIDE the principal, not exactly on
+        // its centre; inherit the displacement of the same parent ring.
+        const parent = mainPoints.reduce((best, p) => Math.abs(p[1] - start[1]) < Math.abs(best[1] - start[1]) ? p : best, mainPoints[0]);
+        inherited = moved.get(key(parent));
+      }
+      inherited ||= [offset(start[1]), 0];
+      const correction = inherited[0] - offset(start[1]);
+      const freeEnd = Math.max(1, points.length - fixed);
+      root.points = soft.map(([x, y], i) => {
+        // Every platform entry and all centres inside its block remain exact.
+        if (link && i >= points.length - fixed) return [...points[i]];
+        const weight = link ? 1 - smooth(i / freeEnd) : 1;
+        return [x + (offset(y) + correction) * weight, y + inherited[1] * weight];
+      });
+      remember(points, root.points);
+    }
+  }
+}
+
+/** Transport the original author-painted cells, including their nuclei,
+ * along the root. It calls the SAME Canvas roundRect/ellipse painter with
+ * the SAME colours, dimensions and random seeds; only its local frame bends.
+ */
+export function createCurvedTissueContext(ctx, points, centerX) {
+  let cellFrame = null;
+  function frameAt(y) {
+    let lo = 0, hi = points.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (points[mid][1] < y) lo = mid; else hi = mid; }
+    const a = points[lo], b = points[hi];
+    const t = clamp((y - a[1]) / Math.max(1e-6, b[1] - a[1]), 0, 1);
+    const prev = points[Math.max(0, lo - 1)], next = points[Math.min(points.length - 1, hi + 1)];
+    const tx0 = b[0] - prev[0], ty0 = b[1] - prev[1];
+    const tx1 = next[0] - a[0], ty1 = next[1] - a[1];
+    const dx = tx0 + (tx1 - tx0) * t, dy = ty0 + (ty1 - ty0) * t;
+    return { x: a[0] + (b[0] - a[0]) * t, y, angle: Math.atan2(dy, dx) - Math.PI / 2 };
+  }
+  function inFrame(frame, method, args) {
+    ctx.save();
+    ctx.translate(frame.x, frame.y); ctx.rotate(frame.angle); ctx.translate(-centerX, -frame.y);
+    ctx[method](...args);
+    ctx.restore();
+  }
+  return new Proxy(ctx, {
+    get(target, property) {
+      if (property === 'roundRect') return (x, y, w, h, radii) => {
+        cellFrame = frameAt(y + h * .5);
+        inFrame(cellFrame, 'roundRect', [x, y, w, h, radii]);
+      };
+      if (property === 'ellipse') return (...args) => inFrame(cellFrame || frameAt(args[1]), 'ellipse', args);
+      const value = target[property];
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+    set(target, property, value) { target[property] = value; return true; },
+  });
 }
 
 // ---------------------------------------------------------------- desenho --
@@ -269,12 +368,16 @@ export function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time
     let minX = Infinity; let maxX = -Infinity;
     for (const [x] of points) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
     setTissueCull({
-      x0: Math.max(minX - maxW, view ? view.left : -Infinity),
-      x1: Math.min(maxX + maxW, view ? view.right : Infinity),
+      // The curved painter's input is the original straight tissue domain;
+      // world-space x culling there would discard cells carried into view.
+      x0: root.organic ? -Infinity : Math.max(minX - maxW, view ? view.left : -Infinity),
+      x1: root.organic ? Infinity : Math.min(maxX + maxW, view ? view.right : Infinity),
       y0: Math.max(minY - 8, view ? view.top : -Infinity),
       y1: Math.min(maxY + 12, view ? view.bottom : Infinity),
     });
-    paintRootTissueVertical(ctx, seed, sumX / points.length, minY - 4, maxY + 12, maxW * .62 + 8, palette);
+    const centerX = sumX / points.length;
+    const tissueCtx = root.organic ? createCurvedTissueContext(ctx, points, centerX) : ctx;
+    paintRootTissueVertical(tissueCtx, seed, centerX, minY - 4, maxY + 12, maxW * .62 + 8, palette);
     setTissueCull(null);
     ctx.restore();
     traceShape(ctx, left, right);

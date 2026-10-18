@@ -263,7 +263,72 @@ function drawTexturedBranch(ctx, points, baseWidth) {
 
 // Brilho do objetivo aplicado POR CIMA do tecido: aura dourada translúcida e um
 // filamento claro no eixo. O pulso de conclusão só acende mais.
-function drawObjectiveGlow(ctx, points, baseWidth, pulse) {
+// Only the optional light contour uses this tube. The artist-painted body
+// keeps its original traceTube above, including all its existing geometry.
+export function traceSoftRootGlowTube(ctx, samples, widthAt) {
+  if (samples.length < 2) return;
+  const sections = samples.map((point, index) => {
+    const a = samples[Math.max(0, index - 1)], b = samples[Math.min(samples.length - 1, index + 1)];
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
+    const radius = Math.max(0, widthAt(index / (samples.length - 1))) * .5;
+    return { point, radius, angle: Math.atan2(ny, nx),
+      left: [point.x + nx * radius, point.y + ny * radius],
+      right: [point.x - nx * radius, point.y - ny * radius] };
+  });
+  const start = sections[0], end = sections[sections.length - 1];
+  ctx.beginPath(); ctx.moveTo(...start.left);
+  for (let i = 1; i < sections.length; i++) ctx.lineTo(...sections[i].left);
+  // From left to right around the FORWARD tangent, whatever its direction.
+  ctx.arc(end.point.x, end.point.y, end.radius, end.angle, end.angle - Math.PI, true);
+  for (let i = sections.length - 2; i >= 0; i--) ctx.lineTo(...sections[i].right);
+  // The collar cap points backwards and closes the contour without corners.
+  ctx.arc(start.point.x, start.point.y, start.radius, start.angle - Math.PI, start.angle - TAU, true);
+  ctx.closePath();
+}
+
+function drawSoftObjectiveGlow(ctx, points, baseWidth, pulse, taper) {
+  const samples = sampleSpline(points, 8);
+  const widthAt = t => baseWidth * (1 - t * taper);
+  const feather = baseWidth * .5 + 8;
+  const peak = .05 + pulse * .065;
+  // Difference of nested Gaussian contours: brightness keeps falling with
+  // distance instead of filling a wide stroke with one constant alpha.
+  // Destination-over protects every original tissue cell already painted.
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.shadowBlur = 0;
+  for (let layer = 20; layer >= 1; layer--) {
+    const outer = layer / 20, inner = (layer - 1) / 20;
+    const alpha = peak * (Math.exp(-4.5 * inner * inner) - Math.exp(-4.5 * outer * outer));
+    const color = `rgba(255, 203, 115, ${alpha})`;
+    if (taper === 0) {
+      // Native round caps are exact for the constant-width side branches.
+      ctx.beginPath(); splinePath(ctx, points);
+      ctx.lineWidth = baseWidth + 2 * feather * outer;
+      ctx.strokeStyle = color; ctx.stroke();
+    } else {
+      traceSoftRootGlowTube(ctx, samples, t => widthAt(t) + 2 * feather * outer);
+      ctx.fillStyle = color; ctx.fill();
+    }
+  }
+  ctx.restore();
+  // A thin glint may sit on the axis; the cortex itself retains its palette.
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.shadowBlur = 0;
+  ctx.beginPath(); splinePath(ctx, points);
+  ctx.strokeStyle = `rgba(255, 248, 229, ${.1 + pulse * .1})`;
+  ctx.lineWidth = Math.max(.8, Math.min(1.6, baseWidth * .025));
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawObjectiveGlow(ctx, points, baseWidth, pulse, taper = 0) {
+  if (ctx.__glSoftFinalRootGlow === true) {
+    drawSoftObjectiveGlow(ctx, points, baseWidth, pulse, taper);
+    return;
+  }
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -279,6 +344,22 @@ function drawObjectiveGlow(ctx, points, baseWidth, pulse) {
   ctx.strokeStyle = `rgba(255, 246, 215, ${.32 + pulse * .45})`;
   ctx.lineWidth = Math.max(2.5, baseWidth * .09);
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawSoftObjectiveHalo(ctx, glow, time) {
+  const breath = 1 + Math.sin(time * 2.1) * .05;
+  const radius = (95 + glow * 25) * breath;
+  const halo = ctx.createRadialGradient(0, 120, 0, 0, 120, radius);
+  halo.addColorStop(0, `rgba(255, 216, 143, ${.012 + glow * .018})`);
+  halo.addColorStop(.22, `rgba(255, 205, 118, ${.009 + glow * .013})`);
+  halo.addColorStop(.55, `rgba(255, 197, 98, ${.003 + glow * .005})`);
+  halo.addColorStop(1, 'rgba(255, 197, 98, 0)');
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(0, 120, radius, 0, TAU); ctx.fill();
   ctx.restore();
 }
 
@@ -309,7 +390,7 @@ export function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, 
     FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => (
       drawObjectiveGlow(ctx, branch, branchWidthLocal(index), glow * .4)
     ));
-    drawObjectiveGlow(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL, glow * .6);
+    drawObjectiveGlow(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL, glow * .6, .62);
   } else {
     FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => {
       drawRootPath(ctx, branch, branchWidthLocal(index), glow * 0.4);
@@ -319,15 +400,18 @@ export function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, 
   }
 
   // O halo do córtex luminoso, que é o alvo do jogador durante a fase.
-  const breath = 1 + Math.sin(time * 2.1) * 0.05;
-  const halo = ctx.createRadialGradient(0, 120, 10, 0, 120, (200 + glow * 90) * breath);
-  halo.addColorStop(0, `rgba(255, 240, 180, ${0.22 + glow * 0.22})`);
-  halo.addColorStop(0.5, `rgba(255, 220, 140, ${0.09 + glow * 0.13})`);
-  halo.addColorStop(1, 'rgba(255, 220, 120, 0)');
-  ctx.fillStyle = halo;
-  ctx.beginPath();
-  ctx.arc(0, 120, (200 + glow * 90) * breath, 0, TAU);
-  ctx.fill();
+  if (ctx.__glSoftFinalRootGlow === true) drawSoftObjectiveHalo(ctx, glow, time);
+  else {
+    const breath = 1 + Math.sin(time * 2.1) * 0.05;
+    const halo = ctx.createRadialGradient(0, 120, 10, 0, 120, (200 + glow * 90) * breath);
+    halo.addColorStop(0, `rgba(255, 240, 180, ${0.22 + glow * 0.22})`);
+    halo.addColorStop(0.5, `rgba(255, 220, 140, ${0.09 + glow * 0.13})`);
+    halo.addColorStop(1, 'rgba(255, 220, 120, 0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, 120, (200 + glow * 90) * breath, 0, TAU);
+    ctx.fill();
+  }
 
   ctx.restore();
   return true;
