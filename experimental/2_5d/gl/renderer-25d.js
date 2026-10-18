@@ -1009,10 +1009,17 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
           emitters.add(fx + bx * pulse, -(fy + by * pulse * .62),
             white ? .85 : .44, white ? 1 : .9, white ? .96 : .84, (white ? .62 : .48) * k, 9 + (i % 3) * 3);
         }
+        // anel: um brilho que corre pelo pontilhado no sentido horario (na
+        // tela, angulo crescente com y para baixo), com uma cauda que apaga
         const rr = radius * .72 * pulse;
-        for (let j = 0; j < 22; j++) {
-          const a = j / 22 * TAU;
-          emitters.add(fx + Math.cos(a) * rr, -(fy + Math.sin(a) * rr * .62), .5, .95, .88, .24 * k, 9);
+        const head = time * 1.4 + fx * .003;
+        for (let j = 0; j < 28; j++) {
+          const a = j / 28 * TAU;
+          const behind = ((head - a) % TAU + TAU) % TAU;          // 0 = na cabeca
+          const trail = Math.exp(-behind * 1.8);
+          const v = .03 + .42 * trail;
+          if (v < .05) continue;
+          emitters.add(fx + Math.cos(a) * rr, -(fy + Math.sin(a) * rr * .62), .5, .95, .88, v * k, 8 + 5 * trail);
         }
       }
     }
