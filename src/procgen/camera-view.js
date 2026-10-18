@@ -10,6 +10,8 @@ import { zoomProfileFor } from './touch-profile.js';
 // escolher: nem 1x nem o minimo de perfil nenhum mostram a raiz inteira mais o
 // feijoeiro. Este piso vale SO para a cinematica e nao muda com o aparelho.
 const CINEMATIC_MIN_ZOOM = .22;
+// Cinematicas podem chegar mais perto que o zoom manual (nodulacao).
+const CINEMATIC_MAX_ZOOM = 2.8;
 
 function roundedZoom(value) {
   return Math.round(value * 20) / 20;
@@ -125,7 +127,7 @@ export function createCameraView({ canvas, state }) {
   function setCinematic({ x, y, zoom: value } = {}) {
     if (!cinematic) return false;
     if (Number.isFinite(value)) {
-      zoom = clamp(value, CINEMATIC_MIN_ZOOM, profile.max);
+      zoom = clamp(value, CINEMATIC_MIN_ZOOM, Math.max(profile.max, CINEMATIC_MAX_ZOOM));
       state.cameraZoom = zoom;
     }
     if (Number.isFinite(x)) state.cameraX = x;

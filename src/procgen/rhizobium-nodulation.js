@@ -1,6 +1,15 @@
 import { W } from '../core/constants.js';
 import { narrate } from './narrator.js';
 import { visibleRootRect } from '../render/rhizosphere-geometry.js';
+import { persistCampaign } from './campaign-progression.js';
+
+// Primeiro nodulo da campanha: a camera se aproxima e acompanha as cinco
+// etapas no tempo normal (app.js, updateNodulationShowcase). Os seguintes
+// formam sem zoom e com as etapas NODULATION_REPEAT_SPEED vezes mais rapidas.
+// Fica registrado junto com as narracoes de campanha: recarregar a pagina nao
+// repete; campanha nova mostra de novo.
+const SHOWCASE_ID = 'rhizobium.showcase';
+export const NODULATION_REPEAT_SPEED = 2;
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -51,6 +60,23 @@ function stageLabel(site, activity = 0) {
 export function createRhizobiumNodulation({ state, entities, inoculants }) {
   const sites = new Map();
   let totalFixation = 0;
+  let localShowcaseSeen = false;
+
+  function showcaseSeen() {
+    const list = state?.campaign?.narrationSeen;
+    return Array.isArray(list) ? list.includes(SHOWCASE_ID) : localShowcaseSeen;
+  }
+
+  function markShowcaseSeen() {
+    localShowcaseSeen = true;
+    const campaign = state?.campaign;
+    if (!campaign) return;
+    if (!Array.isArray(campaign.narrationSeen)) campaign.narrationSeen = [];
+    if (!campaign.narrationSeen.includes(SHOWCASE_ID)) {
+      campaign.narrationSeen.push(SHOWCASE_ID);
+      persistCampaign(campaign);
+    }
+  }
 
   function clear() {
     // Os fios de infecção e a FBN pertencem a esta fase: nenhum atravessa.
@@ -86,6 +112,13 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
       lobes: clamp(colony.sourceCount || 1, 1, 3),
       announced: new Set(),
     };
+    // So a colonia inoculada pelo jogador (nao a que ja vem com a fase).
+    if (compatible && !colony.authored && !showcaseSeen()) {
+      site.showcase = true;
+      markShowcaseSeen();
+      if (state.level) state.level.nodulationShowcase = site;
+    }
+    site.speed = site.showcase ? 1 : NODULATION_REPEAT_SPEED;
     sites.set(colony.id, site);
     // Reconhecimento hospedeiro–Rhizobium: o sítio nasce JÁ nesse estágio, então
     // a criação é a transição. Uma vez por sítio, nunca por quadro.
@@ -175,7 +208,7 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
     }
 
     const duration = STAGE_DURATION[site.stage] || 1;
-    site.progress = clamp(site.progress + dt * carbon * sourceBoost / duration, 0, 1);
+    site.progress = clamp(site.progress + dt * carbon * sourceBoost * (site.speed || 1) / duration, 0, 1);
     colony.stage = stageLabel(site);
 
     // Sustenta o loop do fio: posição acompanha a profundidade atual, ganho e

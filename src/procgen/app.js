@@ -801,6 +801,8 @@ window.miguelitoViewport = responsiveCanvas;
 // normal, no lugar onde terminou a fase.
 // Etapa da cinematica em que a comemoracao de particulas ja foi disparada.
 let finaleVfxMode = 'idle';
+// Estado do zoom do primeiro nodulo (ver updateNodulationShowcase).
+const nodShow = { phase: 'idle', site: null, t: 0, from: null, back: 0, stalled: 0, after: 0 };
 window.miguelitoVfx = vfxParticles;
 const phaseFinale = createPhaseFinale({
   state: sim.state,
@@ -1374,6 +1376,7 @@ function initGame({ announce = false } = {}) {
   phaseFinale.reset();
   vfxParticles.clear();
   finaleVfxMode = 'idle';
+  stopNodulationShowcase();
   sim.state.campaign = campaign;
   // Nao reinicia audio: `setPhase` compara a faixa mapeada com a que ja toca e
   // so faz crossfade quando muda. Reset da campanha nao recria contexto nem
@@ -2077,6 +2080,92 @@ window.miguelito25DMode = value => {
 if (render25DRequested) setVfx(true, { save: false, quiet: true });
 syncVfxUi();
 
+// ---- Zoom do primeiro nodulo (rhizobium-nodulation.js marca o sitio) -------
+// A camera se aproxima do sitio, acompanha as cinco etapas no tempo normal e
+// volta ao Miguelito quando o nodulo amadurece. O jogo continua por baixo e o
+// zoom nao pode ser pulado. Saidas de seguranca: a colonia sumiu, o fim da
+// fase assumiu a camera, ou a nodulacao ficou parada por falta de carbono.
+const NODULE_ZOOM = 2.6;
+const NODULE_ZOOM_IN = .9;
+const NODULE_ZOOM_OUT = .9;
+const NODULE_HOLD_AFTER_MATURE = 1.6;
+const NODULE_STALL_LIMIT = 5;
+
+function easeInOut(t) { const k = Math.max(0, Math.min(1, t)); return k * k * (3 - 2 * k); }
+
+function viewSize(zoomValue) {
+  return { w: (canvas.width || 1280) / zoomValue, h: (canvas.height || 720) / zoomValue };
+}
+
+function noduleFraming(site) {
+  const { w, h } = viewSize(NODULE_ZOOM);
+  const fx = site.x;
+  const fy = (site.surfaceY || 0) + (site.depth || 24) * .6;
+  return { x: fx - w / 2, y: fy - h / 2, zoom: NODULE_ZOOM };
+}
+
+function playerFraming(zoomValue) {
+  const pl = sim.state.player;
+  const { w, h } = viewSize(zoomValue);
+  return { x: Math.max(0, pl.x + pl.w / 2 - w / 2), y: pl.y + pl.h / 2 - h * .61, zoom: zoomValue };
+}
+
+function mixFraming(a, b, t) {
+  const k = easeInOut(t);
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, zoom: a.zoom + (b.zoom - a.zoom) * k };
+}
+
+function stopNodulationShowcase() {
+  if (nodShow.phase !== 'idle' && !phaseFinale.active) cameraView.endCinematic();
+  Object.assign(nodShow, { phase: 'idle', site: null, t: 0, from: null, stalled: 0, after: 0 });
+}
+
+function updateNodulationShowcase(dt) {
+  const level = sim.state.level;
+  if (nodShow.phase === 'idle') {
+    const site = level?.nodulationShowcase;
+    if (!site) return;
+    level.nodulationShowcase = null;
+    if (site.mature || phaseFinale.active) return;
+    const start = cameraView.beginCinematic();
+    if (!start) return;
+    Object.assign(nodShow, {
+      phase: 'in', site, t: 0, stalled: 0, after: 0,
+      from: { x: start.x, y: start.y, zoom: start.zoom }, back: start.zoom,
+    });
+  }
+  // o fim da fase assume a camera: sai sem devolver nada
+  if (phaseFinale.active) { Object.assign(nodShow, { phase: 'idle', site: null }); return; }
+  const site = nodShow.site;
+  const alive = (level?.rhizobiumNodules || []).includes(site);
+  nodShow.t += dt;
+
+  if (nodShow.phase === 'in' || nodShow.phase === 'hold') {
+    if (nodShow.phase === 'in') {
+      cameraView.setCinematic(mixFraming(nodShow.from, noduleFraming(site), nodShow.t / NODULE_ZOOM_IN));
+      if (nodShow.t >= NODULE_ZOOM_IN) { nodShow.phase = 'hold'; nodShow.t = 0; }
+    } else {
+      cameraView.setCinematic(noduleFraming(site));
+    }
+    nodShow.stalled = site.paused ? nodShow.stalled + dt : 0;
+    if (site.mature) nodShow.after += dt;
+    const done = !alive
+      || nodShow.after >= NODULE_HOLD_AFTER_MATURE
+      || nodShow.stalled >= NODULE_STALL_LIMIT;
+    if (done) {
+      const cur = sim.state;
+      nodShow.from = { x: cur.cameraX || 0, y: cur.cameraY || 0, zoom: cur.cameraZoom || NODULE_ZOOM };
+      nodShow.phase = 'out';
+      nodShow.t = 0;
+    }
+    return;
+  }
+  if (nodShow.phase === 'out') {
+    cameraView.setCinematic(mixFraming(nodShow.from, playerFraming(nodShow.back), nodShow.t / NODULE_ZOOM_OUT));
+    if (nodShow.t >= NODULE_ZOOM_OUT) stopNodulationShowcase();
+  }
+}
+
 // ---- Particulas de evento (vfx-particles.js) --------------------------------
 // Inoculacao e vigor vem da simulacao; a comemoracao do fim da fase e
 // disparada aqui, pelas etapas da cinematica.
@@ -2273,6 +2362,7 @@ function loop(now) {
     // avancado (um cartao de tutorial aberto congela o jogo, nao a cena).
     phaseFinale.update(dt);
     updateEventParticles(dt, pauseMenu.isOpen || Boolean(tutorialManager?.isOpen));
+    updateNodulationShowcase(pauseMenu.isOpen || tutorialManager?.isOpen ? 0 : dt);
     renderWorld();
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);
