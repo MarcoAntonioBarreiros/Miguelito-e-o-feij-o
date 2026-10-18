@@ -11,7 +11,7 @@ import { zoomProfileFor } from './touch-profile.js';
 // feijoeiro. Este piso vale SO para a cinematica e nao muda com o aparelho.
 const CINEMATIC_MIN_ZOOM = .22;
 // Cinematicas podem chegar mais perto que o zoom manual (nodulacao).
-const CINEMATIC_MAX_ZOOM = 2.8;
+const CINEMATIC_MAX_ZOOM = 4.5;
 
 function roundedZoom(value) {
   return Math.round(value * 20) / 20;

@@ -2085,7 +2085,8 @@ syncVfxUi();
 // volta ao Miguelito quando o nodulo amadurece. O jogo continua por baixo e o
 // zoom nao pode ser pulado. Saidas de seguranca: a colonia sumiu, o fim da
 // fase assumiu a camera, ou a nodulacao ficou parada por falta de carbono.
-const NODULE_ZOOM = 2.6;
+// 2,5x mais perto que o zoom em que o jogador esta (relativo, nao absoluto).
+const NODULE_ZOOM_FACTOR = 2.5;
 const NODULE_ZOOM_IN = .9;
 const NODULE_ZOOM_OUT = .9;
 const NODULE_HOLD_AFTER_MATURE = 1.6;
@@ -2098,10 +2099,11 @@ function viewSize(zoomValue) {
 }
 
 function noduleFraming(site) {
-  const { w, h } = viewSize(NODULE_ZOOM);
+  const zoomValue = (nodShow.back || 1.45) * NODULE_ZOOM_FACTOR;
+  const { w, h } = viewSize(zoomValue);
   const fx = site.x;
   const fy = (site.surfaceY || 0) + (site.depth || 24) * .6;
-  return { x: fx - w / 2, y: fy - h / 2, zoom: NODULE_ZOOM };
+  return { x: fx - w / 2, y: fy - h / 2, zoom: zoomValue };
 }
 
 function playerFraming(zoomValue) {
@@ -2154,7 +2156,7 @@ function updateNodulationShowcase(dt) {
       || nodShow.stalled >= NODULE_STALL_LIMIT;
     if (done) {
       const cur = sim.state;
-      nodShow.from = { x: cur.cameraX || 0, y: cur.cameraY || 0, zoom: cur.cameraZoom || NODULE_ZOOM };
+      nodShow.from = { x: cur.cameraX || 0, y: cur.cameraY || 0, zoom: cur.cameraZoom || nodShow.back };
       nodShow.phase = 'out';
       nodShow.t = 0;
     }
