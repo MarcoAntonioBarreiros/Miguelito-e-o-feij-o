@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"9698402","subject":"Nodulacao: zoom da camera no primeiro nodulo da campanha (acompanha as 5","builtAt":"2026-10-18 23:17"};
+window.__BEANS_BUILD__ = {"commit":"1c7c89b","subject":"Nodulacao: zoom do primeiro nodulo passa a ser 2,5x o zoom atual do joga","builtAt":"2026-10-18 23:27"};
 (() => {
 'use strict';
 const __modules = {
@@ -1140,7 +1140,8 @@ const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoder
 const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");
 const { narrate } = __require("src/procgen/narrator.js");
 const { createPauseMenu } = __require("src/procgen/pause-menu.js");
-const { FEATURE_LABELS } = __require("src/procgen/narration-catalog.js");
+const { FEATURE_LABELS, NARRATION } = __require("src/procgen/narration-catalog.js");
+const { drawWorldLabel } = __require("src/procgen/world-label.js");
 const { createPathogenArrival, PATHOGEN_ARRIVAL_DEFAULTS } = __require("src/procgen/pathogen-arrival.js");
 const { createPhaseFinale, phaseFinaleSeconds } = __require("src/procgen/phase-finale.js");
 const { rhizosphereSurfaceY } = __require("src/render/rhizosphere-geometry.js");
@@ -3014,6 +3015,7 @@ function drawWorldLayers25D(layer) {
       sim.phosphateSolubilization.render(fx);
       fixedBlockRuntime.render(fx);
       platformVisuals.renderLabel(fx);
+      drawNoduleCaption(fx);
     });
     // raiz-objetivo e sua aura: camada sem iluminacao (fonte de luz, como no 2D)
     if (layer.glow) {
@@ -3228,6 +3230,51 @@ function updateNodulationShowcase(dt) {
   }
 }
 
+// Durante o zoom do primeiro nodulo a explicacao de cada etapa sai do topo da
+// tela (fora do quadro, no celular) e aparece junto do nodulo, como o texto do
+// Bacillus na fase 1: so texto com glow (drawWorldLabel), no mundo.
+const NODULE_STAGE_TEXT = {
+  recognition: 'Reconhecimento: raiz e Rhizobium trocam sinais',
+  'root-hair-curl': NARRATION['rhizobium.curl'].text,
+  'infection-thread': NARRATION['rhizobium.thread'].text,
+  primordium: NARRATION['rhizobium.primordium'].text,
+  'young-nodule': NARRATION['rhizobium.young'].text,
+  'mature-nodule': NARRATION['rhizobium.mature'].text,
+};
+const NODULE_TOAST_TEXTS = new Set(['rhizobium.curl', 'rhizobium.thread', 'rhizobium.primordium', 'rhizobium.young', 'rhizobium.mature']
+  .map(id => NARRATION[id].text));
+
+function noduleShowcaseActive() {
+  return nodShow.phase === 'in' || nodShow.phase === 'hold';
+}
+
+function drawNoduleCaption(target) {
+  if (!noduleShowcaseActive() || !nodShow.site) return;
+  const site = nodShow.site;
+  const text = NODULE_STAGE_TEXT[site.stage];
+  if (!text) return;
+  if (nodShow.captionStage !== site.stage) { nodShow.captionStage = site.stage; nodShow.captionAt = performance.now(); }
+  const fadeIn = Math.min(1, (performance.now() - nodShow.captionAt) / 350);
+  const zoomValue = sim.state.cameraZoom || 1;
+  // tamanho proporcional a altura do canvas (vale para qualquer densidade de
+  // tela) e posicao abaixo do nodulo, dentro do bloco da raiz: acima ficam os
+  // Rhizobium e o Miguelito
+  const screenPx = Math.max(16, (canvas.height || 720) * .036);
+  const visibleW = sim.state.visibleWorldWidth || (canvas.width / zoomValue);
+  const visibleH = sim.state.visibleWorldHeight || (canvas.height / zoomValue);
+  const frameY = (sim.state.cameraY || 0) + visibleH / 2;
+  target.save();
+  target.translate(-(sim.state.cameraX || 0), 0);
+  drawWorldLabel(target, site.x, frameY + visibleH * .3, text, {
+    color: '#ffe58f',
+    font: `900 ${(screenPx / zoomValue).toFixed(2)}px Inter,system-ui`,
+    glow: screenPx * .6 / zoomValue,
+    alpha: fadeIn,
+    maxWidth: visibleW * .92,
+  });
+  target.restore();
+}
+
 // ---- Particulas de evento (vfx-particles.js) --------------------------------
 // Inoculacao e vigor vem da simulacao; a comemoracao do fim da fase e
 // disparada aqui, pelas etapas da cinematica.
@@ -3323,6 +3370,7 @@ function renderWorld() {
     // acrescenta feixes e primeiro plano. So visual; nao le nada da fisica.
     lighting?.render(ctx, { finaleActive: phaseFinale.active });
     drawEventParticles(ctx);
+    drawNoduleCaption(ctx);
     platformVisuals.renderLabel(ctx);
   } finally {
     ctx.restore();
@@ -3368,6 +3416,7 @@ function renderWorldProfiled() {
     }
     if (!skip.luz) P.run('iluminacao 2D (escurecer + recortes + feixes)', () => lighting?.render(ctx, { finaleActive: phaseFinale.active }));
     P.run('particulas de efeito (inoculacao, comemoracao)', () => drawEventParticles(ctx));
+    drawNoduleCaption(ctx);
     P.run('rotulos', () => platformVisuals.renderLabel(ctx));
   } finally {
     ctx.restore();
@@ -3450,6 +3499,11 @@ function loop(now) {
     // mensagem de ciência correspondente.
     sim.narrator.observeTutorial();
     const toastKey = `${sim.state.toast}|${sim.state.toastCardId || ''}|${sim.state.toastSerial || 0}`;
+    if (noduleShowcaseActive() && NODULE_TOAST_TEXTS.has(sim.state.toast)) {
+      // ja esta escrito junto do nodulo; nao repete no topo
+      if (toastDiv.className === 'show') toastDiv.className = '';
+      lastToast = toastKey;
+    }
     if (sim.state.toastTime > 0 && sim.state.toast && toastKey !== lastToast) {
       toastTextSpan.textContent = sim.state.toast;
       const cardId = sim.state.toastCardId || '';
