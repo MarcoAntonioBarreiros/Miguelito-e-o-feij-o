@@ -1945,11 +1945,6 @@ function drawWorldLayers25D(layer) {
       fixedBlockRuntime.render(fx);
       platformVisuals.renderLabel(fx);
     });
-    // feixes de luz do 2D (mesmo desenho), numa camada somada a cena
-    if (layer.beam && lighting) {
-      layerSwitch.target(layer.beam);
-      withCamera(layer.beam, beam => lighting.renderShafts(beam));
-    }
     // raiz-objetivo e sua aura: camada sem iluminacao (fonte de luz, como no 2D)
     if (layer.glow) {
       layerSwitch.target(layer.glow);
@@ -2015,7 +2010,6 @@ function ensureRenderer25D() {
       state: sim.state,
       getAgents: () => sim.ecology?.agents || null,
       getColonies: () => sim.beneficialInoculants?.colonies || null,
-      getShafts: () => lighting?.shaftGeometry?.() || null,
       quality: new URLSearchParams(window.location.search).get('q') || 'high',
     });
     if (showPanel25D) {

@@ -169,11 +169,8 @@ uniform sampler2D uMap;
 uniform float uCutV;   // acima desta linha (teto de solo) nao bloqueia luz
 varying vec2 vUv;
 void main() {
-  // r: solo que faz sombra (sem o teto); b: todo o solo (inclusive o teto),
-  // para a luz nao "vazar" por dentro do teto nem pintar feixe por cima dele
-  float full = smoothstep(.15, .7, texture(uMap, vUv).a);
-  float o = full * (1.0 - smoothstep(uCutV - .03, uCutV, vUv.y));
-  gl_FragColor = vec4(o, 0.0, full, 1.0);
+  float o = smoothstep(.15, .7, texture(uMap, vUv).a) * (1.0 - smoothstep(uCutV - .03, uCutV, vUv.y));
+  gl_FragColor = vec4(o, 0.0, 0.0, 1.0);
 }`;
 
 const OCC_SPRITE_FRAG = /* glsl */`
@@ -211,7 +208,7 @@ float march(vec4 s) {
   // sombra do proprio bloco fazia), e independe da opcao "Sombras".
   float start = .004;
   float soil = 1.0;
-  if (textureLod(uOcc, vUv, 0.0).b > .5) {
+  if (textureLod(uOcc, vUv, 0.0).r > .5) {
     const int IS = 14;
     const float ST = .012;
     float depth = 0.0;
@@ -220,7 +217,7 @@ float march(vec4 s) {
       if (f > reach) break;
       vec2 p = vUv + dir * f;
       if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) break;
-      if (textureLod(uOcc, p, 1.0).b < .35) break;
+      if (textureLod(uOcc, p, 1.0).r < .35) break;
       depth = f;
     }
     if (depth >= ST * float(IS - 1)) depth = .3;   // miolo de bloco grande
@@ -254,10 +251,6 @@ uniform sampler2D uOcc;
 uniform vec4 uShaft[2];   // xy: luz em uv, z: intensidade, w: ativo
 uniform vec3 uShaftColor;
 uniform float uTime;
-// Molde: o formato do feixe do jogo (2D) limita onde os raios aparecem.
-uniform vec4 uBeamA[2];   // por canal: x no topo, yTop, inclinacao, largura (mundo)
-uniform vec4 uBeamB[2];   // y onde a luz comeca (sob o teto), y fim (plataforma), yBottom, ativo
-uniform vec4 uCamV;       // camX, camY, larguraVisivel, alturaVisivel (mundo)
 varying vec2 vUv;
 float ign(vec2 px) { return fract(52.9829189 * fract(dot(px, vec2(.06711056, .00583715)))); }
 float h1(float x) { return fract(sin(x * 127.1) * 43758.5453); }
@@ -287,19 +280,7 @@ vec3 rays(vec4 s) {
   streak = smoothstep(.45, .95, streak);
   return uShaftColor * acc * acc * s.z * fall * cone * (.08 + 1.5 * streak);
 }
-float beamMask(vec4 A, vec4 B) {
-  if (B.w < .5) return 0.0;
-  vec2 w = vec2(uCamV.x + vUv.x * uCamV.z, uCamV.y + (1.0 - vUv.y) * uCamV.w);
-  float u = clamp((w.y - A.y) / max(1.0, B.z - A.y), 0.0, 1.0);
-  float halfW = A.w * (.30 + u * .48);
-  float across = 1.0 - smoothstep(.75, 1.3, abs(w.x - (A.x + (w.y - A.y) * A.z)) / halfW);
-  float along = smoothstep(B.x, B.x + 40.0, w.y) * (1.0 - smoothstep(B.y - 40.0, B.y, w.y));
-  return across * along;
-}
-void main() {
-  gl_FragColor = vec4(rays(uShaft[0]) * beamMask(uBeamA[0], uBeamB[0])
-                    + rays(uShaft[1]) * beamMask(uBeamA[1], uBeamB[1]), 1.0);
-}`;
+void main() { gl_FragColor = vec4(rays(uShaft[0]) + rays(uShaft[1]), 1.0); }`;
 
 const BLUR_FRAG = /* glsl */`
 uniform sampler2D uSrc;
@@ -316,14 +297,9 @@ void main() {
 
 const VOL_COMPOSITE_FRAG = /* glsl */`
 uniform sampler2D uVol;
-uniform sampler2D uOcc;
 uniform float uStrength;
 varying vec2 vUv;
-void main() {
-  // o feixe e ar iluminado: nao se pinta por cima de solo (teto, torroes)
-  float solid = textureLod(uOcc, vUv, 0.0).b;
-  gl_FragColor = vec4(texture(uVol, vUv).rgb * uStrength * (1.0 - .9 * solid), 1.0);
-}`;
+void main() { gl_FragColor = vec4(texture(uVol, vUv).rgb * uStrength, 1.0); }`;
 
 const FINAL_FRAG = /* glsl */`
 uniform sampler2D uScene;
@@ -606,7 +582,7 @@ const COLONY_GLOW = {
   pseudomonas: [.55, .72, 1.0], myco: [.84, .69, 1.0],
 };
 
-export function createRenderer25D({ mainCanvas, state, getAgents = () => null, getColonies = () => null, getShafts = () => null, quality = 'high' }) {
+export function createRenderer25D({ mainCanvas, state, getAgents = () => null, getColonies = () => null, quality = 'high' }) {
   const realCtx = mainCanvas.getContext('2d');
   // O canvas WebGL vai para a pagina, ATRAS do canvas do jogo, com o mesmo
   // enquadramento CSS. A primeira versao copiava o quadro da GPU para o canvas
@@ -705,9 +681,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     // e sua aura). Nao passa pela iluminacao: sob a luz da cena a aura virava
     // um tubo solido e a raiz parecia mais grossa.
     const glow = make('glow');
-    // feixes de luz desenhados pelo proprio jogo (mesmo desenho do 2D)
-    const beam = make('beam');
-    return { bg, terrain, fx, glow, beam, captured, terrainBridge, fxBridge };
+    return { bg, terrain, fx, glow, captured, terrainBridge, fxBridge };
   }
 
   function layerMaterial(tex, o) {
@@ -746,7 +720,6 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   const batches = new Map();
   let growthSeed = null;
   let shaftXs = [];
-  let visibleShafts = [];
   let camAnchor = null;
   const textOverlay = true;
 
@@ -805,18 +778,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     }));
     meshes.glow.renderOrder = 42;
     scene.add(meshes.glow);
-    meshes.beam = screenMesh(new THREE.ShaderMaterial({
-      uniforms: { uMap: { value: layers.beam.tex }, uGain: { value: 1 } },
-      vertexShader: SCREEN_VERT,
-      fragmentShader: `uniform sampler2D uMap; uniform float uGain; varying vec2 vUv;
-        void main() { vec4 c = texture2D(uMap, vUv); gl_FragColor = vec4(c.rgb * c.a * uGain, 1.0); }`,
-      transparent: true, depthTest: false, depthWrite: false,
-      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
-    }));
-    meshes.beam.renderOrder = 44;
-    scene.add(meshes.beam);
     meshes.vol = screenMesh(new THREE.ShaderMaterial({
-      uniforms: { uVol: { value: null }, uOcc: { value: null }, uStrength: { value: 1 } },
+      uniforms: { uVol: { value: null }, uStrength: { value: 1 } },
       vertexShader: SCREEN_VERT, fragmentShader: VOL_COMPOSITE_FRAG,
       depthTest: false, depthWrite: false, transparent: true,
       blending: THREE.AdditiveBlending,
@@ -846,9 +809,6 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   const volPass = new THREE.FullScreenQuad(new THREE.ShaderMaterial({
     uniforms: {
       uOcc: { value: null }, uShaft: { value: [new THREE.Vector4(), new THREE.Vector4()] },
-      uBeamA: { value: [new THREE.Vector4(), new THREE.Vector4()] },
-      uBeamB: { value: [new THREE.Vector4(), new THREE.Vector4()] },
-      uCamV: { value: new THREE.Vector4() },
       uShaftColor: { value: new THREE.Color(0.55, 0.85, 1.0) }, uTime: { value: 0 },
     },
     vertexShader: SCREEN_VERT, fragmentShader: VOL_FRAG,
@@ -867,8 +827,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
 
   // ---- particulas -------------------------------------------------------
   particles = [
-    createParticleField({ shared, count: quality === 'low' ? 220 : 560, zMin: -650, depth: 640, size: 4, tint: '#ffe9c2', drift: -3, self: .006, seed: 7 }),
-    createParticleField({ shared, count: quality === 'low' ? 40 : 100, zMin: -160, depth: 300, size: 5, tint: '#b9e6f0', drift: 6, self: .02, seed: 13 }),
+    createParticleField({ shared, count: quality === 'low' ? 300 : 900, zMin: -650, depth: 640, size: 4, tint: '#ffe9c2', drift: -3, self: .006, seed: 7 }),
+    createParticleField({ shared, count: quality === 'low' ? 60 : 160, zMin: -160, depth: 300, size: 5, tint: '#b9e6f0', drift: 6, self: .02, seed: 13 }),
     createParticleField({ shared, count: quality === 'low' ? 16 : 35, zMin: 60, depth: 240, size: 16, tint: '#c8b089', drift: -2, self: .0, seed: 29 }),
   ];
   particles[0].points.renderOrder = 10;
@@ -983,25 +943,21 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     // ia para "o mais proximo", e quando dois trocavam de posicao o feixe piscava.
     const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
     const reachX = visW * 1.15;
-    const geo = getShafts() || [];
-    // centro do feixe na altura da camera (o feixe e inclinado)
-    const camWorldY = -camCY;
-    const shafts = geo
-      .map((g, idx) => ({ g, idx, cx: g.x + (camWorldY - g.yTop) * g.slant }))
-      .map(o => ({ ...o, d: Math.abs(o.cx - camCX) }))
-      .filter(o => o.d < reachX)
+    const shafts = shaftXs
+      .map((x, idx) => ({ x, idx, d: Math.abs(x - camCX) }))
+      .filter(s => s.d < reachX)
       .sort((a, b) => a.d - b.d)
       .slice(0, 2);
-    visibleShafts = shafts;
-    shafts.forEach(o => {
-      const { g } = o;
-      const flick = .95 + .05 * Math.sin(time * .7 + g.x);
-      const w = smooth(reachX, visW * .5, o.d) * (1 - daylight);
+    // a fonte fica sempre acima do quadro: o feixe entra pela borda de cima,
+    // quase paralelo, em vez de nascer de um ponto visivel (estrela falsa)
+    // fonte fixa no mundo (nao acompanha a camera): antes ela subia e descia
+    // com o pulo e o angulo/intensidade dos feixes mudavam
+    const sourceY = Math.min(topY - 1300, -camCY - visH * .5 - 300);
+    shafts.forEach(s => {
+      const flick = .95 + .05 * Math.sin(time * .7 + s.x);
+      const w = smooth(reachX, visW * .5, s.d) * (1 - daylight);
       if (w <= .001) return;
-      // fonte na mesma altura de antes, sobre o prolongamento da linha do feixe
-      const sy = Math.min(topY - 1300, -camCY - visH * .5 - 300);
-      const sx = g.x + (sy - g.yTop) * g.slant;
-      pushLight(sx, -sy, 320, 2600, .55, .82, 1.0, 1.9 * flick * w * (g.strength || 1), (o.idx % 2) + 1, 100, true, 's' + o.idx);
+      pushLight(s.x, -sourceY, 320, 2300, .55, .82, 1.0, 1.9 * flick * w, (s.idx % 2) + 1, 100, true, 's' + s.idx);
       lights[lights.length - 1].weight = w;
     });
     if (player) {
@@ -1152,7 +1108,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     realCtx.restore();
 
     // 1. o jogo desenha nas tres camadas
-    for (const L of settings.native ? [layers.fx, layers.glow, layers.beam] : [layers.bg, layers.terrain, layers.fx, layers.glow, layers.beam]) {
+    for (const L of settings.native ? [layers.fx, layers.glow] : [layers.bg, layers.terrain, layers.fx, layers.glow]) {
       L.ctx.setTransform(1, 0, 0, 1, 0, 0);
       L.ctx.clearRect(0, 0, L.canvas.width, L.canvas.height);
       if (L.scale !== 1) L.ctx.setTransform(L.scale, 0, 0, L.scale, 0, 0);
@@ -1167,16 +1123,15 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       nativeBg.begin(); nativeTerrain.begin();
       nativeTerrain.setCapture(settings.sprites);
       textures.resetStats();
-      drawLayers({ bg: nativeBg.ctx, terrain: nativeTerrain.ctx, fx: layers.fxBridge.ctx, glow: layers.glow.ctx, beam: null });
+      drawLayers({ bg: nativeBg.ctx, terrain: nativeTerrain.ctx, fx: layers.fxBridge.ctx, glow: layers.glow.ctx });
       layers.fx.tex.needsUpdate = true;
       layers.glow.tex.needsUpdate = true;
-      layers.beam.tex.needsUpdate = true;
       stats.nativeBg = nativeBg.render(rt.bgNative);
       stats.nativeTerrain = nativeTerrain.render(rt.terrainNative);
       stats.uploads = textures.uploads;
     } else {
-      drawLayers({ bg: layers.bg.ctx, terrain: layers.terrainBridge.ctx, fx: layers.fxBridge.ctx, glow: layers.glow.ctx, beam: null });
-      for (const L of [layers.bg, layers.terrain, layers.fx, layers.glow, layers.beam]) L.tex.needsUpdate = true;
+      drawLayers({ bg: layers.bg.ctx, terrain: layers.terrainBridge.ctx, fx: layers.fxBridge.ctx, glow: layers.glow.ctx });
+      for (const L of [layers.bg, layers.terrain, layers.fx, layers.glow]) L.tex.needsUpdate = true;
     }
     const bgTex = native ? rt.bgNative.texture : layers.bg.tex;
     const terrainTex = native ? rt.terrainNative.texture : layers.terrain.tex;
@@ -1232,12 +1187,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       if (settings.growth) g.step(dtReal, time, { x0: lx - visW * 1.2, x1: lx + visW * 1.2 });
       segs += g.segments;
     }
-    for (const p of particles) {
-      p.points.visible = settings.particles;
-      p.setBeamOnly(settings.particlesBeam);
-      p.setBeams(visibleShafts.map(o => o.g));
-      p.update(camera, GH);
-    }
+    for (const p of particles) { p.points.visible = settings.particles; p.setBeamOnly(settings.particlesBeam); p.update(camera, GH); }
 
     // 5. luzes
     const active = collectLights(time, cx, cy, visW, visH);
@@ -1293,30 +1243,14 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     visPass.render(renderer);
 
     // 8. feixes volumetricos
-    // Os feixes visiveis agora sao os do proprio jogo (camada 'beam'); a luz
-    // volumetrica em tela ficou desligada: era ela que vazava pelo teto com zoom
-    // O desenho plano do feixe do jogo nao aparece: serve de molde (geometria)
-    // para a luz volumetrica, que fica presa a ele.
-    meshes.beam.visible = false;
-    meshes.vol.visible = settings.volumetric && settings.lighting && daylight < .99;
+    meshes.vol.visible = settings.volumetric && settings.lighting;
     if (meshes.vol.visible) {
-      // original (raios a partir da fonte de cada canal)
       const shaftU = volPass.material.uniforms.uShaft.value;
       shaftU[0].set(0, 0, 0, 0); shaftU[1].set(0, 0, 0, 0);
       active.filter(L => L.slot === 1 || L.slot === 2).forEach(L => {
         const [u, v] = toUv(L.x, L.y);
         shaftU[L.slot - 1].set(u, v, .75 * (L.weight ?? 1), 1);
       });
-      // molde de cada canal: o feixe do jogo que gerou aquela luz
-      const BA = volPass.material.uniforms.uBeamA.value, BB = volPass.material.uniforms.uBeamB.value;
-      BB[0].w = 0; BB[1].w = 0;
-      for (const o of visibleShafts) {
-        const k = o.idx % 2;
-        const g = o.g;
-        BA[k].set(g.x, g.yTop, g.slant, g.w);
-        BB[k].set(g.litTop, g.yEnd, g.yBottom, 1);
-      }
-      volPass.material.uniforms.uCamV.value.set(camX, camY, visW, visH);
       volPass.material.uniforms.uOcc.value = rt.occ.texture;
       volPass.material.uniforms.uTime.value = time;
       renderer.setRenderTarget(rt.vol);
@@ -1332,7 +1266,6 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       renderer.setRenderTarget(rt.vol);
       blurPass.render(renderer);
       meshes.vol.material.uniforms.uVol.value = rt.vol.texture;
-      meshes.vol.material.uniforms.uOcc.value = rt.occ.texture;
       meshes.vol.material.uniforms.uStrength.value = tuning.shafts * (1 - daylight);
     }
 
