@@ -201,8 +201,31 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
   const tips = [];
   const random = rng(seed);
 
+  // segmentos ja enviados a GPU que mudaram de largura (afinamento da ponta)
+  const touched = new Set();
+  function setWidths(idx, w0, w1) {
+    const v = idx * 4;
+    for (let k = 0; k < 4; k++) { aInfo[(v + k) * 4] = w0; aInfo[(v + k) * 4 + 1] = w1; }
+    if (idx < dirtyFrom) touched.add(idx);
+  }
+  // Ponta conica: os ultimos TIP_SEGS segmentos de cada raiz afinam ate quase
+  // zero. Quando a raiz avanca, o segmento que sai da ponta volta a largura
+  // cheia. Sem isso toda ponta em crescimento (ou parada fora da tela)
+  // terminava reta, como cortada.
+  const TIP_SEGS = 3;
+  function taperTip(t) {
+    const r = t.recent;
+    const n = r.length;
+    for (let k = 0; k < n; k++) {
+      const fromTip0 = n - k;          // segmentos ate a ponta, contando este
+      const f0 = Math.min(1, (fromTip0) / TIP_SEGS);
+      const f1 = Math.min(1, (fromTip0 - 1) / TIP_SEGS);
+      setWidths(r[k].idx, r[k].w0 * (.12 + .88 * f0), r[k].w1 * (.12 + .88 * f1));
+    }
+  }
+
   function addSegment(ax, ay, bx, by, w0, w1, born, kind, along) {
-    if (count >= cap) return false;
+    if (count >= cap) return -1;
     const v = count * 4;
     for (let k = 0; k < 4; k++) {
       aA.set([ax, ay], (v + k) * 2);
@@ -211,7 +234,7 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
       aAlong[v + k] = along;
     }
     count++;
-    return true;
+    return count - 1;
   }
 
   /**
@@ -222,8 +245,10 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
     tips.push({
       x, y, angle, kind, width, speed, maxLength, generation,
       length: 0, acc: 0, along: 0, delay,
-      wander: 0, base: angle, lastBranch: 0,
-      nextBranch: kind === 'root' ? (70 + random() * 90) * branchSpacing : 26 + random() * 40,
+      wander: 0, base: angle, lastBranch: 0, recent: [],
+      // cada raiz tem o seu "temperamento": quanto serpenteia e quanto cede a gravidade
+      tort: .6 + random() * .9, grav: .002 + random() * .007,
+      nextBranch: kind === 'root' ? (30 + random() * random() * 220) * branchSpacing : 26 + random() * 40,
     });
   }
 
@@ -240,13 +265,16 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
         // direcao: volta suave para a direcao-base + ruido; a base das
         // laterais inclina devagar para baixo (gravitropismo tardio). Sem
         // isto o ruido acumulava no rumo e as raizes davam voltas.
-        t.wander = t.wander * .9 + (random() - .5) * (isRoot ? .22 : .7);
-        if (isRoot && t.generation > 0) {
+        t.wander = t.wander * .88 + (random() - .5) * (isRoot ? .3 * t.tort : .7);
+        if (isRoot) {
+          // desvio brusco ocasional (pedra, agregado, poro): a raiz real nao e reta
+          if (random() < .035 * t.tort) t.base += (random() - .5) * 1.1;
           const down = -Math.PI / 2;
-          t.base += Math.atan2(Math.sin(down - t.base), Math.cos(down - t.base)) * .004;
+          const g = t.generation > 0 ? t.grav : t.grav * .6;
+          t.base += Math.atan2(Math.sin(down - t.base), Math.cos(down - t.base)) * g;
         }
-        let ang = t.angle + t.wander * (isRoot ? .12 : .3);
-        ang += Math.atan2(Math.sin(t.base - ang), Math.cos(t.base - ang)) * (isRoot ? .1 : .04);
+        let ang = t.angle + t.wander * (isRoot ? .16 : .3);
+        ang += Math.atan2(Math.sin(t.base - ang), Math.cos(t.base - ang)) * (isRoot ? .06 : .04);
         t.angle = ang;
         const nx = t.x + Math.cos(ang) * segLen;
         const ny = t.y + Math.sin(ang) * segLen;
@@ -254,11 +282,20 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
         const w0 = t.width * Math.max(.25, 1 - (t.length) / t.maxLength);
         const w1 = t.width * taper;
         const kindCode = isRoot ? KIND.root : KIND.hypha;
-        if (!addSegment(t.x, t.y, nx, ny, w0, w1, time, kindCode, t.along)) { tips.length = 0; return; }
+        const idx = addSegment(t.x, t.y, nx, ny, w0, w1, time, kindCode, t.along);
+        // memoria cheia: so esta ponta para (ja afinada), as outras seguem
+        if (idx < 0) { tips.splice(i, 1); break; }
+        t.recent.push({ idx, w0, w1 });
+        if (t.recent.length > TIP_SEGS) {
+          const old = t.recent.shift();
+          setWidths(old.idx, old.w0, old.w1);
+        }
+        taperTip(t);
         t.along += segLen;
         t.length += segLen;
         // pelos radiculares na zona de maturacao (um pouco atras da ponta)
-        if (isRoot && t.length > 40 && random() < .45 && t.width < 9) {
+        const roomy = count < cap * .8;   // perto do limite: sem pelos e sem novas laterais
+        if (roomy && isRoot && t.length > 40 && random() < .45 && t.width < 9) {
           const back = 18 + random() * 22;
           const hx = t.x - Math.cos(ang) * back;
           const hy = t.y - Math.sin(ang) * back;
@@ -269,18 +306,20 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
         }
         t.x = nx; t.y = ny;
         // ramificacao subapical
-        if (t.length - t.lastBranch > t.nextBranch && t.generation < (isRoot ? maxGeneration : 4)) {
+        if (roomy && t.length - t.lastBranch > t.nextBranch && t.generation < (isRoot ? maxGeneration : 4)) {
           t.lastBranch = t.length;
-          t.nextBranch = isRoot ? (80 + random() * 120) * branchSpacing : 22 + random() * 46;
+          // espacamento irregular (laterais agrupadas e trechos nus) e angulos
+          // variados em relacao a mae — nada de espinha de peixe
+          t.nextBranch = isRoot ? (25 + random() * random() * 240) * branchSpacing : 22 + random() * 46;
           const side = random() < .5 ? 1 : -1;
           const branchAngle = isRoot
-            ? -Math.PI / 2 + side * (1.05 + random() * .35)   // laterais quase horizontais
+            ? ang + side * (.45 + random() * .95)
             : ang + side * (.5 + random() * .7);
           spawn({
             x: t.x, y: t.y, angle: branchAngle, kind: t.kind,
-            width: t.width * (isRoot ? .55 : .85),
-            speed: t.speed * (isRoot ? .8 : .95),
-            maxLength: t.maxLength * (isRoot ? .45 : .7),
+            width: t.width * (isRoot ? .4 + random() * .25 : .85),
+            speed: t.speed * (isRoot ? .7 + random() * .2 : .95),
+            maxLength: t.maxLength * (isRoot ? .12 + random() * random() * .55 : .7),
             generation: t.generation + 1,
             delay: isRoot ? .8 + random() * 1.5 : .05 + random() * .3,
           });
@@ -291,14 +330,16 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
   }
 
   function flush() {
-    if (count === dirtyFrom) return;
+    if (count === dirtyFrom && !touched.size) return;
     for (const attr of Object.values(attrs)) {
       if (attr === attrs.aSide) continue;
       attr.clearUpdateRanges?.();
       const item = attr.itemSize;
-      attr.addUpdateRange?.(dirtyFrom * 4 * item, (count - dirtyFrom) * 4 * item);
+      if (count > dirtyFrom) attr.addUpdateRange?.(dirtyFrom * 4 * item, (count - dirtyFrom) * 4 * item);
+      if (attr === attrs.aInfo) for (const idx of touched) attr.addUpdateRange?.(idx * 4 * item, 4 * item);
       attr.needsUpdate = true;
     }
+    touched.clear();
     geom.setDrawRange(0, count * 6);
     dirtyFrom = count;
   }
