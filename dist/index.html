@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"a185f58","subject":"2,5D: corrige shader das particulas ('half' e palavra reservada no GLSL:","builtAt":"2026-10-18 05:43"};
+window.__BEANS_BUILD__ = {"commit":"68d738d","subject":"2,5D: shader volumetrico original restaurado sem alteracao + molde do fe","builtAt":"2026-10-18 06:28"};
 (() => {
 'use strict';
 const __modules = {
@@ -3005,11 +3005,6 @@ function drawWorldLayers25D(layer) {
       fixedBlockRuntime.render(fx);
       platformVisuals.renderLabel(fx);
     });
-    // feixes de luz do 2D (mesmo desenho), numa camada somada a cena
-    if (layer.beam && lighting) {
-      layerSwitch.target(layer.beam);
-      withCamera(layer.beam, beam => lighting.renderShafts(beam));
-    }
     // raiz-objetivo e sua aura: camada sem iluminacao (fonte de luz, como no 2D)
     if (layer.glow) {
       layerSwitch.target(layer.glow);
@@ -3075,7 +3070,6 @@ function ensureRenderer25D() {
       state: sim.state,
       getAgents: () => sim.ecology?.agents || null,
       getColonies: () => sim.beneficialInoculants?.colonies || null,
-      getShafts: () => lighting?.shaftGeometry?.() || null,
       quality: new URLSearchParams(window.location.search).get('q') || 'high',
     });
     if (showPanel25D) {
@@ -46792,43 +46786,8 @@ function createRhizosphereLighting({ canvas, state, getAgents, enabled = true })
     return on;
   }
 
-  // Só os feixes (com as partículas deles), sem escurecer a cena: usado pelo
-  // modo Efeitos 2,5D, que tem iluminação própria mas mantém o MESMO desenho
-  // de feixe do 2D (largura, inclinação, parada na plataforma, recorte do teto).
-  function renderShafts(ctx) {
-    const key = `${state.level?.seed}|${state.level?.campaignPhase}|${Math.round(state.level?.endX || 0)}`;
-    if (key !== levelKey) { levelKey = key; rebuild(state.level); }
-    const t = Number.isFinite(state.time) ? state.time : 0;
-    const m = ctx.getTransform();
-    const zoom = Math.hypot(m.a, m.b) || 1;
-    const W = canvas.width || 1280;
-    const H = canvas.height || 720;
-    const keep = fade;
-    fade = 1;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    drawShafts(ctx, m, zoom, W, H, t, collectShaftImpacts());
-    ctx.restore();
-    fade = keep;
-  }
-
-  // Geometria dos feixes em coordenadas de mundo (para luz e partículas 2,5D).
-  function shaftGeometry() {
-    const key = `${state.level?.seed}|${state.level?.campaignPhase}|${Math.round(state.level?.endX || 0)}`;
-    if (key !== levelKey) { levelKey = key; rebuild(state.level); }
-    const impacts = collectShaftImpacts();
-    const litTop = shaftLightTop(impacts.yTop);
-    return impacts.items.map(({ shaft, impact }) => ({
-      x: shaft.x, w: shaft.w, slant: shaft.slant, strength: shaft.strength,
-      yTop: impacts.yTop, yBottom: impacts.yBottom, litTop,
-      yEnd: impact ? impact.y : impacts.yBottom,
-    }));
-  }
-
   return {
     render,
-    renderShafts,
-    shaftGeometry,
     renderPlatformDepth,
     toggle,
     get enabled() { return on; },

@@ -682,43 +682,8 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
     return on;
   }
 
-  // Só os feixes (com as partículas deles), sem escurecer a cena: usado pelo
-  // modo Efeitos 2,5D, que tem iluminação própria mas mantém o MESMO desenho
-  // de feixe do 2D (largura, inclinação, parada na plataforma, recorte do teto).
-  function renderShafts(ctx) {
-    const key = `${state.level?.seed}|${state.level?.campaignPhase}|${Math.round(state.level?.endX || 0)}`;
-    if (key !== levelKey) { levelKey = key; rebuild(state.level); }
-    const t = Number.isFinite(state.time) ? state.time : 0;
-    const m = ctx.getTransform();
-    const zoom = Math.hypot(m.a, m.b) || 1;
-    const W = canvas.width || 1280;
-    const H = canvas.height || 720;
-    const keep = fade;
-    fade = 1;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    drawShafts(ctx, m, zoom, W, H, t, collectShaftImpacts());
-    ctx.restore();
-    fade = keep;
-  }
-
-  // Geometria dos feixes em coordenadas de mundo (para luz e partículas 2,5D).
-  function shaftGeometry() {
-    const key = `${state.level?.seed}|${state.level?.campaignPhase}|${Math.round(state.level?.endX || 0)}`;
-    if (key !== levelKey) { levelKey = key; rebuild(state.level); }
-    const impacts = collectShaftImpacts();
-    const litTop = shaftLightTop(impacts.yTop);
-    return impacts.items.map(({ shaft, impact }) => ({
-      x: shaft.x, w: shaft.w, slant: shaft.slant, strength: shaft.strength,
-      yTop: impacts.yTop, yBottom: impacts.yBottom, litTop,
-      yEnd: impact ? impact.y : impacts.yBottom,
-    }));
-  }
-
   return {
     render,
-    renderShafts,
-    shaftGeometry,
     renderPlatformDepth,
     toggle,
     get enabled() { return on; },
