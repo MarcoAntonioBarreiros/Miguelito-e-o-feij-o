@@ -166,8 +166,12 @@ void main() {
 
 const OCC_SCREEN_FRAG = /* glsl */`
 uniform sampler2D uMap;
+uniform float uCutV;   // acima desta linha (teto de solo) nao bloqueia luz
 varying vec2 vUv;
-void main() { gl_FragColor = vec4(smoothstep(.15, .7, texture(uMap, vUv).a), 0.0, 0.0, 1.0); }`;
+void main() {
+  float o = smoothstep(.15, .7, texture(uMap, vUv).a) * (1.0 - smoothstep(uCutV - .03, uCutV, vUv.y));
+  gl_FragColor = vec4(o, 0.0, 0.0, 1.0);
+}`;
 
 const OCC_SPRITE_FRAG = /* glsl */`
 uniform sampler2D uMap;
@@ -535,7 +539,7 @@ void main() {
   gl_FragColor = vec4(vCol * a, 1.0);   // AdditiveBlending usa SrcAlpha
 }`;
 
-function createEmitters(max = 32) {
+function createEmitters(max = 160) {
   const pos = new Float32Array(max * 3);
   const glow = new Float32Array(max * 4);
   const geom = new THREE.BufferGeometry();
@@ -772,7 +776,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     meshes.vol.renderOrder = 60;
     scene.add(meshes.bg, meshes.terrain, meshes.fx, meshes.vol);
     meshes.occTerrain = screenMesh(new THREE.ShaderMaterial({
-      uniforms: { uMap: { value: layers.terrain.tex } },
+      uniforms: { uMap: { value: layers.terrain.tex }, uCutV: { value: 2 } },
       vertexShader: SCREEN_VERT, fragmentShader: OCC_SCREEN_FRAG,
       depthTest: false, depthWrite: false,
     }));
@@ -932,7 +936,9 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       .slice(0, 2);
     // a fonte fica sempre acima do quadro: o feixe entra pela borda de cima,
     // quase paralelo, em vez de nascer de um ponto visivel (estrela falsa)
-    const sourceY = Math.min(topY - 700, camCY * -1 - visH * .5 - visH * .45);
+    // fonte fixa no mundo (nao acompanha a camera): antes ela subia e descia
+    // com o pulo e o angulo/intensidade dos feixes mudavam
+    const sourceY = Math.min(topY - 1300, -camCY - visH * .5 - 300);
     shafts.forEach(s => {
       const flick = .95 + .05 * Math.sin(time * .7 + s.x);
       const w = smooth(reachX, visW * .5, s.d) * (1 - daylight);
@@ -980,6 +986,35 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       const breath = .9 + .1 * Math.sin(time * 1.3 + col.x * .01);
       pushLight(col.x, -(col.y - 26), 40, 230, r, g, b, .75 * vigor * breath, 0, 35, false, 'k' + Math.round(col.x));
       if (settings.bloom) emitters.add(col.x, -(col.y - 26), r, g, b, .55 * vigor * breath * tuning.emission, 70);
+    }
+    // Biofilme do checkpoint: as particulas da matriz (giram) e o anel
+    // pontilhado ganham brilho proprio em HDR nas MESMAS posicoes que o jogo
+    // desenha (ecological-gameplay.js drawBiofilm), para o bloom espalha-los
+    // sem precisar subir o bloom global.
+    if (settings.bloom) {
+      for (const film of level.biofilms || []) {
+        const fx = film.checkpoint ? film.checkpoint.x : film.x;
+        const fy = film.checkpoint ? film.checkpoint.y + 8 : film.y;
+        if (!Number.isFinite(fx) || Math.abs(fx - camCX) > visW) continue;
+        const pulse = 1 + Math.sin(time * 1.8 + fx * .01) * .04;
+        const radius = (film.radius || 72) * (film.growth ?? 1);
+        const on = film.activated || film.checkpoint?.active;
+        const k = (on ? 1 : .6) * tuning.emission;
+        for (let i = 0; i < 10; i++) {
+          const angle = i / 10 * TAU + time * .12;
+          const ro = radius * (.28 + (i % 3) * .18);
+          const bx = Math.cos(angle) * ro;
+          const by = Math.sin(angle) * ro * .45 - 6;
+          const white = i % 2 === 0;
+          emitters.add(fx + bx * pulse, -(fy + by * pulse * .62),
+            white ? .85 : .44, white ? 1 : .9, white ? .96 : .84, (white ? .62 : .48) * k, 9 + (i % 3) * 3);
+        }
+        const rr = radius * .72 * pulse;
+        for (let j = 0; j < 22; j++) {
+          const a = j / 22 * TAU;
+          emitters.add(fx + Math.cos(a) * rr, -(fy + Math.sin(a) * rr * .62), .5, .95, .88, .24 * k, 9);
+        }
+      }
     }
     for (const c of level.checkpoints || []) {
       if (!Number.isFinite(c.x) || Math.abs(c.x - camCX) > visW) continue;
@@ -1151,6 +1186,13 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     meshes.terrain.material.uniforms.uDetail.value = .35 * (1 - daylight);
     const toUv = (x, y) => [ (x - camX) / visW, 1 - ((-y) - camY) / visH ];
 
+    // O teto de solo aparece e some conforme a camera sobe: se ele fizesse
+    // sombra, os feixes ligavam e desligavam no pulo. Fica fora da oclusao.
+    {
+      const ys = (state.level?.platforms || []).map(p => p.y).filter(Number.isFinite);
+      const cutWorld = (ys.length ? Math.min(...ys) : -1e9) - 60;
+      meshes.occTerrain.material.uniforms.uCutV.value = 1 - (cutWorld - camY) / visH;
+    }
     // 6. oclusao (terreno + sprites) em meia resolucao
     renderer.setRenderTarget(rt.occ);
     renderer.setClearColor(0x000000, 1);
