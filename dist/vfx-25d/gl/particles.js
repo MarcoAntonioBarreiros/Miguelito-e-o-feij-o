@@ -58,8 +58,8 @@ void main() {
       // faixa visivel do feixe: a fonte fica muito acima, entao o cone cobre a
       // tela toda; o que se ve e uma coluna em volta do x da luz que alarga
       // devagar para baixo
-      float half = 130.0 + max(0.0, L.y) * .08;
-      float dx = abs(L.x) / half;
+      float beamHalf = 130.0 + max(0.0, L.y) * .08;
+      float dx = abs(L.x) / beamHalf;
       inBeam = max(inBeam, exp(-dx * dx) * step(.01, uLightCol[i].r + uLightCol[i].g));
     }
     // esporos (camada com brilho proprio) ficam poucos e discretos fora do feixe
