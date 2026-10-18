@@ -989,18 +989,9 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       // nucleo emissivo: so o bloom o espalha (desliga junto com o bloom)
       if (settings.bloom) emitters.add(d.x, -d.y, 1.0, .55, .22, (.4 + .5 * ratio) * pulse * Math.min(1.6, tuning.bloom), (d.radius || 14) * 2.4);
     }
-    // Colonias estabelecidas (o "checkpoint" do Bacillus e dos outros
-    // inoculantes): brilho proprio em HDR, como o ferro. O bloom o espalha com
-    // a forca que estiver no controle "Brilho proprio", independente do bloom
-    // global — assim exsudato e ferro ficam como estao e a colonia ganha halo.
-    for (const col of getColonies() || []) {
-      if (!Number.isFinite(col.x) || Math.abs(col.x - camCX) > visW) continue;
-      const [r, g, b] = COLONY_GLOW[col.type] || COLONY_GLOW.bacillus;
-      const vigor = col.dormant ? .2 : Math.max(.3, Number(col.vigor) || .6);
-      const breath = .9 + .1 * Math.sin(time * 1.3 + col.x * .01);
-      pushLight(col.x, -(col.y - 26), 40, 230, r, g, b, .75 * vigor * breath, 0, 35, false, 'k' + Math.round(col.x));
-      if (settings.bloom) emitters.add(col.x, -(col.y - 26), r, g, b, .55 * vigor * breath * tuning.emission, 70);
-    }
+    // Colonias: sem luz nem brilho permanente (o halo saiu). A inoculacao e
+    // o vigor baixo aparecem como particulas transitorias (vfx-particles.js),
+    // desenhadas na camada de brilho.
     // Biofilme do checkpoint: as particulas da matriz (giram) e o anel
     // pontilhado ganham brilho proprio em HDR nas MESMAS posicoes que o jogo
     // desenha (ecological-gameplay.js drawBiofilm), para o bloom espalha-los

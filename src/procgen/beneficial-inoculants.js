@@ -5,6 +5,7 @@ import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from '../render
 import { organismSprites } from '../render/organism-sprites.js';
 import { COLONY_ESTABLISHMENT_GROWTH } from '../audio-manifest.js';
 import { narrate } from './narrator.js';
+import { vfxParticles } from '../render/vfx-particles.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -309,7 +310,8 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
       colony.linkedBiofilm = createBacillusBiofilm(colony);
       colony.stage = 'biofilme';
     }
-    entities.burst(colony.x, colony.y, profile.color, 24 + count * 5, 125);
+    // Efeito de inoculacao: acontece uma vez e some (nao ha halo permanente).
+    vfxParticles.inoculation(type, colony.x, colony.y - 14, profile.color, profile.pale);
     return colony;
   }
 
@@ -445,6 +447,19 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     state.player.hope += dt * .012 * factor;
   }
 
+  // O vigor deixou de morar num halo permanente: colonia bem nao mostra nada;
+  // enfraquecendo solta de tempos em tempos um pulso curto de particulas
+  // ambar, e vermelhas quando esta perto de dormir (ou dormente).
+  function pulseLowVigor(colony) {
+    if (colony.vigor > .55 && !colony.dormant) return;
+    const viewCenter = (state.cameraX || 0) + W / 2;
+    if (Math.abs(colony.x - viewCenter) > W) return;
+    if ((colony.nextVigorPulseAt ?? 0) > state.time) return;
+    const weak = colony.dormant || colony.vigor <= .24;
+    colony.nextVigorPulseAt = state.time + (colony.dormant ? 3.2 : weak ? 1.6 : 2.4);
+    vfxParticles.vigorPulse(colony.x, colony.y, weak ? '#ff8297' : '#ffd36f');
+  }
+
   function updateColony(colony, dt) {
     colony.age += dt;
     const previousGrowth = colony.growth;
@@ -473,6 +488,7 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
       colony.vigor = clamp(colony.vigor + dt * (.025 + fuel * .105), 0, 1);
     }
 
+    pulseLowVigor(colony);
     if (colony.vigor <= .025) {
       colony.vigor = 0;
       colony.dormant = true;
@@ -544,22 +560,8 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     ctx.save();
     ctx.translate(colony.x, colony.y);
 
-    // O vigor/evolucao da colonia agora e lido pela COR e intensidade do halo,
-    // no lugar da barra: cor do organismo quando vigorosa, ambar e vermelho
-    // conforme enfraquece; halo mais forte = mais vigor.
-    const vigorColor = colony.vigor > .55 ? profile.color : colony.vigor > .24 ? '#ffd36f' : '#ff8297';
-    const vigorAlpha = colony.dormant
-      ? '22'
-      : Math.round(clamp(34 + colony.vigor * 94, 34, 128)).toString(16).padStart(2, '0');
-    const haloRadius = colony.radius * (.55 + growth * .45);
-    const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, haloRadius);
-    halo.addColorStop(0, `${vigorColor}${vigorAlpha}`);
-    halo.addColorStop(.6, `${vigorColor}${colony.dormant ? '11' : '2a'}`);
-    halo.addColorStop(1, `${vigorColor}00`);
-    ctx.fillStyle = halo;
-    ctx.beginPath();
-    ctx.arc(0, 0, haloRadius, 0, TAU);
-    ctx.fill();
+    // Sem halo permanente: o vigor aparece como pulso de particulas
+    // (pulseLowVigor) e o efeito de inoculacao acontece so uma vez.
 
     ctx.fillStyle = profile.color;
     ctx.strokeStyle = profile.pale;
