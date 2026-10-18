@@ -1916,6 +1916,9 @@ function drawWorldLayers25D(layer) {
       phaseFinale.renderWorldLayer(terrain);
       sim.state.level.traversalDebugVisible = showDebug;
       platformVisuals.drawWorld(terrain);
+      // raizes da Azospirillum sao raiz: mesma luz do terreno (antes, na camada
+      // de efeitos, ficavam sem relevo e os pelos acendiam)
+      sim.azospirillumRootGrowth.render(terrain);
     });
     layerSwitch.target(layer.fx);
     withCamera(layer.fx, fx => {
@@ -1928,7 +1931,6 @@ function drawWorldLayers25D(layer) {
       sim.beneficialInoculants.render(fx);
       sim.pseudomonasSiderophores.render(fx);
       sim.opportunisticFungus.render(fx);
-      sim.azospirillumRootGrowth.render(fx);
       sim.rhizobiumNodulation.render(fx);
       sim.nitrogenRootDevelopment.render(fx);
       sim.trichodermaColonies.render(fx);
