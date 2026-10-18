@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"e66f01a","subject":"2,5D: contorno de luz (rim) so para luz vinda de cima; laterais da raiz ","builtAt":"2026-10-18 04:24"};
+window.__BEANS_BUILD__ = {"commit":"e1b132c","subject":"2,5D: halos translucidos recebem so a luz da cena (como no 2D); de dia o","builtAt":"2026-10-18 04:30"};
 (() => {
 'use strict';
 const __modules = {
@@ -3063,6 +3063,7 @@ function ensureRenderer25D() {
       mainCanvas: canvas,
       state: sim.state,
       getAgents: () => sim.ecology?.agents || null,
+      getColonies: () => sim.beneficialInoculants?.colonies || null,
       quality: new URLSearchParams(window.location.search).get('q') || 'high',
     });
     if (showPanel25D) {

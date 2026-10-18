@@ -2003,6 +2003,7 @@ function ensureRenderer25D() {
       mainCanvas: canvas,
       state: sim.state,
       getAgents: () => sim.ecology?.agents || null,
+      getColonies: () => sim.beneficialInoculants?.colonies || null,
       quality: new URLSearchParams(window.location.search).get('q') || 'high',
     });
     if (showPanel25D) {
