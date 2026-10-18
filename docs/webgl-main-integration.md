@@ -28,8 +28,10 @@ A comparação de navegador usa os arquivos reais do `dist` da main e da integra
 
 As 32 amostras passaram na comparação exata de contagem, duração, pixels visíveis e checksum da imagem isolada de VFX. A entrada aleatória dos efeitos foi isolada no harness para que novos consumidores de aleatoriedade do cenário não alterassem o replay. Não houve erros de JavaScript/GL nas oito cenas; os efeitos de inoculação estavam encerrados em 3,5 segundos e os da celebração encerrados em oito segundos nos replays usados. Os catorze indicadores orbitais aprovados continuam presentes na raiz final.
 
-O teste geral já encontra dois problemas anteriores na main limpa: o teste de áudio espera `BIOLOGICAL_BUS_SCALE = 0.9`, enquanto o valor atual é `1.25`; o smoke de navegador para no cartão enfileirado de Bacillus por considerar o jogador sem suporte. Ambos foram reproduzidos em um checkout sem alterações de `c84a499`; os arquivos correspondentes não foram modificados nesta integração.
+A execução de todos os arquivos `*.test.js` terminou com 1.158 testes: 1.141 passaram e 17 falharam. Os sete arquivos com falhas foram executados também no checkout limpo de `c84a499`: os mesmos 17 testes falharam, sem diferenças na lista de falhas. São verificações anteriores de áudio, cartão mobile/tutorial e geração/travessia; esta integração não altera os arquivos desses sistemas.
+
+O comando `npm test` interrompe na primeira dessas falhas: o teste de áudio espera `BIOLOGICAL_BUS_SCALE = 0.9`, enquanto o valor atual é `1.25`. O smoke oficial de navegador também para no cartão enfileirado de Bacillus por considerar o jogador sem suporte. Ambos os resultados foram reproduzidos na main limpa; o smoke visual específico da integração e dos VFX passou, conforme descrito acima.
 
 ## Reversão
 
-A integração parte da main atual e deve entrar como uma mudança isolada. Para desfazê-la, reverta seu commit de integração/merge; não use force push nem restaure a branch experimental antiga sobre a main. O commit `c84a499` permanece como ponto de retorno que inclui os VFX do Claude.
+A integração parte da main atual e deve entrar como uma mudança isolada. Para desfazê-la, reverta seu commit de integração/merge; não use force push nem restaure a branch experimental antiga sobre a main. O commit `c84a499` permanece como ponto de retorno que inclui os VFX do Claude, também preservado na branch remota `backup/main-before-webgl-improvements-20261018`.
