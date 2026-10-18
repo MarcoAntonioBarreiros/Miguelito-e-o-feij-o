@@ -223,7 +223,9 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
       x, y, angle, kind, width, speed, maxLength, generation,
       length: 0, acc: 0, along: 0, delay,
       wander: 0, base: angle, lastBranch: 0,
-      nextBranch: kind === 'root' ? (70 + random() * 90) * branchSpacing : 26 + random() * 40,
+      // cada raiz tem o seu "temperamento": quanto serpenteia e quanto cede a gravidade
+      tort: .6 + random() * .9, grav: .002 + random() * .007,
+      nextBranch: kind === 'root' ? (30 + random() * random() * 220) * branchSpacing : 26 + random() * 40,
     });
   }
 
@@ -240,13 +242,16 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
         // direcao: volta suave para a direcao-base + ruido; a base das
         // laterais inclina devagar para baixo (gravitropismo tardio). Sem
         // isto o ruido acumulava no rumo e as raizes davam voltas.
-        t.wander = t.wander * .9 + (random() - .5) * (isRoot ? .22 : .7);
-        if (isRoot && t.generation > 0) {
+        t.wander = t.wander * .88 + (random() - .5) * (isRoot ? .3 * t.tort : .7);
+        if (isRoot) {
+          // desvio brusco ocasional (pedra, agregado, poro): a raiz real nao e reta
+          if (random() < .035 * t.tort) t.base += (random() - .5) * 1.1;
           const down = -Math.PI / 2;
-          t.base += Math.atan2(Math.sin(down - t.base), Math.cos(down - t.base)) * .004;
+          const g = t.generation > 0 ? t.grav : t.grav * .6;
+          t.base += Math.atan2(Math.sin(down - t.base), Math.cos(down - t.base)) * g;
         }
-        let ang = t.angle + t.wander * (isRoot ? .12 : .3);
-        ang += Math.atan2(Math.sin(t.base - ang), Math.cos(t.base - ang)) * (isRoot ? .1 : .04);
+        let ang = t.angle + t.wander * (isRoot ? .16 : .3);
+        ang += Math.atan2(Math.sin(t.base - ang), Math.cos(t.base - ang)) * (isRoot ? .06 : .04);
         t.angle = ang;
         const nx = t.x + Math.cos(ang) * segLen;
         const ny = t.y + Math.sin(ang) * segLen;
@@ -271,16 +276,18 @@ export function createGrowthLayer({ shared, z, seed, maxSegments = 9000, dim = 1
         // ramificacao subapical
         if (t.length - t.lastBranch > t.nextBranch && t.generation < (isRoot ? maxGeneration : 4)) {
           t.lastBranch = t.length;
-          t.nextBranch = isRoot ? (80 + random() * 120) * branchSpacing : 22 + random() * 46;
+          // espacamento irregular (laterais agrupadas e trechos nus) e angulos
+          // variados em relacao a mae — nada de espinha de peixe
+          t.nextBranch = isRoot ? (25 + random() * random() * 240) * branchSpacing : 22 + random() * 46;
           const side = random() < .5 ? 1 : -1;
           const branchAngle = isRoot
-            ? -Math.PI / 2 + side * (1.05 + random() * .35)   // laterais quase horizontais
+            ? ang + side * (.45 + random() * .95)
             : ang + side * (.5 + random() * .7);
           spawn({
             x: t.x, y: t.y, angle: branchAngle, kind: t.kind,
-            width: t.width * (isRoot ? .55 : .85),
-            speed: t.speed * (isRoot ? .8 : .95),
-            maxLength: t.maxLength * (isRoot ? .45 : .7),
+            width: t.width * (isRoot ? .4 + random() * .25 : .85),
+            speed: t.speed * (isRoot ? .7 + random() * .2 : .95),
+            maxLength: t.maxLength * (isRoot ? .12 + random() * random() * .55 : .7),
             generation: t.generation + 1,
             delay: isRoot ? .8 + random() * 1.5 : .05 + random() * .3,
           });

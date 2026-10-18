@@ -636,6 +636,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   const settings = {
     lighting: true, shadows: true, volumetric: true, bloom: true, growth: true,
     particles: true, grade: true, sprites: true,
+    particlesBeam: (() => { try { return localStorage.getItem('miguelito:25d:particles-beam') === '1'; } catch (_) { return false; } })(),
     // Modo nativo: fundo e terreno desenhados pela GPU (imagens do jogo viram
     // texturas que sobem uma vez); so o vetor passa pelo Canvas 2D.
     native: /[?&]nativo=1/.test(location.search) || (() => { try { return localStorage.getItem('miguelito:25d:native') === '1'; } catch (_) { return false; } })(),
@@ -1172,7 +1173,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       if (settings.growth) g.step(dtReal, time, { x0: lx - visW * 1.2, x1: lx + visW * 1.2 });
       segs += g.segments;
     }
-    for (const p of particles) { p.points.visible = settings.particles; p.update(camera, GH); }
+    for (const p of particles) { p.points.visible = settings.particles; p.setBeamOnly(settings.particlesBeam); p.update(camera, GH); }
 
     // 5. luzes
     const active = collectLights(time, cx, cy, visW, visH);
@@ -1320,6 +1321,7 @@ const PANEL_ITEMS = [
   ['sprites', 'Sprites com normal map'],
   ['growth', 'Raízes de fundo crescendo'],
   ['particles', 'Partículas em profundidade'],
+  ['particlesBeam', 'Partículas só nos feixes'],
   ['bloom', 'Bloom'],
   ['grade', 'Correção de cor e vinheta'],
 ];
@@ -1446,6 +1448,7 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     box.addEventListener('change', () => {
       renderer25D.settings[key] = box.checked;
       if (key === 'native') { try { localStorage.setItem('miguelito:25d:native', box.checked ? '1' : '0'); } catch (_) {} }
+      if (key === 'particlesBeam') { try { localStorage.setItem('miguelito:25d:particles-beam', box.checked ? '1' : '0'); } catch (_) {} }
       box.blur();
     });
     row.append(box, document.createTextNode(label));
