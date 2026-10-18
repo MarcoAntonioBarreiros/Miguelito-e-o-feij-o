@@ -75,6 +75,7 @@ export function createPlayerSprite(skin) {
   let lastSheet = null;
   let lastRequested = null;
   let lastDrawn = null;
+  let lastAttachments = {};
 
   // Um dt negativo (fase reiniciou, tempo voltou a zero) ou enorme (aba ficou
   // em segundo plano) nao pode empurrar o ciclo. Nos dois casos o certo e nao
@@ -169,7 +170,7 @@ export function createPlayerSprite(skin) {
     lastRequested = stateFor(player, gameState);
     const sheet = resolve(lastRequested);
     lastDrawn = sheet?.name || null;
-    if (!sheet) { lastTime = time; return false; }
+    if (!sheet) { lastTime = time; lastAttachments = {}; return false; }
 
     // Trocar de animacao recomeca o ciclo dela. Sem isto uma folha que nao
     // repete — dash, dano — voltaria congelada no ultimo quadro da vez passada.
@@ -211,16 +212,29 @@ export function createPlayerSprite(skin) {
     // desenho ja levanta o menino 53px do chao no quadro 3, de 400 de quadro.
     // O deslocamento sempre esteve na arte; o que faltava era ficar nele.
     const top = footY - drawHeight * baseline + offsetY;
+    const left = -drawWidth / 2 + offsetX;
+    lastAttachments = {};
+    for (const [name, poses] of Object.entries(sheet.attachments || {})) {
+      const pose = Array.isArray(poses) ? poses[index] : poses;
+      if (!pose) continue;
+      lastAttachments[name] = {
+        x: left + pose.x * drawWidth / frameWidth,
+        y: top + pose.y * drawHeight / frameHeight,
+        width: pose.width * drawWidth / frameWidth,
+        height: pose.height * drawHeight / frameHeight,
+      };
+    }
     ctx.drawImage(
       sheet.image,
       index * frameWidth, 0, frameWidth, frameHeight,
-      -drawWidth / 2 + offsetX, top, drawWidth, drawHeight,
+      left, top, drawWidth, drawHeight,
     );
     return true;
   }
 
   return {
     draw,
+    attachment(name) { return lastAttachments[name] ? { ...lastAttachments[name] } : null; },
     // Exposto para teste: a escolha de estado e regra de jogo (a chegada ganha
     // do dano) e merece ser verificada sem depender de canvas.
     stateFor,

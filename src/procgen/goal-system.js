@@ -2,6 +2,7 @@ import { W } from '../core/constants.js';
 import { PHASE_VICTORY_TRANSITION_SECONDS } from '../audio-manifest.js';
 import { narrate } from './narrator.js';
 import { drawFinalRoot } from '../render/final-root-visual.js';
+import { drawGoalOrbitParticles } from '../render/goal-orbit-particles.js';
 
 const TAU = Math.PI * 2;
 
@@ -95,15 +96,7 @@ export function createGoalSystem({ state, entities }) {
     ctx.save();
     ctx.translate(goal.x, goal.y);
 
-    for (let i = 0; i < 14; i++) {
-      const a = i / 14 * TAU + time * (goal.completed ? .42 : .18);
-      const r = 42 + (i % 4) * 11 + Math.sin(time * 1.7 + i) * 4;
-      ctx.fillStyle = i % 2 ? '#d6afff' : '#8ff2c1';
-      ctx.globalAlpha = goal.completed ? .82 : .42;
-      ctx.beginPath();
-      ctx.arc(Math.cos(a) * r, 44 + Math.sin(a) * r * .55, 2.2 + (i % 3), 0, TAU);
-      ctx.fill();
-    }
+    drawGoalOrbitParticles(ctx, time, goal.completed);
     ctx.globalAlpha = 1;
     ctx.restore();
 

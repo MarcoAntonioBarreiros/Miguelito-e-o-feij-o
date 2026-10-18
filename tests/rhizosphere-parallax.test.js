@@ -202,6 +202,27 @@ test('pool de partículas é fixo, determinístico e não cresce', () => {
   assert.equal(pool.length, 32);
 });
 
+test('alvo com partículas em profundidade suprime só a poeira duplicada do Canvas', () => {
+  const component = createComponent('depth-dust');
+  const camera = { cameraX: 0, cameraY: 120, zoom: 1.45 };
+  const viewport = { width: 1280, height: 720 };
+  const canvasTarget = new MockContext();
+  const depthTarget = new MockContext();
+  depthTarget.__glDepthParticles = true;
+  const pool = component.diagnostics().particlePool;
+
+  component.render(canvasTarget, camera, viewport);
+  component.render(depthTarget, camera, viewport);
+  assert.ok(canvasTarget.arcCount > 0, 'o fallback 2D continua desenhando poeira');
+  assert.equal(depthTarget.arcCount, 0, 'o WebGL nao recebe poeira cintilante fora do nucleo');
+  assert.equal(depthTarget.drawImageCount, canvasTarget.drawImageCount, 'os caches biologicos permanecem');
+  assert.strictEqual(component.diagnostics().particlePool, pool, 'nenhum pool e alterado');
+
+  depthTarget.__glDepthParticles = false;
+  component.render(depthTarget, camera, viewport);
+  assert.equal(depthTarget.arcCount, canvasTarget.arcCount, 'remover a camada 3D restaura a poeira Canvas');
+});
+
 test('wobble usa apenas o cache, é lento e permanece dentro de limites discretos', () => {
   const component = createComponent();
   component.update(0.016, { cameraX: 0, cameraY: 0, zoom: 1 }, { onGround: true });

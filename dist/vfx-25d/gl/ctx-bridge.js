@@ -14,6 +14,20 @@
 
 const SPRITE_SOURCES = /assets\/(miguelito|organisms|bacillus)\//;
 
+// Equipment drawn after a captured body needs its own foreground pass. Carry
+// the original Canvas pose, including camera zoom, facing and invulnerability.
+export function paintEquipmentOverlay(source, target, paint) {
+  target.save();
+  try {
+    target.setTransform(source.getTransform());
+    for (const key of ['globalAlpha', 'globalCompositeOperation', 'lineWidth', 'lineCap', 'lineJoin',
+      'miterLimit', 'shadowColor', 'shadowBlur', 'shadowOffsetX', 'shadowOffsetY', 'filter']) {
+      if (key in source) target[key] = source[key];
+    }
+    paint(target);
+  } finally { target.restore(); }
+}
+
 export function isLitSpriteImage(image) {
   return Boolean(image && image.tagName === 'IMG' && SPRITE_SOURCES.test(image.src || ''));
 }

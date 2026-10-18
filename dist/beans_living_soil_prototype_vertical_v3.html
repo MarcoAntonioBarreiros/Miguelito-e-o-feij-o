@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"5212312","subject":"Reverte os feixes para antes dos trapezios (estado de a185f58: luz volum","builtAt":"2026-10-18 16:05"};
+window.__BEANS_BUILD__ = {"commit":"c84a499","subject":"Mescla: particulas de evento (inoculacao, vigor, comemoracao do fim de f","builtAt":"2026-10-18 19:10"};
 (() => {
 'use strict';
 const __modules = {
@@ -20286,8 +20286,8 @@ function createRhizosphereGeometry({ state, painters }) {
 
   let architecture = { key: '', plants: [] };
 
-  function buildArchitecture(layout, platforms, seedOf) {
-    const key = Math.round(layout.surface) + '|' + platforms.map(p => Math.round(p.x) + ',' + Math.round(p.y)).join(';');
+  function buildArchitecture(layout, platforms, seedOf, organic = false) {
+    const key = (organic ? 'organic|' : '') + Math.round(layout.surface) + '|' + platforms.map(p => Math.round(p.x) + ',' + Math.round(p.y)).join(';');
     if (architecture.key === key) return architecture;
     const plants = layout.plants.map(plant => {
       const links = [];
@@ -20297,7 +20297,7 @@ function createRhizosphereGeometry({ state, painters }) {
         links.push({ index, attachY: link.attachY, entry, band: link.band, blockCenters: [entry], blockWidths: [link.band * .72] });
       });
       const { roots } = growPlantRoots({
-        plant, surface: layout.surface, tipY: plant.tipY, links, platforms, mainWidth: MAIN_ROOT_WIDTH,
+        plant, surface: layout.surface, tipY: plant.tipY, links, platforms, mainWidth: MAIN_ROOT_WIDTH, organic,
       });
       for (const root of roots) {
         let minX = Infinity; let maxX = -Infinity; let minY = Infinity; let maxY = -Infinity;
@@ -20305,7 +20305,8 @@ function createRhizosphereGeometry({ state, painters }) {
           minX = Math.min(minX, px); maxX = Math.max(maxX, px); minY = Math.min(minY, py); maxY = Math.max(maxY, py);
         }
         root.box = { minX, maxX, minY, maxY };
-        root.seed = hash2(Math.round(root.points[0][0]), Math.round(root.points[0][1]));
+        const textureOrigin = root.textureOrigin || root.points[0];
+        root.seed = hash2(Math.round(textureOrigin[0]), Math.round(textureOrigin[1]));
       }
       return { plant, roots };
     });
@@ -20333,7 +20334,8 @@ function createRhizosphereGeometry({ state, painters }) {
     const inX = (left, right, margin = 100) => right >= view.left - margin && left <= view.right + margin;
     const layout = rootLayout(platforms);
     const { surface, plants, links } = layout;
-    const arch = buildArchitecture(layout, platforms, seedOf);
+    const organic = ctx.__glOrganicRoots === true;
+    const arch = buildArchitecture(layout, platforms, seedOf, organic);
     const time = state.time || 0;
 
     // Fases do desenho para o renderizador nativo (GPU): imagens de cada fase
@@ -20355,7 +20357,7 @@ function createRhizosphereGeometry({ state, painters }) {
             : root.layer === 'link' ? LINK_ROOT_PALETTE : MUTED_ROOT_PALETTE;
           const fade = root.layer === 'link' ? .2 : .5;
           const pad = Math.max(...root.widths) + 14;
-          R('  terreno/raizes corpo (cache)', () => cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
+          R('  terreno/raizes corpo (cache)', () => cached(ctx, `root:${organic ? 'organic:' : ''}${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
             x: box.minX - pad, y: box.minY - pad, w: box.maxX - box.minX + pad * 2, h: box.maxY - box.minY + pad * 2,
           }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' })));
           R('  terreno/pelos radiculares', () => drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' }));
@@ -20905,7 +20907,7 @@ function sideBranches(parent, random, platforms, { count, order, maxLen, widthSc
  * Monta todas as raízes de uma planta.
  * `links`: laterais que precisam chegar a blocos ({ attachY, entry:[x,y], side, band }).
  */
-function growPlantRoots({ plant, surface, tipY, links, platforms, mainWidth }) {
+function growPlantRoots({ plant, surface, tipY, links, platforms, mainWidth, organic = false }) {
   const random = seededRandom(plant.seed * 7 + 13);
   const roots = [];
   // Principal: desce sinuosa, com gravitropismo forte.
@@ -20970,7 +20972,106 @@ function growPlantRoots({ plant, surface, tipY, links, platforms, mainWidth }) {
       roots.push(...sideBranches(lateral, random, platforms, { count: Math.floor(points.length / 9), order: 2, maxLen: 30, widthScale: .4 }));
     }
   }
+  if (organic) applyOrganicArchitecture({ roots, main, plant, surface, tipY, links });
   return { roots, main };
+}
+
+// Optional presentation profile. Build the original seeded architecture first:
+// its tissue seeds, branch identities, widths and platform endpoints survive.
+// The main root's long coherent bends then carry every attached branch, rather
+// than bending individual trunk slices independently.
+function applyOrganicArchitecture({ roots, main, plant, surface, tipY, links }) {
+  const original = new Map(roots.map(root => [root, root.points]));
+  const mainPoints = main.points;
+  const phase = seededRandom(plant.seed * 17 + 31)() * TAU;
+  const height = Math.max(120, tipY - surface);
+  const smooth = value => { const t = clamp(value, 0, 1); return t * t * (3 - 2 * t); };
+  const offset = y => {
+    if (plant.goal) return 0; // the separately drawn goal collar stays anchored
+    const down = y - surface;
+    const neck = smooth(down / Math.min(110, height * .24));
+    return neck * (Math.sin(down / 125 + phase) * 27 + Math.sin(down / 53 + phase * .63) * 7);
+  };
+  const key = p => `${p[0]},${p[1]}`;
+  const moved = new Map();
+  const softened = (points, keep = 1, yToo = true) => points.map((p, i) => {
+    if (i === 0 || i >= points.length - keep) return [...p];
+    const a = points[i - 1], b = points[i + 1];
+    return [p[0] * .6 + (a[0] + b[0]) * .2, yToo ? p[1] * .6 + (a[1] + b[1]) * .2 : p[1]];
+  });
+  const remember = (before, after) => before.forEach((p, i) => moved.set(key(p), [after[i][0] - p[0], after[i][1] - p[1]]));
+  const storeTextureOrigin = root => { root.textureOrigin = [...root.points[0]]; root.organic = true; };
+  for (const root of roots) storeTextureOrigin(root);
+
+  // Principal first; y and the cervical endpoint never move.
+  main.points = plant.goal ? mainPoints.map(p => [...p])
+    : softened(mainPoints, 1, false).map(([x, y], i) => i === 0 ? [...mainPoints[0]] : [x + offset(y), y]);
+  main.organic = true;
+  remember(mainPoints, main.points);
+
+  for (const order of [1, 2]) {
+    for (const root of roots) {
+      if (root.main || root.order !== order) continue;
+      const points = original.get(root), start = points[0];
+      const link = root.linkIndex === undefined ? null : links.find(item => item.index === root.linkIndex);
+      const fixed = link ? Math.max(1, link.blockCenters?.length || 1) : 1;
+      const soft = softened(points, fixed);
+      let inherited = moved.get(key(start));
+      if (!inherited && order === 1) {
+        // Free laterals begin slightly INSIDE the principal, not exactly on
+        // its centre; inherit the displacement of the same parent ring.
+        const parent = mainPoints.reduce((best, p) => Math.abs(p[1] - start[1]) < Math.abs(best[1] - start[1]) ? p : best, mainPoints[0]);
+        inherited = moved.get(key(parent));
+      }
+      inherited ||= [offset(start[1]), 0];
+      const correction = inherited[0] - offset(start[1]);
+      const freeEnd = Math.max(1, points.length - fixed);
+      root.points = soft.map(([x, y], i) => {
+        // Every platform entry and all centres inside its block remain exact.
+        if (link && i >= points.length - fixed) return [...points[i]];
+        const weight = link ? 1 - smooth(i / freeEnd) : 1;
+        return [x + (offset(y) + correction) * weight, y + inherited[1] * weight];
+      });
+      remember(points, root.points);
+    }
+  }
+}
+
+/** Transport the original author-painted cells, including their nuclei,
+ * along the root. It calls the SAME Canvas roundRect/ellipse painter with
+ * the SAME colours, dimensions and random seeds; only its local frame bends.
+ */
+function createCurvedTissueContext(ctx, points, centerX) {
+  let cellFrame = null;
+  function frameAt(y) {
+    let lo = 0, hi = points.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (points[mid][1] < y) lo = mid; else hi = mid; }
+    const a = points[lo], b = points[hi];
+    const t = clamp((y - a[1]) / Math.max(1e-6, b[1] - a[1]), 0, 1);
+    const prev = points[Math.max(0, lo - 1)], next = points[Math.min(points.length - 1, hi + 1)];
+    const tx0 = b[0] - prev[0], ty0 = b[1] - prev[1];
+    const tx1 = next[0] - a[0], ty1 = next[1] - a[1];
+    const dx = tx0 + (tx1 - tx0) * t, dy = ty0 + (ty1 - ty0) * t;
+    return { x: a[0] + (b[0] - a[0]) * t, y, angle: Math.atan2(dy, dx) - Math.PI / 2 };
+  }
+  function inFrame(frame, method, args) {
+    ctx.save();
+    ctx.translate(frame.x, frame.y); ctx.rotate(frame.angle); ctx.translate(-centerX, -frame.y);
+    ctx[method](...args);
+    ctx.restore();
+  }
+  return new Proxy(ctx, {
+    get(target, property) {
+      if (property === 'roundRect') return (x, y, w, h, radii) => {
+        cellFrame = frameAt(y + h * .5);
+        inFrame(cellFrame, 'roundRect', [x, y, w, h, radii]);
+      };
+      if (property === 'ellipse') return (...args) => inFrame(cellFrame || frameAt(args[1]), 'ellipse', args);
+      const value = target[property];
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+    set(target, property, value) { target[property] = value; return true; },
+  });
 }
 
 // ---------------------------------------------------------------- desenho --
@@ -21044,12 +21145,16 @@ function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time = 0, f
     let minX = Infinity; let maxX = -Infinity;
     for (const [x] of points) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
     setTissueCull({
-      x0: Math.max(minX - maxW, view ? view.left : -Infinity),
-      x1: Math.min(maxX + maxW, view ? view.right : Infinity),
+      // The curved painter's input is the original straight tissue domain;
+      // world-space x culling there would discard cells carried into view.
+      x0: root.organic ? -Infinity : Math.max(minX - maxW, view ? view.left : -Infinity),
+      x1: root.organic ? Infinity : Math.min(maxX + maxW, view ? view.right : Infinity),
       y0: Math.max(minY - 8, view ? view.top : -Infinity),
       y1: Math.min(maxY + 12, view ? view.bottom : Infinity),
     });
-    paintRootTissueVertical(ctx, seed, sumX / points.length, minY - 4, maxY + 12, maxW * .62 + 8, palette);
+    const centerX = sumX / points.length;
+    const tissueCtx = root.organic ? createCurvedTissueContext(ctx, points, centerX) : ctx;
+    paintRootTissueVertical(tissueCtx, seed, centerX, minY - 4, maxY + 12, maxW * .62 + 8, palette);
     setTissueCull(null);
     ctx.restore();
     traceShape(ctx, left, right);
@@ -21140,7 +21245,7 @@ function drawRootTube(ctx, root, { palette = ROOT_PALETTE, seed = 1, time = 0, f
   }
   ctx.restore();
 }
-Object.assign(__exports, { seededRandom, growPlantRoots, drawRootTube });
+Object.assign(__exports, { seededRandom, growPlantRoots, createCurvedTissueContext, drawRootTube });
 },
 "src/render/root-tissue.js": (__exports, __require) => {
 // TECIDO DA RAIZ — textura celular do autor, compartilhada
@@ -21675,7 +21780,72 @@ function drawTexturedBranch(ctx, points, baseWidth) {
 
 // Brilho do objetivo aplicado POR CIMA do tecido: aura dourada translúcida e um
 // filamento claro no eixo. O pulso de conclusão só acende mais.
-function drawObjectiveGlow(ctx, points, baseWidth, pulse) {
+// Only the optional light contour uses this tube. The artist-painted body
+// keeps its original traceTube above, including all its existing geometry.
+function traceSoftRootGlowTube(ctx, samples, widthAt) {
+  if (samples.length < 2) return;
+  const sections = samples.map((point, index) => {
+    const a = samples[Math.max(0, index - 1)], b = samples[Math.min(samples.length - 1, index + 1)];
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
+    const radius = Math.max(0, widthAt(index / (samples.length - 1))) * .5;
+    return { point, radius, angle: Math.atan2(ny, nx),
+      left: [point.x + nx * radius, point.y + ny * radius],
+      right: [point.x - nx * radius, point.y - ny * radius] };
+  });
+  const start = sections[0], end = sections[sections.length - 1];
+  ctx.beginPath(); ctx.moveTo(...start.left);
+  for (let i = 1; i < sections.length; i++) ctx.lineTo(...sections[i].left);
+  // From left to right around the FORWARD tangent, whatever its direction.
+  ctx.arc(end.point.x, end.point.y, end.radius, end.angle, end.angle - Math.PI, true);
+  for (let i = sections.length - 2; i >= 0; i--) ctx.lineTo(...sections[i].right);
+  // The collar cap points backwards and closes the contour without corners.
+  ctx.arc(start.point.x, start.point.y, start.radius, start.angle - Math.PI, start.angle - TAU, true);
+  ctx.closePath();
+}
+
+function drawSoftObjectiveGlow(ctx, points, baseWidth, pulse, taper) {
+  const samples = sampleSpline(points, 8);
+  const widthAt = t => baseWidth * (1 - t * taper);
+  const feather = baseWidth * .5 + 8;
+  const peak = .05 + pulse * .065;
+  // Difference of nested Gaussian contours: brightness keeps falling with
+  // distance instead of filling a wide stroke with one constant alpha.
+  // Destination-over protects every original tissue cell already painted.
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.shadowBlur = 0;
+  for (let layer = 20; layer >= 1; layer--) {
+    const outer = layer / 20, inner = (layer - 1) / 20;
+    const alpha = peak * (Math.exp(-4.5 * inner * inner) - Math.exp(-4.5 * outer * outer));
+    const color = `rgba(255, 203, 115, ${alpha})`;
+    if (taper === 0) {
+      // Native round caps are exact for the constant-width side branches.
+      ctx.beginPath(); splinePath(ctx, points);
+      ctx.lineWidth = baseWidth + 2 * feather * outer;
+      ctx.strokeStyle = color; ctx.stroke();
+    } else {
+      traceSoftRootGlowTube(ctx, samples, t => widthAt(t) + 2 * feather * outer);
+      ctx.fillStyle = color; ctx.fill();
+    }
+  }
+  ctx.restore();
+  // A thin glint may sit on the axis; the cortex itself retains its palette.
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.shadowBlur = 0;
+  ctx.beginPath(); splinePath(ctx, points);
+  ctx.strokeStyle = `rgba(255, 248, 229, ${.1 + pulse * .1})`;
+  ctx.lineWidth = Math.max(.8, Math.min(1.6, baseWidth * .025));
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawObjectiveGlow(ctx, points, baseWidth, pulse, taper = 0) {
+  if (ctx.__glSoftFinalRootGlow === true) {
+    drawSoftObjectiveGlow(ctx, points, baseWidth, pulse, taper);
+    return;
+  }
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -21691,6 +21861,22 @@ function drawObjectiveGlow(ctx, points, baseWidth, pulse) {
   ctx.strokeStyle = `rgba(255, 246, 215, ${.32 + pulse * .45})`;
   ctx.lineWidth = Math.max(2.5, baseWidth * .09);
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawSoftObjectiveHalo(ctx, glow, time) {
+  const breath = 1 + Math.sin(time * 2.1) * .05;
+  const radius = (95 + glow * 25) * breath;
+  const halo = ctx.createRadialGradient(0, 120, 0, 0, 120, radius);
+  halo.addColorStop(0, `rgba(255, 216, 143, ${.012 + glow * .018})`);
+  halo.addColorStop(.22, `rgba(255, 205, 118, ${.009 + glow * .013})`);
+  halo.addColorStop(.55, `rgba(255, 197, 98, ${.003 + glow * .005})`);
+  halo.addColorStop(1, 'rgba(255, 197, 98, 0)');
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(0, 120, radius, 0, TAU); ctx.fill();
   ctx.restore();
 }
 
@@ -21721,7 +21907,7 @@ function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, time = 
     FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => (
       drawObjectiveGlow(ctx, branch, branchWidthLocal(index), glow * .4)
     ));
-    drawObjectiveGlow(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL, glow * .6);
+    drawObjectiveGlow(ctx, FINAL_ROOT_MAIN_LOCAL, MAIN_WIDTH_LOCAL, glow * .6, .62);
   } else {
     FINAL_ROOT_BRANCHES_LOCAL.forEach((branch, index) => {
       drawRootPath(ctx, branch, branchWidthLocal(index), glow * 0.4);
@@ -21731,20 +21917,23 @@ function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, time = 
   }
 
   // O halo do córtex luminoso, que é o alvo do jogador durante a fase.
-  const breath = 1 + Math.sin(time * 2.1) * 0.05;
-  const halo = ctx.createRadialGradient(0, 120, 10, 0, 120, (200 + glow * 90) * breath);
-  halo.addColorStop(0, `rgba(255, 240, 180, ${0.22 + glow * 0.22})`);
-  halo.addColorStop(0.5, `rgba(255, 220, 140, ${0.09 + glow * 0.13})`);
-  halo.addColorStop(1, 'rgba(255, 220, 120, 0)');
-  ctx.fillStyle = halo;
-  ctx.beginPath();
-  ctx.arc(0, 120, (200 + glow * 90) * breath, 0, TAU);
-  ctx.fill();
+  if (ctx.__glSoftFinalRootGlow === true) drawSoftObjectiveHalo(ctx, glow, time);
+  else {
+    const breath = 1 + Math.sin(time * 2.1) * 0.05;
+    const halo = ctx.createRadialGradient(0, 120, 10, 0, 120, (200 + glow * 90) * breath);
+    halo.addColorStop(0, `rgba(255, 240, 180, ${0.22 + glow * 0.22})`);
+    halo.addColorStop(0.5, `rgba(255, 220, 140, ${0.09 + glow * 0.13})`);
+    halo.addColorStop(1, 'rgba(255, 220, 120, 0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, 120, (200 + glow * 90) * breath, 0, TAU);
+    ctx.fill();
+  }
 
   ctx.restore();
   return true;
 }
-Object.assign(__exports, { FINAL_ROOT_COLLAR_OFFSET, FINAL_ROOT_SCALE, FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_BRANCHES_LOCAL, finalRootCollar, finalRootBounds, drawFinalRoot });
+Object.assign(__exports, { FINAL_ROOT_COLLAR_OFFSET, FINAL_ROOT_SCALE, FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_BRANCHES_LOCAL, finalRootCollar, finalRootBounds, traceSoftRootGlowTube, drawFinalRoot });
 },
 "src/procgen/nitrogen-root.js": (__exports, __require) => {
 const { canTakeRole } = __require("src/procgen/platform-occupancy.js");
@@ -26530,6 +26719,7 @@ const { W } = __require("src/core/constants.js");
 const { PHASE_VICTORY_TRANSITION_SECONDS } = __require("src/audio-manifest.js");
 const { narrate } = __require("src/procgen/narrator.js");
 const { drawFinalRoot } = __require("src/render/final-root-visual.js");
+const { drawGoalOrbitParticles } = __require("src/render/goal-orbit-particles.js");
 const TAU = Math.PI * 2;
 
 function createGoalSystem({ state, entities }) {
@@ -26622,15 +26812,7 @@ function createGoalSystem({ state, entities }) {
     ctx.save();
     ctx.translate(goal.x, goal.y);
 
-    for (let i = 0; i < 14; i++) {
-      const a = i / 14 * TAU + time * (goal.completed ? .42 : .18);
-      const r = 42 + (i % 4) * 11 + Math.sin(time * 1.7 + i) * 4;
-      ctx.fillStyle = i % 2 ? '#d6afff' : '#8ff2c1';
-      ctx.globalAlpha = goal.completed ? .82 : .42;
-      ctx.beginPath();
-      ctx.arc(Math.cos(a) * r, 44 + Math.sin(a) * r * .55, 2.2 + (i % 3), 0, TAU);
-      ctx.fill();
-    }
+    drawGoalOrbitParticles(ctx, time, goal.completed);
     ctx.globalAlpha = 1;
     ctx.restore();
 
@@ -26669,6 +26851,54 @@ function createGoalSystem({ state, entities }) {
   return { reset, clear, setCompletionGuard, update, render };
 }
 Object.assign(__exports, { createGoalSystem });
+},
+"src/render/goal-orbit-particles.js": (__exports, __require) => {
+// Presentation of the fourteen particles already orbiting the final root.
+// Positions, radii, two original colours and completion speed are unchanged.
+// WebGL can collect these particles for its HDR emitter pass; Canvas stays intact.
+const TAU = Math.PI * 2;
+const GOAL_ORBIT_PARTICLE_COUNT = 14;
+
+function goalOrbitParticle(index, time, completed = false) {
+  const angle = index / GOAL_ORBIT_PARTICLE_COUNT * TAU + time * (completed ? .42 : .18);
+  const orbitRadius = 42 + (index % 4) * 11 + Math.sin(time * 1.7 + index) * 4;
+  return {
+    x: Math.cos(angle) * orbitRadius,
+    y: 44 + Math.sin(angle) * orbitRadius * .55,
+    radius: 2.2 + (index % 3),
+    alpha: completed ? .82 : .42,
+    color: index % 2 ? '#d6afff' : '#8ff2c1',
+  };
+}
+
+function goalOrbitTwinkle(index, time) {
+  const seed = (index + .5) / GOAL_ORBIT_PARTICLE_COUNT;
+  const slow = .5 + .5 * Math.sin(time * (.9 + seed * 1.1) + seed * 71);
+  const pulse = .5 + .5 * Math.sin(time * (2.3 + seed * 1.7) + seed * 127);
+  return .66 + .28 * slow + .28 * pulse ** 8;
+}
+
+function drawGoalOrbitParticles(ctx, time, completed = false) {
+  const collect = ctx.__glGoalOrbitParticle;
+  if (typeof collect === 'function') {
+    // Local coordinates deliberately retain the caller's full Canvas matrix.
+    // The renderer projects that matrix once, then emits coloured HDR halos
+    // and bright small cores at these exact original orbital positions.
+    for (let i = 0; i < GOAL_ORBIT_PARTICLE_COUNT; i++) {
+      collect.call(ctx, { ...goalOrbitParticle(i, time, completed), index: i, time, completed, twinkle: goalOrbitTwinkle(i, time) });
+    }
+    return;
+  }
+  ctx.save();
+  for (let i = 0; i < GOAL_ORBIT_PARTICLE_COUNT; i++) {
+    const particle = goalOrbitParticle(i, time, completed);
+    ctx.fillStyle = particle.color;
+    ctx.globalAlpha = particle.alpha;
+    ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.radius, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+Object.assign(__exports, { GOAL_ORBIT_PARTICLE_COUNT, goalOrbitParticle, goalOrbitTwinkle, drawGoalOrbitParticles });
 },
 "src/procgen/ecological-gameplay.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");
@@ -42987,6 +43217,23 @@ Object.assign(__exports, { createPhaseLabSession });
 
 const PLAYER_SKIN_STORAGE_KEY = 'miguelito:player-skin:v1';
 
+// Centres and extents of the red backpack, measured in each original 320x400
+// frame. The sheets use different scales and the bag moves with every pose;
+// equipment must follow that artwork, rather than the 32x48 collision box.
+const backpackFrames = frames => Object.freeze(frames.map(([x, y, width, height]) => (
+  Object.freeze({ x, y, width, height })
+)));
+const BACKPACK = Object.freeze({
+  idle: backpackFrames([[128, 278, 30, 60], [129, 280, 30, 60], [129, 280, 30, 60], [128, 277, 30, 60],
+    [129, 278, 30, 60], [129, 280, 30, 60], [130, 277, 30, 60], [131, 279, 30, 60]]),
+  run: backpackFrames([[119, 215, 44, 72], [116, 215, 44, 64], [106, 239, 40, 76], [113, 211, 40, 80],
+    [110, 233, 40, 76], [124, 231, 42, 62], [117, 235, 44, 62], [115, 224, 44, 66]]),
+  hurt: backpackFrames([[84, 233, 36, 78], [79, 224, 34, 58], [79, 224, 38, 62], [78, 227, 38, 56],
+    [66, 255, 38, 56], [80, 251, 34, 56], [77, 230, 38, 64], [82, 232, 38, 66]]),
+  celebrate: backpackFrames([[108, 239, 40, 78], [113, 228, 40, 68], [109, 207, 38, 70], [108, 210, 38, 70],
+    [101, 205, 38, 70], [96, 209, 38, 68], [92, 215, 40, 50], [108, 239, 40, 78]]),
+});
+
 const PLAYER_SKINS = Object.freeze({
   astronaut: Object.freeze({
     id: 'astronaut',
@@ -43027,6 +43274,7 @@ const PLAYER_SKINS = Object.freeze({
         // renderizarem do mesmo tamanho, apesar de a arte ter sido desenhada em
         // escalas diferentes.
         contentHeight: 347,
+        attachments: Object.freeze({ backpack: BACKPACK.run }),
       }),
       idle: Object.freeze({
         src: 'assets/miguelito/idle.png',
@@ -43037,6 +43285,7 @@ const PLAYER_SKINS = Object.freeze({
         // Nesta folha o menino foi desenhado bem menor: 224 dos 400px, contra
         // 347 na corrida. Sem normalizar, ele encolheria ao parar de andar.
         contentHeight: 224,
+        attachments: Object.freeze({ backpack: BACKPACK.idle }),
       }),
       // Levar dano e morrer sao duas leituras diferentes da MESMA folha, e
       // tratar as duas como uma so foi o erro das rodadas anteriores.
@@ -43055,6 +43304,7 @@ const PLAYER_SKINS = Object.freeze({
         // A referencia e o quadro mais baixo, onde ele esta apoiado.
         baseline: 381 / 400,
         contentHeight: 329,
+        attachments: Object.freeze({ backpack: BACKPACK.hurt }),
       }),
       // defeat: acabaram os coracoes, ou caiu nos espinhos. Nao ha recuperacao
       // para mostrar — ele nao se recompoe, ele volta do checkpoint. Entra
@@ -43069,6 +43319,7 @@ const PLAYER_SKINS = Object.freeze({
         holdFrame: 4,
         baseline: 381 / 400,
         contentHeight: 329,
+        attachments: Object.freeze({ backpack: BACKPACK.hurt }),
       }),
       // Repete durante os 3,4s entre chegar na raiz final e a proxima fase.
       celebrate: Object.freeze({
@@ -43077,6 +43328,7 @@ const PLAYER_SKINS = Object.freeze({
         fps: 6,
         baseline: 381 / 400,
         contentHeight: 337,
+        attachments: Object.freeze({ backpack: BACKPACK.celebrate }),
       }),
       // Quando as outras folhas chegarem, e so descomentar e ajustar frames:
       // idle:      { src: 'assets/miguelito/idle.png', frames: 4, fps: 6 },
@@ -43902,6 +44154,7 @@ const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");
 const { createMicrobeRenderer } = __require("src/render/microbes.js");
 const { createNecroticZone } = __require("src/render/necrotic-zone.js");
 const { createPlayerSprite } = __require("src/render/player-sprite.js");
+const { jetpackPose } = __require("src/render/player-equipment.js");
 const { resolvePlayerSkin } = __require("src/render/player-skins.js");
 const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");
 const { organismSprites } = __require("src/render/organism-sprites.js");
@@ -44446,7 +44699,11 @@ function createRenderer({
     if (!sprite?.draw(ctx, player, time, state.gameState)) drawAstronautBody(player);
 
     drawFungalAttachment(player, time);
-    drawJetpack(player, time);
+    // The WebGL bridge extracts the body into a later GPU pass. Keep equipment
+    // painted after that body too, rather than hiding its gauge behind the bag.
+    if (typeof ctx.__glPlayerEquipment === 'function') {
+      ctx.__glPlayerEquipment(target => drawJetpack(player, time, target));
+    } else drawJetpack(player, time, ctx);
 
     if (player.canPhosphateSolubilization) {
       ctx.shadowBlur = 16;
@@ -44473,7 +44730,7 @@ function createRenderer({
   // tamanho do personagem NÃO são tocados: é puramente visual.
   // Cápsula (retângulo de pontas arredondadas) desenhada com arcos. ctx.roundRect
   // resolveria em uma linha, mas não existe em todo navegador que o jogo suporta.
-  function capsulePath(x, y, w, h, r) {
+  function capsulePath(ctx, x, y, w, h, r) {
     const radius = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -44488,13 +44745,18 @@ function createRenderer({
     ctx.closePath();
   }
 
-  function drawJetpack(player, time) {
+  function drawJetpack(player, time, ctx) {
     if (!player.canJetpack) return;
     const energy = Math.max(0, Math.min(1, player.jetpackEnergy || 0));
-    // Sobre a mochila, um pouco acima do centro do corpo — no quadril o medidor
-    // ficava solto, sem parecer parte do equipamento.
-    const coreX = -13;
-    const coreY = -6;
+    // The last sprite frame supplies the bag's actual centre and scale. The
+    // player's facing/rotation already surrounds this drawing, so the capsule,
+    // nozzle and thrust remain attached when the character turns or changes pose.
+    const pose = jetpackPose(sprite?.attachment('backpack'));
+    ctx.save();
+    ctx.translate(pose.x, pose.y);
+    ctx.scale(pose.scale, pose.scale);
+    const coreX = 0;
+    const coreY = 0;
 
     // Medidor da mochila: uma cápsula de combustível, não um retângulo solto.
     // O nível sobe de baixo para cima e as marcas correspondem aos TETOS que as
@@ -44513,14 +44775,14 @@ function createRenderer({
 
     // Corpo escuro da cápsula (sem depender de roundRect, que nem todo browser
     // antigo expõe).
-    capsulePath(left, top, capsuleW, capsuleH, radius);
+    capsulePath(ctx, left, top, capsuleW, capsuleH, radius);
     ctx.fillStyle = 'rgba(4,26,24,.85)';
     ctx.fill();
 
     // Líquido: recorta pela cápsula e preenche a fração de baixo para cima.
     if (energy > 0) {
       ctx.save();
-      capsulePath(left + 1, innerTop, capsuleW - 2, innerH, radius - 1);
+      capsulePath(ctx, left + 1, innerTop, capsuleW - 2, innerH, radius - 1);
       ctx.clip();
       const filled = innerH * energy;
       const fillTop = innerTop + innerH - filled;
@@ -44547,7 +44809,7 @@ function createRenderer({
 
     // Contorno: acende junto com a carga.
     ctx.globalAlpha = .35 + energy * .5;
-    capsulePath(left, top, capsuleW, capsuleH, radius);
+    capsulePath(ctx, left, top, capsuleW, capsuleH, radius);
     ctx.strokeStyle = energy <= 0 ? '#4d7a70' : '#8ef0c6';
     ctx.lineWidth = 1.1;
     ctx.shadowColor = '#8ef0c6';
@@ -44573,7 +44835,7 @@ function createRenderer({
       const flicker = .78 + Math.sin(time * 38) * .22;
       const length = 16 * flicker;
       // O jato sai do BICO da cápsula, não de um ponto solto no corpo.
-      const nozzleY = top + capsuleH + 2;
+      const nozzleY = top + capsuleH + 2.6;
       const gradient = ctx.createLinearGradient(coreX, nozzleY, coreX, nozzleY + length);
       gradient.addColorStop(0, 'rgba(230,255,246,.98)');
       gradient.addColorStop(.35, 'rgba(112,229,214,.8)');
@@ -44611,7 +44873,8 @@ function createRenderer({
       ctx.lineWidth = 1.4;
       for (let index = 0; index < traces; index++) {
         const phase = (time * 1.6 + index / traces) % 1;
-        const y = 24 - phase * 26;
+        const groundY = (player.h / 2 - pose.y) / pose.scale;
+        const y = groundY * (1 - phase);
         ctx.globalAlpha = .12 + (1 - phase) * .5;
         ctx.beginPath();
         ctx.moveTo(coreX - 2 + Math.sin(phase * 6 + index) * 3, y);
@@ -44620,6 +44883,7 @@ function createRenderer({
       }
       ctx.restore();
     }
+    ctx.restore();
   }
 
   function drawAstronautBody(player) {
@@ -45418,6 +45682,7 @@ function createPlayerSprite(skin) {
   let lastSheet = null;
   let lastRequested = null;
   let lastDrawn = null;
+  let lastAttachments = {};
 
   // Um dt negativo (fase reiniciou, tempo voltou a zero) ou enorme (aba ficou
   // em segundo plano) nao pode empurrar o ciclo. Nos dois casos o certo e nao
@@ -45512,7 +45777,7 @@ function createPlayerSprite(skin) {
     lastRequested = stateFor(player, gameState);
     const sheet = resolve(lastRequested);
     lastDrawn = sheet?.name || null;
-    if (!sheet) { lastTime = time; return false; }
+    if (!sheet) { lastTime = time; lastAttachments = {}; return false; }
 
     // Trocar de animacao recomeca o ciclo dela. Sem isto uma folha que nao
     // repete — dash, dano — voltaria congelada no ultimo quadro da vez passada.
@@ -45554,16 +45819,29 @@ function createPlayerSprite(skin) {
     // desenho ja levanta o menino 53px do chao no quadro 3, de 400 de quadro.
     // O deslocamento sempre esteve na arte; o que faltava era ficar nele.
     const top = footY - drawHeight * baseline + offsetY;
+    const left = -drawWidth / 2 + offsetX;
+    lastAttachments = {};
+    for (const [name, poses] of Object.entries(sheet.attachments || {})) {
+      const pose = Array.isArray(poses) ? poses[index] : poses;
+      if (!pose) continue;
+      lastAttachments[name] = {
+        x: left + pose.x * drawWidth / frameWidth,
+        y: top + pose.y * drawHeight / frameHeight,
+        width: pose.width * drawWidth / frameWidth,
+        height: pose.height * drawHeight / frameHeight,
+      };
+    }
     ctx.drawImage(
       sheet.image,
       index * frameWidth, 0, frameWidth, frameHeight,
-      -drawWidth / 2 + offsetX, top, drawWidth, drawHeight,
+      left, top, drawWidth, drawHeight,
     );
     return true;
   }
 
   return {
     draw,
+    attachment(name) { return lastAttachments[name] ? { ...lastAttachments[name] } : null; },
     // Exposto para teste: a escolha de estado e regra de jogo (a chegada ganha
     // do dano) e merece ser verificada sem depender de canvas.
     stateFor,
@@ -45584,6 +45862,19 @@ function createPlayerSprite(skin) {
   };
 }
 Object.assign(__exports, { createPlayerSprite });
+},
+"src/render/player-equipment.js": (__exports, __require) => {
+// Coordinates are local to drawPlayer's translate/facing transform. Both the
+// equipment and the sprite therefore mirror together, without changing physics.
+function jetpackPose(attachment = null) {
+  const scale = attachment
+    ? Math.max(.1, Math.min(attachment.width / 10, attachment.height / 26.4))
+    : 1;
+  const x = attachment?.x ?? -13, y = attachment?.y ?? -6;
+  const width = 8 * scale, height = 19 * scale;
+  return { x, y, scale, width, height, nozzleY: y + height / 2 + 2.6 * scale };
+}
+Object.assign(__exports, { jetpackPose });
 },
 "src/render/rhizosphere-backdrop.js": (__exports, __require) => {
 const DEFAULT_SOURCE = 'assets/backgrounds/miguelito-rhizosphere.png';
@@ -46321,7 +46612,11 @@ function createRhizosphereParallax({
       viewportWidth,
       biologyMotion,
     ));
-    R('  fundo/particulas', () => drawParticles(ctx, camera, { width: viewportWidth, height: viewportHeight }));
+    // The depth renderer supplies its own dust and narrow illuminated core.
+    // Keep the Canvas dust only on targets without that presentation layer.
+    if (!ctx.__glDepthParticles) {
+      R('  fundo/particulas', () => drawParticles(ctx, camera, { width: viewportWidth, height: viewportHeight }));
+    }
     ctx.restore();
     stats.renderCount++;
   }

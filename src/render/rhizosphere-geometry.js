@@ -1047,8 +1047,8 @@ export function createRhizosphereGeometry({ state, painters }) {
 
   let architecture = { key: '', plants: [] };
 
-  function buildArchitecture(layout, platforms, seedOf) {
-    const key = Math.round(layout.surface) + '|' + platforms.map(p => Math.round(p.x) + ',' + Math.round(p.y)).join(';');
+  function buildArchitecture(layout, platforms, seedOf, organic = false) {
+    const key = (organic ? 'organic|' : '') + Math.round(layout.surface) + '|' + platforms.map(p => Math.round(p.x) + ',' + Math.round(p.y)).join(';');
     if (architecture.key === key) return architecture;
     const plants = layout.plants.map(plant => {
       const links = [];
@@ -1058,7 +1058,7 @@ export function createRhizosphereGeometry({ state, painters }) {
         links.push({ index, attachY: link.attachY, entry, band: link.band, blockCenters: [entry], blockWidths: [link.band * .72] });
       });
       const { roots } = growPlantRoots({
-        plant, surface: layout.surface, tipY: plant.tipY, links, platforms, mainWidth: MAIN_ROOT_WIDTH,
+        plant, surface: layout.surface, tipY: plant.tipY, links, platforms, mainWidth: MAIN_ROOT_WIDTH, organic,
       });
       for (const root of roots) {
         let minX = Infinity; let maxX = -Infinity; let minY = Infinity; let maxY = -Infinity;
@@ -1066,7 +1066,8 @@ export function createRhizosphereGeometry({ state, painters }) {
           minX = Math.min(minX, px); maxX = Math.max(maxX, px); minY = Math.min(minY, py); maxY = Math.max(maxY, py);
         }
         root.box = { minX, maxX, minY, maxY };
-        root.seed = hash2(Math.round(root.points[0][0]), Math.round(root.points[0][1]));
+        const textureOrigin = root.textureOrigin || root.points[0];
+        root.seed = hash2(Math.round(textureOrigin[0]), Math.round(textureOrigin[1]));
       }
       return { plant, roots };
     });
@@ -1094,7 +1095,8 @@ export function createRhizosphereGeometry({ state, painters }) {
     const inX = (left, right, margin = 100) => right >= view.left - margin && left <= view.right + margin;
     const layout = rootLayout(platforms);
     const { surface, plants, links } = layout;
-    const arch = buildArchitecture(layout, platforms, seedOf);
+    const organic = ctx.__glOrganicRoots === true;
+    const arch = buildArchitecture(layout, platforms, seedOf, organic);
     const time = state.time || 0;
 
     // Fases do desenho para o renderizador nativo (GPU): imagens de cada fase
@@ -1116,7 +1118,7 @@ export function createRhizosphereGeometry({ state, painters }) {
             : root.layer === 'link' ? LINK_ROOT_PALETTE : MUTED_ROOT_PALETTE;
           const fade = root.layer === 'link' ? .2 : .5;
           const pad = Math.max(...root.widths) + 14;
-          R('  terreno/raizes corpo (cache)', () => cached(ctx, `root:${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
+          R('  terreno/raizes corpo (cache)', () => cached(ctx, `root:${organic ? 'organic:' : ''}${root.seed}:${root.order}:${root.layer}:${root.linkIndex ?? ''}`, {
             x: box.minX - pad, y: box.minY - pad, w: box.maxX - box.minX + pad * 2, h: box.maxY - box.minY + pad * 2,
           }, g => drawRootTube(g, root, { palette, seed: root.seed, time: 0, fade, part: 'body' })));
           R('  terreno/pelos radiculares', () => drawRootTube(ctx, root, { palette, seed: root.seed, time, fade, part: 'hairs' }));

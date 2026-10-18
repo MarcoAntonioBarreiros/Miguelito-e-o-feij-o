@@ -11,6 +11,23 @@
 
 export const PLAYER_SKIN_STORAGE_KEY = 'miguelito:player-skin:v1';
 
+// Centres and extents of the red backpack, measured in each original 320x400
+// frame. The sheets use different scales and the bag moves with every pose;
+// equipment must follow that artwork, rather than the 32x48 collision box.
+const backpackFrames = frames => Object.freeze(frames.map(([x, y, width, height]) => (
+  Object.freeze({ x, y, width, height })
+)));
+const BACKPACK = Object.freeze({
+  idle: backpackFrames([[128, 278, 30, 60], [129, 280, 30, 60], [129, 280, 30, 60], [128, 277, 30, 60],
+    [129, 278, 30, 60], [129, 280, 30, 60], [130, 277, 30, 60], [131, 279, 30, 60]]),
+  run: backpackFrames([[119, 215, 44, 72], [116, 215, 44, 64], [106, 239, 40, 76], [113, 211, 40, 80],
+    [110, 233, 40, 76], [124, 231, 42, 62], [117, 235, 44, 62], [115, 224, 44, 66]]),
+  hurt: backpackFrames([[84, 233, 36, 78], [79, 224, 34, 58], [79, 224, 38, 62], [78, 227, 38, 56],
+    [66, 255, 38, 56], [80, 251, 34, 56], [77, 230, 38, 64], [82, 232, 38, 66]]),
+  celebrate: backpackFrames([[108, 239, 40, 78], [113, 228, 40, 68], [109, 207, 38, 70], [108, 210, 38, 70],
+    [101, 205, 38, 70], [96, 209, 38, 68], [92, 215, 40, 50], [108, 239, 40, 78]]),
+});
+
 export const PLAYER_SKINS = Object.freeze({
   astronaut: Object.freeze({
     id: 'astronaut',
@@ -51,6 +68,7 @@ export const PLAYER_SKINS = Object.freeze({
         // renderizarem do mesmo tamanho, apesar de a arte ter sido desenhada em
         // escalas diferentes.
         contentHeight: 347,
+        attachments: Object.freeze({ backpack: BACKPACK.run }),
       }),
       idle: Object.freeze({
         src: 'assets/miguelito/idle.png',
@@ -61,6 +79,7 @@ export const PLAYER_SKINS = Object.freeze({
         // Nesta folha o menino foi desenhado bem menor: 224 dos 400px, contra
         // 347 na corrida. Sem normalizar, ele encolheria ao parar de andar.
         contentHeight: 224,
+        attachments: Object.freeze({ backpack: BACKPACK.idle }),
       }),
       // Levar dano e morrer sao duas leituras diferentes da MESMA folha, e
       // tratar as duas como uma so foi o erro das rodadas anteriores.
@@ -79,6 +98,7 @@ export const PLAYER_SKINS = Object.freeze({
         // A referencia e o quadro mais baixo, onde ele esta apoiado.
         baseline: 381 / 400,
         contentHeight: 329,
+        attachments: Object.freeze({ backpack: BACKPACK.hurt }),
       }),
       // defeat: acabaram os coracoes, ou caiu nos espinhos. Nao ha recuperacao
       // para mostrar — ele nao se recompoe, ele volta do checkpoint. Entra
@@ -93,6 +113,7 @@ export const PLAYER_SKINS = Object.freeze({
         holdFrame: 4,
         baseline: 381 / 400,
         contentHeight: 329,
+        attachments: Object.freeze({ backpack: BACKPACK.hurt }),
       }),
       // Repete durante os 3,4s entre chegar na raiz final e a proxima fase.
       celebrate: Object.freeze({
@@ -101,6 +122,7 @@ export const PLAYER_SKINS = Object.freeze({
         fps: 6,
         baseline: 381 / 400,
         contentHeight: 337,
+        attachments: Object.freeze({ backpack: BACKPACK.celebrate }),
       }),
       // Quando as outras folhas chegarem, e so descomentar e ajustar frames:
       // idle:      { src: 'assets/miguelito/idle.png', frames: 4, fps: 6 },

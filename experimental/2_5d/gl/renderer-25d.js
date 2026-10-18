@@ -14,11 +14,13 @@
 // e as regras biologicas nao sabem que este arquivo existe.
 
 import * as THREE from '../vendor/three.bundle.min.js';
-import { createBridgeContext } from './ctx-bridge.js';
+import { createBridgeContext, paintEquipmentOverlay } from './ctx-bridge.js';
+import { writeSpritePlanePositions } from './sprite-plane.js';
 import { generateSpriteNormalMap, loadAuthoredNormal } from './sprite-normals.js';
 import { LIGHTING_GLSL, MAX_LIGHTS, createSharedUniforms } from './shading.js';
 import { createGrowthLayer, hashString } from './growth.js';
 import { createParticleField } from './particles.js';
+import { SHAFT_PROFILE_GLSL, shaftSourceY, visibleShafts } from './shaft-profile.js';
 import { createNativeLayer, createTextureCache, installCanvasVersions } from './native-layer.js';
 
 const FOV = 32;
@@ -248,22 +250,31 @@ void main() {
 // depois desfoque separavel: sem o serrilhado/bloco da primeira versao.
 const VOL_FRAG = /* glsl */`
 uniform sampler2D uOcc;
-uniform vec4 uShaft[2];   // xy: luz em uv, z: intensidade, w: ativo
+uniform vec4 uShaft[2];   // xy: fonte no mundo GL, z: intensidade, w: ativo
+uniform vec4 uCam;
 uniform vec3 uShaftColor;
 uniform float uTime;
 varying vec2 vUv;
+${SHAFT_PROFILE_GLSL}
 float ign(vec2 px) { return fract(52.9829189 * fract(dot(px, vec2(.06711056, .00583715)))); }
-float h1(float x) { return fract(sin(x * 127.1) * 43758.5453); }
-float noise1(float x) { float i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(h1(i), h1(i + 1.0), f); }
 vec3 rays(vec4 s) {
   if (s.w < .5) return vec3(0.0);
-  vec2 d = (s.xy - vUv);
+  vec2 world = shaftWorldPoint(vUv);
+  vec2 worldDelta = s.xy - world;
+  if (worldDelta.y <= 0.0) return vec3(0.0);
+  vec2 d = shaftReferenceDelta(worldDelta);
   const int N = 40;
-  vec2 stepv = d / float(N) * .95;
-  vec2 p = vUv + stepv * ign(gl_FragCoord.xy + fract(uTime * 7.0) * 37.0);
+  vec2 stepv = worldDelta / float(N) * .95;
+  vec2 p = world + stepv * ign(floor(world * .5) + fract(uTime * 7.0) * 37.0);
   float decay = 1.0, acc = 0.0, wsum = 0.0;
   for (int k = 0; k < N; k++) {
-    vec2 o = textureLod(uOcc, clamp(p, 0.0, 1.0), 1.0).rg;
+    vec2 uv = shaftUv(p);
+    // Outside the captured world we have no occlusion information. Replicating
+    // the screen edge creates a false shaft/occluder that changes with zoom.
+    vec2 o = vec2(0.0);
+    if (all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)))) {
+      o = textureLod(uOcc, uv, 1.0).rg;
+    }
     float open = 1.0 - clamp(o.r + o.g * .8, 0.0, 1.0);
     acc += open * decay;
     wsum += decay;
@@ -273,11 +284,9 @@ vec3 rays(vec4 s) {
   acc /= wsum;
   float dist = length(d * vec2(1.6, 1.0));
   float fall = exp(-dist * 1.6);
-  float cone = smoothstep(.8, .05, abs(d.x) * 1.4);
+  float cone = shaftCone(worldDelta);
   // fissuras: variacao angular larga e lenta (nada de listras finas)
-  float ang = atan(d.x, d.y);
-  float streak = noise1(ang * 24.0 + uTime * .04) * .65 + noise1(ang * 47.0 - uTime * .06) * .35;
-  streak = smoothstep(.45, .95, streak);
+  float streak = shaftStreak(worldDelta, uTime);
   return uShaftColor * acc * acc * s.z * fall * cone * (.08 + 1.5 * streak);
 }
 void main() { gl_FragColor = vec4(rays(uShaft[0]) + rays(uShaft[1]), 1.0); }`;
@@ -484,13 +493,11 @@ function createSpriteBatch(image, shared, maxTexture) {
   return {
     mesh, occMesh,
     begin() { count = 0; },
-    add(s, toWorld, z) {
+    add(s, toWorld) {
       if (count >= cap) return;
       const W = image.naturalWidth, H = image.naturalHeight;
-      const p0 = toWorld(s.p0), pu = toWorld(s.pu), pv = toWorld(s.pv);
-      const p1 = { x: pu.x + pv.x - p0.x, y: pu.y + pv.y - p0.y };
       const v = count * 4;
-      pos.set([p0.x, p0.y, z, pu.x, pu.y, z, pv.x, pv.y, z, p1.x, p1.y, z], v * 3);
+      const { p0, pu, pv } = writeSpritePlanePositions(pos, v * 3, s, toWorld);
       const u0 = s.src.x / W, u1 = (s.src.x + s.src.w) / W;
       const v0 = 1 - s.src.y / H, v1 = 1 - (s.src.y + s.src.h) / H;
       uv.set([u0, v0, u1, v0, u0, v1, u1, v1], v * 2);
@@ -613,6 +620,9 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   const maxTexture = Math.min(8192, renderer.capabilities.maxTextureSize);
 
   const shared = createSharedUniforms();
+  // Particles share the volume's angular ridges, excluding its broad halo.
+  // The contrast mask lives in the same world coordinates at every depth.
+  shared.uBeamCore = { value: [new THREE.Vector4(), new THREE.Vector4()] };
   const camera = new THREE.PerspectiveCamera(FOV, 16 / 9, 10, 8000);
   const scene = new THREE.Scene();
   const occScene = new THREE.Scene();
@@ -636,7 +646,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   const settings = {
     lighting: true, shadows: true, volumetric: true, bloom: true, growth: true,
     particles: true, grade: true, sprites: true,
-    particlesBeam: (() => { try { return localStorage.getItem('miguelito:25d:particles-beam') === '1'; } catch (_) { return false; } })(),
+    particlesBeam: (() => { try { return localStorage.getItem('miguelito:25d:particles-core') !== '0'; } catch (_) { return true; } })(),
     // Modo nativo: fundo e terreno desenhados pela GPU (imagens do jogo viram
     // texturas que sobem uma vez); so o vetor passa pelo Canvas 2D.
     native: /[?&]nativo=1/.test(location.search) || (() => { try { return localStorage.getItem('miguelito:25d:native') === '1'; } catch (_) { return false; } })(),
@@ -670,6 +680,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     const bg = make('bg', {}, .5);
     const terrain = make('terrain');
     const fx = make('fx');
+    const equipment = make('equipment');
     const captured = [];
     // o canvas do jogo tem o mesmo tamanho das camadas (escala 1)
     const textTarget = () => (textOverlay ? realCtx : null);
@@ -681,7 +692,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     // e sua aura). Nao passa pela iluminacao: sob a luz da cena a aura virava
     // um tubo solido e a raiz parecia mais grossa.
     const glow = make('glow');
-    return { bg, terrain, fx, glow, captured, terrainBridge, fxBridge };
+    fxBridge.ctx.__glPlayerEquipment = paint => paintEquipmentOverlay(fx.ctx, equipment.ctx, paint);
+    return { bg, terrain, fx, glow, equipment, captured, terrainBridge, fxBridge };
   }
 
   function layerMaterial(tex, o) {
@@ -718,6 +730,17 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   const growth = [];
   let particles = [];
   const batches = new Map();
+  const goalOrbitQueue = [];
+  const goalOrbitColors = new Map(['#d6afff', '#8ff2c1'].map(hex => [hex, new THREE.Color(hex)]));
+  function captureGoalOrbit(particle) {
+    // Capture the actual Canvas transform, including goal-system's camera
+    // offset. No second orbit/camera model is introduced in the renderer.
+    const m = this.getTransform();
+    const x = m.a * particle.x + m.c * particle.y + m.e;
+    const y = m.b * particle.x + m.d * particle.y + m.f;
+    if (x < -80 || y < -80 || x > W + 80 || y > H + 80) return;
+    goalOrbitQueue.push({ ...particle, x, y, radius: particle.radius * Math.hypot(m.a, m.b) });
+  }
   let growthSeed = null;
   let shaftXs = [];
   let camAnchor = null;
@@ -769,6 +792,11 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     meshes.fx = screenMesh(layerMaterial(layers.fx.tex, {
       depth: 0, lit: .6, volume: .35, detail: .2, gain: 3, lodVolume: 2.0, wrap: .7, spec: .3, rim: .5, glow: .7,
     }));
+    meshes.equipment = screenMesh(layerMaterial(layers.equipment.tex, {
+      depth: 0, lit: .6, volume: .35, detail: .2, gain: 3, lodVolume: 2.0, wrap: .7, spec: .3, rim: .5, glow: .7,
+    }));
+    meshes.equipment.renderOrder = 52;
+    scene.add(meshes.equipment);
     meshes.glow = screenMesh(new THREE.ShaderMaterial({
       uniforms: { uMap: { value: layers.glow.tex } },
       vertexShader: SCREEN_VERT,
@@ -809,6 +837,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   const volPass = new THREE.FullScreenQuad(new THREE.ShaderMaterial({
     uniforms: {
       uOcc: { value: null }, uShaft: { value: [new THREE.Vector4(), new THREE.Vector4()] },
+      uCam: shared.uCam,
       uShaftColor: { value: new THREE.Color(0.55, 0.85, 1.0) }, uTime: { value: 0 },
     },
     vertexShader: SCREEN_VERT, fragmentShader: VOL_FRAG,
@@ -837,10 +866,14 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   for (const p of particles) scene.add(p.points);
   const emitters = createEmitters();
   scene.add(emitters.points);
+  // Separate fixed budget: these fourteen goal indicators cannot displace
+  // biological emitters or disappear when their shared batch is full.
+  const goalEmitters = createEmitters(28);
+  scene.add(goalEmitters.points);
 
   // ---- crescimento organico ---------------------------------------------
   function setupGrowth(level) {
-    for (const g of growth) scene.remove(g.mesh);
+    for (const g of growth) { scene.remove(g.mesh); g.dispose?.(); }
     growth.length = 0;
     const seed = hashString(String(level?.seed ?? level?.phaseTitle ?? 'rizosfera'));
     growthSeed = seed;
@@ -937,27 +970,21 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     if (daylight > .02) pushLight(camCX - visW * .3, camCY + visH * 1.4, 1400, 9000, 1, .95, .86, .72 * daylight, 0, 200);
     const ys = (level.platforms || []).map(p => p.y).filter(Number.isFinite);
     const topY = ys.length ? Math.min(...ys) : 200;
-    // Feixes da superficie: so os que estao na tela ou chegando nela. Cada um
-    // entra e sai da tela gradualmente (peso pela distancia) e mantem o MESMO
+    // Feixes da superficie: alcance em unidades do mundo, independente do
+    // zoom. Cada um mantem o MESMO
     // canal de sombra/volume enquanto existir (indice par/impar): antes o canal
     // ia para "o mais proximo", e quando dois trocavam de posicao o feixe piscava.
-    const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-    const reachX = visW * 1.15;
-    const shafts = shaftXs
-      .map((x, idx) => ({ x, idx, d: Math.abs(x - camCX) }))
-      .filter(s => s.d < reachX)
-      .sort((a, b) => a.d - b.d)
-      .slice(0, 2);
-    // a fonte fica sempre acima do quadro: o feixe entra pela borda de cima,
-    // quase paralelo, em vez de nascer de um ponto visivel (estrela falsa)
-    // fonte fixa no mundo (nao acompanha a camera): antes ela subia e descia
-    // com o pulo e o angulo/intensidade dos feixes mudavam
-    const sourceY = Math.min(topY - 1300, -camCY - visH * .5 - 300);
+    const shafts = visibleShafts(shaftXs, camCX);
+    // Fonte fixa acima do solo, inclusive quando o zoom revela mais do teto.
+    // Desloca-la para fora do quadro mudava distancia, angulo e intensidade.
+    const sourceY = shaftSourceY(topY);
     shafts.forEach(s => {
       const flick = .95 + .05 * Math.sin(time * .7 + s.x);
-      const w = smooth(reachX, visW * .5, s.d) * (1 - daylight);
+      // Culling decides which sources to draw; camera zoom never scales their
+      // radiance. The same world point keeps the same source and brightness.
+      const w = 1 - daylight;
       if (w <= .001) return;
-      pushLight(s.x, -sourceY, 320, 2300, .55, .82, 1.0, 1.9 * flick * w, (s.idx % 2) + 1, 100, true, 's' + s.idx);
+      pushLight(s.x, sourceY, 320, 2300, .55, .82, 1.0, 1.9 * flick * w, (s.idx % 2) + 1, 100, true, 's' + s.idx);
       lights[lights.length - 1].weight = w;
     });
     if (player) {
@@ -1070,7 +1097,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   // ---- quadro -----------------------------------------------------------
   let lastLevel = null;
   let lastTime = performance.now();
-  const stats = { ms: 0, sprites: 0, lights: 0, segments: 0, fps: 0 };
+  const stats = { ms: 0, sprites: 0, lights: 0, segments: 0, fps: 0, goalSparks: 0 };
   let fpsAcc = 0, fpsN = 0;
 
   function toWorldFactory(zoom, camX, camY) {
@@ -1099,30 +1126,40 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     realCtx.restore();
 
     // 1. o jogo desenha nas tres camadas
-    for (const L of settings.native ? [layers.fx, layers.glow] : [layers.bg, layers.terrain, layers.fx, layers.glow]) {
+    for (const L of settings.native ? [layers.fx, layers.glow, layers.equipment] : [layers.bg, layers.terrain, layers.fx, layers.glow, layers.equipment]) {
       L.ctx.setTransform(1, 0, 0, 1, 0, 0);
       L.ctx.clearRect(0, 0, L.canvas.width, L.canvas.height);
       if (L.scale !== 1) L.ctx.setTransform(L.scale, 0, 0, L.scale, 0, 0);
     }
     layers.captured.length = 0;
+    layers.terrainBridge.beginFrame();
+    layers.fxBridge.beginFrame();
+    goalOrbitQueue.length = 0;
+    layers.glow.ctx.__glSoftFinalRootGlow = true;
+    layers.glow.ctx.__glGoalOrbitParticle = captureGoalOrbit;
+    layers.bg.ctx.__glDepthParticles = true;
+    layers.terrainBridge.ctx.__glOrganicRoots = true;
     layers.terrainBridge.setCapture(settings.sprites);
     layers.fxBridge.setCapture(settings.sprites);
     const native = settings.native;
     if (native) {
       if (!rt.terrainNative) rebuildTargets();
       ensureNative();
+      nativeBg.ctx.__glDepthParticles = true;
+      nativeTerrain.ctx.__glOrganicRoots = true;
       nativeBg.begin(); nativeTerrain.begin();
       nativeTerrain.setCapture(settings.sprites);
       textures.resetStats();
       drawLayers({ bg: nativeBg.ctx, terrain: nativeTerrain.ctx, fx: layers.fxBridge.ctx, glow: layers.glow.ctx });
       layers.fx.tex.needsUpdate = true;
       layers.glow.tex.needsUpdate = true;
+      layers.equipment.tex.needsUpdate = true;
       stats.nativeBg = nativeBg.render(rt.bgNative);
       stats.nativeTerrain = nativeTerrain.render(rt.terrainNative);
       stats.uploads = textures.uploads;
     } else {
       drawLayers({ bg: layers.bg.ctx, terrain: layers.terrainBridge.ctx, fx: layers.fxBridge.ctx, glow: layers.glow.ctx });
-      for (const L of [layers.bg, layers.terrain, layers.fx, layers.glow]) L.tex.needsUpdate = true;
+      for (const L of [layers.bg, layers.terrain, layers.fx, layers.glow, layers.equipment]) L.tex.needsUpdate = true;
     }
     const bgTex = native ? rt.bgNative.texture : layers.bg.tex;
     const terrainTex = native ? rt.terrainNative.texture : layers.terrain.tex;
@@ -1158,7 +1195,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
         scene.add(b.mesh);
         occScene.add(b.occMesh);
       }
-      b.add(s, toWorld, .5 + s.order * .001);
+      b.add(s, toWorld);
     }
     for (const b of batches.values()) b.end();
 
@@ -1182,6 +1219,28 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
 
     // 5. luzes
     const active = collectLights(time, cx, cy, visW, visH);
+    // A tinted halo + tiny bright core
+    // share each original orbit and use the same individual twinkle as dust.
+    goalEmitters.begin();
+    for (const p of goalOrbitQueue) {
+      const wp = toWorld(p);
+      const radius = p.radius / zoom;
+      const tint = goalOrbitColors.get(p.color);
+      const sparkle = p.twinkle;
+      const peak = Math.max(0, Math.min(1, (sparkle - .9) / .32));
+      const energy = p.alpha * sparkle * tuning.emission;
+      goalEmitters.add(wp.x, wp.y, tint.r, tint.g, tint.b, energy * .34, radius * 6);
+      goalEmitters.add(wp.x, wp.y, .62 + tint.r * .38, .62 + tint.g * .38, .62 + tint.b * .38,
+        energy * (1.2 + peak * 2.5), radius * 1.5);
+    }
+    goalEmitters.end(GH / visH);
+    stats.goalSparks = goalOrbitQueue.length;
+    for (const core of shared.uBeamCore.value) core.set(0, 0, 0, 0);
+    for (const L of active) {
+      if (L.spot && (L.slot === 1 || L.slot === 2)) {
+        shared.uBeamCore.value[L.slot - 1].set(L.x, L.y, 48, L.weight ?? 1);
+      }
+    }
     emitters.end(GH / visH);
     // Na superficie o fundo repete partes do primeiro plano (planta, ceu):
     // desfoque e nevoa ali viravam um halo azul em volta das folhas.
@@ -1239,15 +1298,16 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       const shaftU = volPass.material.uniforms.uShaft.value;
       shaftU[0].set(0, 0, 0, 0); shaftU[1].set(0, 0, 0, 0);
       active.filter(L => L.slot === 1 || L.slot === 2).forEach(L => {
-        const [u, v] = toUv(L.x, L.y);
-        shaftU[L.slot - 1].set(u, v, .75 * (L.weight ?? 1), 1);
+        shaftU[L.slot - 1].set(L.x, L.y, .75 * (L.weight ?? 1), 1);
       });
       volPass.material.uniforms.uOcc.value = rt.occ.texture;
       volPass.material.uniforms.uTime.value = time;
       renderer.setRenderTarget(rt.vol);
       volPass.render(renderer);
       // desfoque separavel em dois passes (meia resolucao)
-      const bw = 1.5 / (GW >> 1), bh = 1.5 / (GH >> 1);
+      // Fixed world radius: blur must not spread farther across the soil when
+      // zooming out either. The Gaussian weights still sum to one.
+      const bw = 2.5 / visW, bh = 2.5 / visH;
       blurPass.material.uniforms.uSrc.value = rt.vol.texture;
       blurPass.material.uniforms.uDir.value.set(bw, 0);
       renderer.setRenderTarget(rt.volB);
@@ -1326,7 +1386,7 @@ const PANEL_ITEMS = [
   ['sprites', 'Sprites com normal map'],
   ['growth', 'Raízes de fundo crescendo'],
   ['particles', 'Partículas em profundidade'],
-  ['particlesBeam', 'Partículas só nos feixes'],
+  ['particlesBeam', 'Brilho só no núcleo do feixe'],
   ['bloom', 'Bloom'],
   ['grade', 'Correção de cor e vinheta'],
 ];
@@ -1453,7 +1513,7 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
     box.addEventListener('change', () => {
       renderer25D.settings[key] = box.checked;
       if (key === 'native') { try { localStorage.setItem('miguelito:25d:native', box.checked ? '1' : '0'); } catch (_) {} }
-      if (key === 'particlesBeam') { try { localStorage.setItem('miguelito:25d:particles-beam', box.checked ? '1' : '0'); } catch (_) {} }
+      if (key === 'particlesBeam') { try { localStorage.setItem('miguelito:25d:particles-core', box.checked ? '1' : '0'); } catch (_) {} }
       box.blur();
     });
     row.append(box, document.createTextNode(label));
