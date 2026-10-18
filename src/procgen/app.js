@@ -76,6 +76,8 @@ import {
 import { createPhaseFinale, phaseFinaleSeconds } from './phase-finale.js';
 import { rhizosphereSurfaceY } from '../render/rhizosphere-geometry.js';
 import { GEOMETRY_ENABLED } from '../render/geometry-preference.js';
+import { vfxParticles } from '../render/vfx-particles.js';
+import { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } from '../render/final-root-visual.js';
 import { celebrationCycleSeconds, resolvePlayerSkin } from '../render/player-skins.js';
 import {
   advanceCampaignPhase,
@@ -797,6 +799,9 @@ window.miguelitoViewport = responsiveCanvas;
 // que ainda nao existia — superficie, ceu e o feijoeiro nascendo do colo da raiz
 // final compartilhada. Miguelito continua sendo desenhado pelo renderizador
 // normal, no lugar onde terminou a fase.
+// Etapa da cinematica em que a comemoracao de particulas ja foi disparada.
+let finaleVfxMode = 'idle';
+window.miguelitoVfx = vfxParticles;
 const phaseFinale = createPhaseFinale({
   state: sim.state,
   cameraView,
@@ -1367,6 +1372,8 @@ function initGame({ announce = false } = {}) {
   ralstoniaControl.reset();
   pathogenArrival.reset();
   phaseFinale.reset();
+  vfxParticles.clear();
+  finaleVfxMode = 'idle';
   sim.state.campaign = campaign;
   // Nao reinicia audio: `setPhase` compara a faixa mapeada com a que ja toca e
   // so faz crossfade quando muda. Reset da campanha nao recria contexto nem
@@ -1948,7 +1955,10 @@ function drawWorldLayers25D(layer) {
     // raiz-objetivo e sua aura: camada sem iluminacao (fonte de luz, como no 2D)
     if (layer.glow) {
       layerSwitch.target(layer.glow);
-      withCamera(layer.glow, glow => sim.goal.render(glow));
+      withCamera(layer.glow, glow => { sim.goal.render(glow); drawEventParticles(glow); });
+    } else {
+      layerSwitch.target(layer.fx);
+      withCamera(layer.fx, drawEventParticles);
     }
   } finally {
     layerSwitch.target(null);
@@ -2067,6 +2077,39 @@ window.miguelito25DMode = value => {
 if (render25DRequested) setVfx(true, { save: false, quiet: true });
 syncVfxUi();
 
+// ---- Particulas de evento (vfx-particles.js) --------------------------------
+// Inoculacao e vigor vem da simulacao; a comemoracao do fim da fase e
+// disparada aqui, pelas etapas da cinematica.
+
+function drawEventParticles(target) {
+  vfxParticles.render(target, sim.state.cameraX || 0, sim.state.visibleWorldWidth || canvas.width);
+}
+
+function finalRootPoints(goal) {
+  if (!goal) return [];
+  const gx = Number(goal.x) || 0;
+  const anchorY = (Number(goal.y) || 0) + FINAL_ROOT_COLLAR_OFFSET;
+  const collarY = Number.isFinite(goal.collarY) ? goal.collarY : anchorY;
+  const pts = FINAL_ROOT_MAIN_LOCAL.map(p => ({ x: gx + p.x * FINAL_ROOT_SCALE, y: anchorY + p.y * FINAL_ROOT_SCALE })).reverse();
+  // trecho reto ate o colo quando a superficie subiu
+  for (let y = anchorY - 60; y > collarY; y -= 60) pts.push({ x: gx, y });
+  if (collarY < anchorY) pts.push({ x: gx, y: collarY });
+  return pts;
+}
+
+function updateEventParticles(dt, frozen) {
+  const mode = phaseFinale.mode;
+  if (mode !== finaleVfxMode) {
+    const player = sim.state.player;
+    if (finaleVfxMode === 'idle' && (mode === 'celebrate' || mode === 'rootPulse') && player) {
+      vfxParticles.celebrate(player.x + player.w / 2, player.y + player.h / 2, phaseFinale.celebrationSeconds);
+    }
+    if (mode === 'rootPulse') vfxParticles.rootWave(finalRootPoints(sim.state.level?.goal), .9);
+    finaleVfxMode = mode;
+  }
+  if (!frozen) vfxParticles.update(dt);
+}
+
 function renderWorld() {
   if (renderer25D && render25DActive) {
     renderer25D.renderFrame(drawWorldLayers25D);
@@ -2128,6 +2171,7 @@ function renderWorld() {
     // Luz por ultimo no mundo: escurece o fundo, recorta as fontes de luz e
     // acrescenta feixes e primeiro plano. So visual; nao le nada da fisica.
     lighting?.render(ctx, { finaleActive: phaseFinale.active });
+    drawEventParticles(ctx);
     platformVisuals.renderLabel(ctx);
   } finally {
     ctx.restore();
@@ -2172,6 +2216,7 @@ function renderWorldProfiled() {
       for (const [name, sys] of subs) P.run(name, () => sys.render(ctx));
     }
     if (!skip.luz) P.run('iluminacao 2D (escurecer + recortes + feixes)', () => lighting?.render(ctx, { finaleActive: phaseFinale.active }));
+    P.run('particulas de efeito (inoculacao, comemoracao)', () => drawEventParticles(ctx));
     P.run('rotulos', () => platformVisuals.renderLabel(ctx));
   } finally {
     ctx.restore();
@@ -2227,6 +2272,7 @@ function loop(now) {
     // a cinematica roda pelo relogio real do quadro e nao depende de o mundo ter
     // avancado (um cartao de tutorial aberto congela o jogo, nao a cena).
     phaseFinale.update(dt);
+    updateEventParticles(dt, pauseMenu.isOpen || Boolean(tutorialManager?.isOpen));
     renderWorld();
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);
