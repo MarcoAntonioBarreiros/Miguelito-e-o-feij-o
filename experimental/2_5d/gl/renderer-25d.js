@@ -25,7 +25,7 @@ const FOV = 32;
 // Padrao = valores calibrados pelo Marco no painel (17/10/2026), mais o
 // gradiente de luz dentro do solo (novo).
 export const DEFAULT_TUNING = {
-  exposure: 1.1, ambient: 1.4, lights: 1.95, spriteLight: .55, rim: 1.9, soil: 1, bloom: 1.15, shafts: 2.1, fog: .6,
+  exposure: 1.1, ambient: 1.4, lights: 1.95, spriteLight: .55, rim: 1.9, soil: 1, bloom: 1.15, emission: 1, shafts: 2.1, fog: .6,
 };
 const TAU = Math.PI * 2;
 
@@ -100,7 +100,15 @@ void main() {
   // o que o jogo desenhou como brilho (exsudato, halo, aura) continua emitindo
   float lum = dot(albedo, vec3(.2126, .7152, .0722));
   float sat = max(albedo.r, max(albedo.g, albedo.b)) - min(albedo.r, min(albedo.g, albedo.b));
-  col += albedo * uGlow * smoothstep(.45, .85, lum) * smoothstep(.15, .45, sat);
+  // So emite o que e PEQUENO e mais claro que a vizinhanca (particula, nucleo
+  // de exsudato, faisca do checkpoint). Halos grandes e translucidos, raizes
+  // destacadas e topo de plataforma nao emitem: eram eles que, somados ao
+  // bloom, lavavam os sprites em volta.
+  vec4 around = textureLod(uMap, vUv, 4.5);
+  float aroundLum = dot(around.rgb, vec3(.2126, .7152, .0722));
+  float pointLike = smoothstep(.12, .45, lum * c.a - aroundLum);
+  float solid = smoothstep(.5, .9, c.a);
+  col += albedo * uGlow * smoothstep(.45, .85, lum) * smoothstep(.15, .45, sat) * pointLike * solid;
   if (uDepth < 0.0) col = applyFog(col, uDepth);
   gl_FragColor = vec4(col, c.a);
 }`;
@@ -819,7 +827,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     // compressao da perspectiva.
     const far = createGrowthLayer({ shared, z: -340, seed: seed ^ 0x51, dim: .28, desat: .55, follow: .35, opacity: 1, maxSegments: 14000, lightGain: .5 });
     // intermediaria (a mais clara): menos raizes, mais curtas e com menos laterais
-    const mid = createGrowthLayer({ shared, z: -130, seed: seed ^ 0x77, dim: .5, desat: .35, follow: .18, opacity: 1, maxSegments: 6000, lightGain: .78, maxGeneration: 1, branchSpacing: 2.2 });
+    const mid = createGrowthLayer({ shared, z: -130, seed: seed ^ 0x77, dim: .4, desat: .35, follow: .18, opacity: 1, maxSegments: 6000, lightGain: .78, maxGeneration: 1, branchSpacing: 2.2 });
     far.mesh.renderOrder = 5; mid.mesh.renderOrder = 12;
     // Sem hifas decorativas: a micorriza que aparece e a do proprio jogo
     // (simulacao). Hifas so de enfeite confundiam com a mecanica.
@@ -914,7 +922,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     const sourceY = Math.min(topY - 700, camCY * -1 - visH * .5 - visH * .45);
     shafts.forEach(s => {
       const flick = .95 + .05 * Math.sin(time * .7 + s.x);
-      const w = smooth(reachX, visW * .5, s.d);
+      const w = smooth(reachX, visW * .5, s.d) * (1 - daylight);
       if (w <= .001) return;
       pushLight(s.x, -sourceY, 320, 2300, .55, .82, 1.0, 1.9 * flick * w, (s.idx % 2) + 1, 100, true, 's' + s.idx);
       lights[lights.length - 1].weight = w;
@@ -935,7 +943,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     if (!stickyEntry || (nearestEx && nearestEx !== stickyExudate && ex[0].d < stickyEntry.d * .7)) stickyExudate = nearestEx;
     ex.forEach(o => {
       const f = .85 + .15 * Math.sin(time * 3 + o.e.x * .01);
-      pushLight(o.e.x, -o.e.y, 45, 280, .7, 1.0, .42, 1.3 * f, o.e === stickyExudate ? 4 : 0, 50, false, 'e' + Math.round(o.e.x) + ':' + Math.round(o.e.y));
+      pushLight(o.e.x, -o.e.y, 45, 260, .7, 1.0, .42, 1.0 * f, o.e === stickyExudate ? 4 : 0, 50, false, 'e' + Math.round(o.e.x) + ':' + Math.round(o.e.y));
     });
     // depositos de Fe3+: emitem (laranja), proporcional ao estoque
     const iron = (level.ironDeposits || [])
@@ -1129,7 +1137,10 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     visPass.material.uniforms.uOcc.value = rt.occ.texture;
     visPass.material.uniforms.uAspect.value = W / H;
     visPass.material.uniforms.uTime.value = time;
-    visPass.material.uniforms.uCast.value = settings.shadows ? 1 : 0;
+    // na superficie (dia) nao ha sombra projetada dos feixes: ela virava uma
+    // copia escura da planta deslocada no ceu ("visao dupla")
+    visPass.material.uniforms.uCast.value = settings.shadows && daylight < .3 ? 1 : 0;
+    meshes.fx.material.uniforms.uGlow.value = .9 * tuning.emission;
     visPass.material.uniforms.uSoil.value = 9 * tuning.soil;
     renderer.setRenderTarget(rt.vis);
     visPass.render(renderer);
@@ -1238,7 +1249,8 @@ const PANEL_SLIDERS = [
   ['spriteLight', 'Luz nos sprites', 0, 2, .05],
   ['rim', 'Contorno do terreno', 0, 4, .05],
   ['soil', 'Luz entrando no solo', 0, 3, .05],
-  ['bloom', 'Bloom', 0, 2.5, .05],
+  ['bloom', 'Bloom (espalhamento)', 0, 2.5, .05],
+  ['emission', 'Brilho próprio (partículas, núcleos)', 0, 2.5, .05],
   ['shafts', 'Feixes', 0, 4, .05],
   ['fog', 'Névoa de profundidade', 0, 3, .05],
 ];
