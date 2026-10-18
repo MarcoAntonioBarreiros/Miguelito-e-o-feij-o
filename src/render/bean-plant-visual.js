@@ -136,28 +136,58 @@ function drawLeaflet(ctx, length, maxWidth, colors) {
   ctx.restore();
 }
 
-// Folha trifoliada: pecíolo curvado pelo `droop` e três folíolos — terminal
-// maior à frente, dois laterais abertos. É a folha que identifica o feijoeiro.
-function drawTrifoliate(ctx, x, y, angle, scale, colors, droop) {
+// Folha trifoliada do feijoeiro (revisada com a Luciana): pecíolo longo saindo
+// do nó para o lado e um pouco para cima, curvando para baixo na ponta; ali
+// nascem os dois folíolos laterais, abertos quase em ângulo reto com a raque e
+// um pouco caídos; a raque continua e leva o folíolo terminal, maior, na
+// direção do pecíolo. `angle` é absoluto (0 = para a direita, y para baixo) e
+// `side` diz para que lado do caule a folha abre.
+function drawTrifoliate(ctx, x, y, angle, scale, colors, droop, side = 1) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
   ctx.scale(scale, scale);
-  const petiole = 58;
+  const petiole = 70;
+  const bend = (6 + droop * 14) * side;   // ponta do pecíolo cai (no referencial girado)
   ctx.fillStyle = colors.dark;
-  ctx.beginPath(); ctx.ellipse(0, 0, 5, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, 0, 4.5, 3.2, 0, 0, Math.PI * 2); ctx.fill();   // pulvino
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.quadraticCurveTo(petiole * 0.5, droop * 12, petiole, droop * 4);
-  ctx.strokeStyle = colors.dark; ctx.lineWidth = 4.2; ctx.lineCap = 'round'; ctx.stroke();
-  ctx.strokeStyle = colors.stem; ctx.lineWidth = 2.6; ctx.stroke();
+  ctx.quadraticCurveTo(petiole * 0.55, -bend * 0.4, petiole, bend);
+  ctx.strokeStyle = colors.dark; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
+  ctx.strokeStyle = colors.stem; ctx.lineWidth = 2.4; ctx.stroke();
   ctx.save();
-  ctx.translate(petiole, droop * 4);
-  ctx.save(); ctx.translate(14, 0); ctx.rotate(droop * 0.15); drawLeaflet(ctx, 78, 44, colors); ctx.restore();
-  ctx.save(); ctx.rotate(-0.68 + droop * 0.25); drawLeaflet(ctx, 62, 35, colors); ctx.restore();
-  ctx.save(); ctx.rotate(0.68 + droop * 0.25); drawLeaflet(ctx, 62, 35, colors); ctx.restore();
+  ctx.translate(petiole, bend);
+  // direção da raque na ponta do pecíolo (já inclinada para baixo)
+  const rachis = Math.atan2(bend * 1.4, petiole * 0.45);
+  ctx.rotate(rachis * 0.6);
+  // laterais: curtos peciólulos, quase perpendiculares, caídos para o lado de baixo
+  const down = side;   // no referencial girado, "para baixo" é +y quando side=1
+  ctx.save(); ctx.rotate(-1.15 + droop * 0.3 * down); drawLeaflet(ctx, 56, 30, colors); ctx.restore();
+  ctx.save(); ctx.rotate(1.15 + droop * 0.3 * down); drawLeaflet(ctx, 56, 30, colors); ctx.restore();
+  // raque + folíolo terminal
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, 0);
+  ctx.strokeStyle = colors.stem; ctx.lineWidth = 2; ctx.stroke();
+  ctx.save(); ctx.translate(18, 0); ctx.rotate(droop * 0.2 * down); drawLeaflet(ctx, 72, 40, colors); ctx.restore();
   ctx.restore();
   ctx.restore();
+}
+
+// Folhas primárias: o par de folhas SIMPLES e opostas, em forma de coração, no
+// primeiro nó acima dos cotilédones — só o feijoeiro jovem/sadio as mantém.
+function drawPrimaryLeaves(ctx, x, y, scale, colors) {
+  for (const side of [-1, 1]) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.rotate(side > 0 ? -0.35 : Math.PI + 0.35);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(24, 0);
+    ctx.strokeStyle = colors.stem; ctx.lineWidth = 2.2; ctx.stroke();
+    ctx.translate(24, 0);
+    ctx.rotate(0.35 * side * -1 + 0.35);
+    drawLeaflet(ctx, 50, 34, colors);
+    ctx.restore();
+  }
 }
 
 // Cotilédones: as duas reservas do grão, no primeiro nó. Sem eles a planta lê
@@ -165,7 +195,9 @@ function drawTrifoliate(ctx, x, y, angle, scale, colors, droop) {
 function drawCotyledonPair(ctx, x, y, angle, scale, colors) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(angle);
+  // eixo local x atravessa o caule: um cotilédone de cada lado (antes ficavam
+  // empilhados ao longo do caule e pareciam vagens na base)
+  ctx.rotate(angle + Math.PI / 2);
   ctx.scale(scale, scale);
   for (const side of [-1, 1]) {
     ctx.save();
@@ -207,28 +239,34 @@ function drawFlowerCluster(ctx, x, y, angle, scale) {
   ctx.restore();
 }
 
-// Vagem: pendente, curva, presa lateralmente ao nó por um pedúnculo curto.
-function drawPod(ctx, x, y, angle, scale) {
+// Vagem: pendente — pende do nó para BAIXO por um pedúnculo curto, longa e
+// estreita, levemente curva; `tilt` (radianos) só inclina para fora do caule.
+function drawPod(ctx, x, y, tilt, scale, length = 92, out = 0) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(angle + Math.PI / 2.1);
   ctx.scale(scale, scale);
-  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 12);
-  ctx.strokeStyle = '#2c5417'; ctx.lineWidth = 2.5; ctx.stroke();
-  ctx.translate(0, 12);
+  // pedúnculo do racemo: sai do nó para fora do caule antes de a vagem pender
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(out * 0.6, -4, out, 10);
+  ctx.strokeStyle = '#2c5417'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.stroke();
+  ctx.translate(out, 10);
+  ctx.rotate(tilt);
+  const L = length;
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.bezierCurveTo(16, 25, 18, 65, 5, 100);
-  ctx.bezierCurveTo(0, 106, -3, 106, -4, 100);
-  ctx.bezierCurveTo(6, 65, 3, 25, 0, 0);
-  const grad = ctx.createLinearGradient(-5, 0, 20, 100);
+  ctx.bezierCurveTo(9, L * 0.25, 10, L * 0.65, 3, L);
+  ctx.bezierCurveTo(1, L + 5, -2, L + 5, -3, L - 2);
+  ctx.bezierCurveTo(2, L * 0.65, 0, L * 0.25, -4, 0);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(-5, 0, 12, L);
   grad.addColorStop(0, '#80c955'); grad.addColorStop(0.5, '#56a132'); grad.addColorStop(1, '#376b20');
   ctx.fillStyle = grad; ctx.fill();
-  ctx.strokeStyle = '#234513'; ctx.lineWidth = 2; ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.bezierCurveTo(16, 25, 18, 65, 5, 100);
-  ctx.strokeStyle = '#9ee376'; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.strokeStyle = '#234513'; ctx.lineWidth = 1.6; ctx.stroke();
+  // grãos marcando a vagem
+  ctx.fillStyle = 'rgba(160, 220, 110, .55)';
+  for (let k = 1; k <= 4; k++) {
+    const t = k / 5;
+    ctx.beginPath(); ctx.ellipse(3 + Math.sin(t * Math.PI) * 4, L * t, 2.6, 5, 0, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -301,29 +339,35 @@ export function drawBeanPlant(ctx, {
     const t = index / (config.nodes + 0.8);
     if (t > reveal) break;
     const pos = bezierPoint(t, p0, p1, p2, p3);
-    const angle = bezierAngle(t, p0, p1, p2, p3);
     const side = index % 2 === 0 ? 1 : -1;
     ctx.fillStyle = config.colors.dark;
-    ctx.beginPath(); ctx.arc(pos.x, pos.y, 8 * config.size, 0, Math.PI * 2); ctx.fill();
-    drawTrifoliate(
-      ctx, pos.x, pos.y, angle + side * 0.85,
-      config.size * (0.85 + t * 0.35), config.colors, config.droop,
-    );
+    ctx.beginPath(); ctx.arc(pos.x, pos.y, 6 * config.size, 0, Math.PI * 2); ctx.fill();
+    // primeiro nó: folhas primárias (simples, opostas); depois, trifólios alternos
+    if (index === 1 && plantState > 0) {
+      drawPrimaryLeaves(ctx, pos.x, pos.y, config.size * 0.9, config.colors);
+      continue;
+    }
+    // pecíolo sai ~35° acima da horizontal, para o lado do nó (alterno)
+    const petioleAngle = side > 0 ? -0.6 : Math.PI + 0.6;
+    drawTrifoliate(ctx, pos.x, pos.y, petioleAngle, config.size * (0.85 + t * 0.3), config.colors, config.droop, side);
     if (!config.flowers || index < 2) continue;
+    // racemo axilar: flores no lado oposto ao pecíolo, vagens pendentes abaixo
+    const flowerAngle = side > 0 ? Math.PI + 0.9 : -0.9;
     if (plantState === 1 && index % 2 === 0) {
-      drawFlowerCluster(ctx, pos.x, pos.y, angle - side * 0.5, config.size * 1.25);
-      drawPod(ctx, pos.x, pos.y + 10, angle + side * 0.3, config.size * 0.95);
+      drawFlowerCluster(ctx, pos.x, pos.y, flowerAngle, config.size * 1.1);
+      drawPod(ctx, pos.x, pos.y + 4, side * 0.12, config.size, 92, -side * 30);
     } else if (plantState === 2) {
-      drawFlowerCluster(ctx, pos.x, pos.y, angle - side * 0.6, config.size * 1.35);
-      drawPod(ctx, pos.x, pos.y + 8, angle + side * 0.4, config.size * 1.2);
-      if (index > 2) drawPod(ctx, pos.x - 12, pos.y + 16, angle - side * 0.3, config.size * 1.05);
+      drawFlowerCluster(ctx, pos.x, pos.y, flowerAngle, config.size * 1.15);
+      drawPod(ctx, pos.x, pos.y + 4, side * 0.1, config.size * 1.05, 92, -side * 30);
+      if (index > 2) drawPod(ctx, pos.x, pos.y + 6, side * 0.32, config.size * 0.95, 84, -side * 44);
     }
   }
 
+  // ápice: trifólio jovem ainda se abrindo, voltado para cima
   if (reveal >= 0.999) {
     drawTrifoliate(
-      ctx, p3.x, p3.y, bezierAngle(1, p0, p1, p2, p3) - Math.PI / 2,
-      config.size * 1.3, config.colors, config.droop,
+      ctx, p3.x, p3.y, -Math.PI / 2 + 0.35,
+      config.size * 0.75, config.colors, 0, 1,
     );
   }
 
