@@ -250,60 +250,55 @@ void main() {
 // Meia resolucao, 40 passos com jitter de ruido de gradiente intercalado e
 // depois desfoque separavel: sem o serrilhado/bloco da primeira versao.
 const VOL_FRAG = /* glsl */`
-// Luz volumetrica PRESA ao feixe do jogo. A forma (onde nasce, inclinacao,
-// largura que abre para baixo, plataforma onde para) e a mesma do 2D original;
-// dentro dela: densidade que some ao longo do comprimento, fissuras paralelas
-// ao feixe que se mexem devagar, um nucleo mais claro e sombra do que estiver
-// entre o ponto e a luz (bacterias, bordas de plataforma).
 uniform sampler2D uOcc;
-uniform vec4 uBeamA[4];   // x no topo, yTop, inclinacao, largura (mundo)
-uniform vec4 uBeamB[4];   // y onde a luz comeca, y fim (plataforma), yBottom, intensidade (0 = off)
-uniform vec4 uCamV;       // camX, camY, larguraVisivel, alturaVisivel (mundo)
+uniform vec4 uShaft[2];   // xy: luz em uv, z: intensidade, w: ativo
 uniform vec3 uShaftColor;
 uniform float uTime;
+// Molde: o formato do feixe do jogo (2D) limita onde os raios aparecem.
+uniform vec4 uBeamA[2];   // por canal: x no topo, yTop, inclinacao, largura (mundo)
+uniform vec4 uBeamB[2];   // y onde a luz comeca (sob o teto), y fim (plataforma), yBottom, ativo
+uniform vec4 uCamV;       // camX, camY, larguraVisivel, alturaVisivel (mundo)
 varying vec2 vUv;
+float ign(vec2 px) { return fract(52.9829189 * fract(dot(px, vec2(.06711056, .00583715)))); }
 float h1(float x) { return fract(sin(x * 127.1) * 43758.5453); }
 float noise1(float x) { float i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(h1(i), h1(i + 1.0), f); }
-float ign(vec2 px) { return fract(52.9829189 * fract(dot(px, vec2(.06711056, .00583715)))); }
-void main() {
-  vec2 w = vec2(uCamV.x + vUv.x * uCamV.z, uCamV.y + (1.0 - vUv.y) * uCamV.w);
-  vec3 sum = vec3(0.0);
-  for (int k = 0; k < 4; k++) {
-    vec4 A = uBeamA[k]; vec4 B = uBeamB[k];
-    if (B.w <= 0.0) continue;
-    float span = max(1.0, B.z - A.y);
-    float u = clamp((w.y - A.y) / span, 0.0, 1.0);
-    float center = A.x + (w.y - A.y) * A.z;
-    float halfW = A.w * (.30 + u * .48);
-    float across = (w.x - center) / halfW;              // -1..1 dentro do feixe
-    float edge = 1.0 - smoothstep(.55, 1.1, abs(across));
-    if (edge <= 0.0) continue;
-    // ao longo: entra suave sob o teto e some antes da plataforma
-    float len = max(1.0, B.y - B.x);
-    float t = clamp((w.y - B.x) / len, 0.0, 1.0);
-    float along = smoothstep(0.0, .06, t) * (1.0 - smoothstep(.55, 1.0, t)) * step(w.y, B.y);
-    if (along <= 0.0) continue;
-    // fissuras paralelas ao feixe (coordenada transversal) e nucleo
-    float fiss = noise1(across * 5.5 + A.x * .01 + uTime * .05) * .6
-               + noise1(across * 13.0 - uTime * .08 + 7.0) * .4;
-    fiss = smoothstep(.3, .9, fiss);
-    float core = 1.0 - smoothstep(0.0, .45, abs(across));
-    float dens = edge * along * (.22 + .5 * fiss + .35 * core) * .55;
-    // sombra: anda em direcao a luz (subindo pela linha do feixe)
-    float trans = 1.0;
-    float jit = ign(gl_FragCoord.xy + fract(uTime * 5.0) * 31.0);
-    for (int i = 0; i < 14; i++) {
-      float dy = (float(i) + jit) * 16.0;
-      vec2 q = vec2(w.x - dy * A.z, w.y - dy);
-      if (q.y < B.x) break;
-      vec2 quv = vec2((q.x - uCamV.x) / uCamV.z, 1.0 - (q.y - uCamV.y) / uCamV.w);
-      if (quv.x < 0.0 || quv.x > 1.0 || quv.y < 0.0 || quv.y > 1.0) break;
-      vec2 o = textureLod(uOcc, quv, 1.0).rg;
-      trans *= 1.0 - clamp(o.r + o.g * .8, 0.0, 1.0) * .22;
-    }
-    sum += uShaftColor * dens * trans * B.w;
+vec3 rays(vec4 s) {
+  if (s.w < .5) return vec3(0.0);
+  vec2 d = (s.xy - vUv);
+  const int N = 40;
+  vec2 stepv = d / float(N) * .95;
+  vec2 p = vUv + stepv * ign(gl_FragCoord.xy + fract(uTime * 7.0) * 37.0);
+  float decay = 1.0, acc = 0.0, wsum = 0.0;
+  for (int k = 0; k < N; k++) {
+    vec2 o = textureLod(uOcc, clamp(p, 0.0, 1.0), 1.0).rg;
+    float open = 1.0 - clamp(o.r + o.g * .8, 0.0, 1.0);
+    acc += open * decay;
+    wsum += decay;
+    decay *= .97;
+    p += stepv;
   }
-  gl_FragColor = vec4(sum, 1.0);
+  acc /= wsum;
+  float dist = length(d * vec2(1.6, 1.0));
+  float fall = exp(-dist * 1.6);
+  float cone = smoothstep(.8, .05, abs(d.x) * 1.4);
+  // fissuras: variacao angular larga e lenta (nada de listras finas)
+  float ang = atan(d.x, d.y);
+  float streak = noise1(ang * 24.0 + uTime * .04) * .65 + noise1(ang * 47.0 - uTime * .06) * .35;
+  streak = smoothstep(.45, .95, streak);
+  return uShaftColor * acc * acc * s.z * fall * cone * (.08 + 1.5 * streak);
+}
+float beamMask(vec4 A, vec4 B) {
+  if (B.w < .5) return 0.0;
+  vec2 w = vec2(uCamV.x + vUv.x * uCamV.z, uCamV.y + (1.0 - vUv.y) * uCamV.w);
+  float u = clamp((w.y - A.y) / max(1.0, B.z - A.y), 0.0, 1.0);
+  float halfW = A.w * (.30 + u * .48);
+  float across = 1.0 - smoothstep(.75, 1.3, abs(w.x - (A.x + (w.y - A.y) * A.z)) / halfW);
+  float along = smoothstep(B.x, B.x + 40.0, w.y) * (1.0 - smoothstep(B.y - 40.0, B.y, w.y));
+  return across * along;
+}
+void main() {
+  gl_FragColor = vec4(rays(uShaft[0]) * beamMask(uBeamA[0], uBeamB[0])
+                    + rays(uShaft[1]) * beamMask(uBeamA[1], uBeamB[1]), 1.0);
 }`;
 
 const BLUR_FRAG = /* glsl */`
@@ -850,9 +845,9 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   }));
   const volPass = new THREE.FullScreenQuad(new THREE.ShaderMaterial({
     uniforms: {
-      uOcc: { value: null },
-      uBeamA: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
-      uBeamB: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
+      uOcc: { value: null }, uShaft: { value: [new THREE.Vector4(), new THREE.Vector4()] },
+      uBeamA: { value: [new THREE.Vector4(), new THREE.Vector4()] },
+      uBeamB: { value: [new THREE.Vector4(), new THREE.Vector4()] },
       uCamV: { value: new THREE.Vector4() },
       uShaftColor: { value: new THREE.Color(0.55, 0.85, 1.0) }, uTime: { value: 0 },
     },
@@ -1003,8 +998,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       const flick = .95 + .05 * Math.sin(time * .7 + g.x);
       const w = smooth(reachX, visW * .5, o.d) * (1 - daylight);
       if (w <= .001) return;
-      // fonte no prolongamento da linha do feixe, bem acima
-      const sy = g.yTop - 900;
+      // fonte na mesma altura de antes, sobre o prolongamento da linha do feixe
+      const sy = Math.min(topY - 1300, -camCY - visH * .5 - 300);
       const sx = g.x + (sy - g.yTop) * g.slant;
       pushLight(sx, -sy, 320, 2600, .55, .82, 1.0, 1.9 * flick * w * (g.strength || 1), (o.idx % 2) + 1, 100, true, 's' + o.idx);
       lights[lights.length - 1].weight = w;
@@ -1305,15 +1300,21 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     meshes.beam.visible = false;
     meshes.vol.visible = settings.volumetric && settings.lighting && daylight < .99;
     if (meshes.vol.visible) {
+      // original (raios a partir da fonte de cada canal)
+      const shaftU = volPass.material.uniforms.uShaft.value;
+      shaftU[0].set(0, 0, 0, 0); shaftU[1].set(0, 0, 0, 0);
+      active.filter(L => L.slot === 1 || L.slot === 2).forEach(L => {
+        const [u, v] = toUv(L.x, L.y);
+        shaftU[L.slot - 1].set(u, v, .75 * (L.weight ?? 1), 1);
+      });
+      // molde de cada canal: o feixe do jogo que gerou aquela luz
       const BA = volPass.material.uniforms.uBeamA.value, BB = volPass.material.uniforms.uBeamB.value;
-      for (let k = 0; k < 4; k++) {
-        const o = visibleShafts[k];
-        if (!o) { BB[k].w = 0; continue; }
+      BB[0].w = 0; BB[1].w = 0;
+      for (const o of visibleShafts) {
+        const k = o.idx % 2;
         const g = o.g;
         BA[k].set(g.x, g.yTop, g.slant, g.w);
-        // intensidade do feixe acompanha a luz dele (entra/sai devagar)
-        const L = lights.find(l => l.id === 's' + o.idx);
-        BB[k].set(g.litTop, g.yEnd, g.yBottom, (g.strength || 1) * (L ? (L.weight ?? 1) : 0));
+        BB[k].set(g.litTop, g.yEnd, g.yBottom, 1);
       }
       volPass.material.uniforms.uCamV.value.set(camX, camY, visW, visH);
       volPass.material.uniforms.uOcc.value = rt.occ.texture;
