@@ -33,7 +33,7 @@ html = html.replace(/<script type="module" src="\.\/src\/procgen\/app\.js[^"]*">
   window.MIGUELITO_RENDER_25D_DEFAULT = true;
   try { if (!localStorage.getItem('miguelito:player-skin:v1')) localStorage.setItem('miguelito:player-skin:v1', 'miguelito'); } catch (_) {}
   </script>
-  <script type="module" src="./game-25d.bundle.js"></script>`);
+  <script type="module" src="./game-25d.bundle.js?v=${Date.now().toString(36)}"></script>`);
 html = html.replace(/<title>[^<]*<\/title>/, '<title>Miguelito 2,5D</title>');
 // --artifact: sem as tags de documento (a pagina publicada ganha o esqueleto na hora)
 if (process.argv.includes('--artifact')) {

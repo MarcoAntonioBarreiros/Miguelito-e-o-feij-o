@@ -96,7 +96,11 @@ void main() {
     rim *= sky;
   }
   vec3 lit = albedo * (uAmbient * ao + light) + rim * albedo * uRim;
-  vec3 col = mix(albedo * uBrightness, lit, uLit * uLightingOn);
+  // O que e translucido (halo de inoculacao, aura, nevoa desenhada pelo jogo)
+  // recebe so a luz da cena, como no 2D original, onde a escuridao cobria os
+  // halos. Antes 40% dele passava sem luz nenhuma e o halo verde dominava a tela.
+  float litAmount = mix(1.0, uLit, smoothstep(.5, .9, c.a));
+  vec3 col = mix(albedo * uBrightness, lit, litAmount * uLightingOn);
   // o que o jogo desenhou como brilho (exsudato, halo, aura) continua emitindo
   float lum = dot(albedo, vec3(.2126, .7152, .0722));
   float sat = max(albedo.r, max(albedo.g, albedo.b)) - min(albedo.r, min(albedo.g, albedo.b));
@@ -1116,6 +1120,14 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
     meshes.bg.material.uniforms.uDepth.value = -420 * (1 - daylight) - 1;
     meshes.terrain.material.uniforms.uRim.value = tuning.rim * (1 - .85 * daylight);
     meshes.terrain.material.uniforms.uSky.value = tuning.soil * (1 - .7 * daylight);
+    // Na superficie o ceu esta na mesma camada que a planta: o relevo tirado da
+    // luminancia inclinava as normais do ceu em volta de cada folha e fazia um
+    // halo escuro ("sombra"). De dia o relevo vem so da forma, nao da cor.
+    meshes.terrain.material.uniforms.uDetail.value = .35 * (1 - daylight);
+    // Na superficie o ceu esta na mesma camada que a planta: o relevo tirado da
+    // luminancia inclinava as normais do ceu em volta de cada folha e fazia um
+    // halo escuro ("sombra"). De dia o relevo vem so da forma, nao da cor.
+    meshes.terrain.material.uniforms.uDetail.value = .35 * (1 - daylight);
     const toUv = (x, y) => [ (x - camX) / visW, 1 - ((-y) - camY) / visH ];
 
     // 6. oclusao (terreno + sprites) em meia resolucao
