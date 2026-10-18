@@ -22,6 +22,8 @@ uniform float uDrift;
 uniform float uSelf;
 uniform float uPixelScale;
 uniform float uBeam;     // 1 = so aparece dentro dos feixes (poeira no raio de luz)
+uniform vec4 uBeamA[4];  // feixes do jogo em mundo: x no topo, yTop, inclinacao, largura
+uniform vec4 uBeamB[4];  // yInicioDaLuz, yFim (plataforma), yBottom, ativo
 varying vec3 vCol;
 varying float vFade;
 void main() {
@@ -55,12 +57,20 @@ void main() {
       float cy = L.y / max(length(L.xy), 1e-3);
       float cone = smoothstep(.80, .985, cy);
       beam += uLightCol[i].rgb * att * cone * shadowFor(uLightCol[i].w, suv);
-      // faixa visivel do feixe: a fonte fica muito acima, entao o cone cobre a
-      // tela toda; o que se ve e uma coluna em volta do x da luz que alarga
-      // devagar para baixo
-      float beamHalf = 130.0 + max(0.0, L.y) * .08;
-      float dx = abs(L.x) / beamHalf;
-      inBeam = max(inBeam, exp(-dx * dx) * step(.01, uLightCol[i].r + uLightCol[i].g));
+    }
+    // dentro do feixe = dentro do MESMO trapezio que o jogo desenha (ponto da
+    // tela levado ao plano do jogo), da luz do teto ate a plataforma que o para
+    vec2 wpos = vec2(uCam.x + suv.x * uCam.z, uCam.y + (1.0 - suv.y) * uCam.w);
+    for (int k = 0; k < 4; k++) {
+      if (uBeamB[k].w < .5) continue;
+      vec4 A = uBeamA[k]; vec4 B = uBeamB[k];
+      float span = max(1.0, B.z - A.y);
+      float u = clamp((wpos.y - A.y) / span, 0.0, 1.0);
+      float center = A.x + (wpos.y - A.y) * A.z;
+      float halfW = A.w * (.30 + u * .48);
+      float across = 1.0 - smoothstep(.7, 1.15, abs(wpos.x - center) / halfW);
+      float along = smoothstep(B.x, B.x + 40.0, wpos.y) * (1.0 - smoothstep(B.y - 30.0, B.y, wpos.y));
+      inBeam = max(inBeam, across * along);
     }
     // esporos (camada com brilho proprio) ficam poucos e discretos fora do feixe
     float keep = step(.55, aSeed.w);
@@ -70,6 +80,10 @@ void main() {
     vec3 outside = mix(vec3(lum), c, .35) * .16 * step(.62, aSeed.w);
     c = mix(outside, c, smoothstep(.15, .7, inBeam));
   }
+  // profundidade: as do fundo esmaecem (mesmo cintilando); as do plano do
+  // personagem e da frente sao as mais vivas
+  float nearness = smoothstep(-620.0, -30.0, p.z);
+  c *= mix(.18, 1.0, nearness * nearness);
   vCol = applyFog(c, p.z) * (0.55 + 0.45 * sin(uTime * (1.0 + aSeed.w * 2.0) + aSeed.w * 30.0));
   float s = uSize * (0.5 + aSeed.w) * uPixelScale / max(1.0, -mv.z);
   gl_PointSize = clamp(s, 1.0, 26.0);
@@ -107,6 +121,8 @@ export function createParticleField({ shared, count, zMin, depth, size, tint, dr
       uSelf: { value: self },
       uPixelScale: { value: 1000 },
       uBeam: { value: 0 },
+      uBeamA: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
+      uBeamB: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,
@@ -122,6 +138,15 @@ export function createParticleField({ shared, count, zMin, depth, size, tint, dr
   return {
     points,
     setBeamOnly(on) { material.uniforms.uBeam.value = on ? 1 : 0; },
+    setBeams(list) {
+      const A = material.uniforms.uBeamA.value, B = material.uniforms.uBeamB.value;
+      for (let k = 0; k < 4; k++) {
+        const g = list[k];
+        if (!g) { B[k].w = 0; continue; }
+        A[k].set(g.x, g.yTop, g.slant, g.w);
+        B[k].set(g.litTop, g.yEnd, g.yBottom, 1);
+      }
+    },
     update(camera, viewportHeight) {
       material.uniforms.uCenter.value.set(camera.position.x, camera.position.y, 0);
       // tamanho em pixels na distancia 1: altura da tela / (2 tan(fov/2))
