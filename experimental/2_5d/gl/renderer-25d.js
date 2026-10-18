@@ -114,7 +114,11 @@ void main() {
   float solid = smoothstep(.5, .9, c.a);
   col += albedo * uGlow * smoothstep(.45, .85, lum) * smoothstep(.15, .45, sat) * pointLike * solid;
   if (uDepth < 0.0) col = applyFog(col, uDepth);
-  gl_FragColor = vec4(col, c.a);
+  // Halos translucidos desenhados pelo jogo (nuvem de exsudato, difusao da
+  // colonia) terminam num circulo/elipse: sem a escuridao do 2D por cima, essa
+  // borda aparecia recortada. A cauda do alfa cai mais devagar ate zero.
+  float tail = mix(smoothstep(0.0, .3, c.a), 1.0, smoothstep(.5, .9, c.a));
+  gl_FragColor = vec4(col, c.a * tail);
 }`;
 
 const SPRITE_VERT = /* glsl */`
@@ -569,7 +573,12 @@ function createEmitters(max = 32) {
 
 // ---------------------------------------------------------------- renderizador
 
-export function createRenderer25D({ mainCanvas, state, getAgents = () => null, quality = 'high' }) {
+const COLONY_GLOW = {
+  bacillus: [.44, .9, .84], azospirillum: [.45, .91, .87], rhizobium: [.78, .65, 1.0],
+  pseudomonas: [.55, .72, 1.0], myco: [.84, .69, 1.0],
+};
+
+export function createRenderer25D({ mainCanvas, state, getAgents = () => null, getColonies = () => null, quality = 'high' }) {
   const realCtx = mainCanvas.getContext('2d');
   // O canvas WebGL vai para a pagina, ATRAS do canvas do jogo, com o mesmo
   // enquadramento CSS. A primeira versao copiava o quadro da GPU para o canvas
@@ -959,6 +968,18 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, q
       pushLight(d.x, -d.y, 30, 220, 1.0, .58, .26, (.9 + .8 * ratio) * pulse, 0, 45, false, 'i' + Math.round(d.x));
       // nucleo emissivo: so o bloom o espalha (desliga junto com o bloom)
       if (settings.bloom) emitters.add(d.x, -d.y, 1.0, .55, .22, (.4 + .5 * ratio) * pulse * Math.min(1.6, tuning.bloom), (d.radius || 14) * 2.4);
+    }
+    // Colonias estabelecidas (o "checkpoint" do Bacillus e dos outros
+    // inoculantes): brilho proprio em HDR, como o ferro. O bloom o espalha com
+    // a forca que estiver no controle "Brilho proprio", independente do bloom
+    // global — assim exsudato e ferro ficam como estao e a colonia ganha halo.
+    for (const col of getColonies() || []) {
+      if (!Number.isFinite(col.x) || Math.abs(col.x - camCX) > visW) continue;
+      const [r, g, b] = COLONY_GLOW[col.type] || COLONY_GLOW.bacillus;
+      const vigor = col.dormant ? .2 : Math.max(.3, Number(col.vigor) || .6);
+      const breath = .9 + .1 * Math.sin(time * 1.3 + col.x * .01);
+      pushLight(col.x, -(col.y - 26), 40, 230, r, g, b, .75 * vigor * breath, 0, 35, false, 'k' + Math.round(col.x));
+      if (settings.bloom) emitters.add(col.x, -(col.y - 26), r, g, b, .55 * vigor * breath * tuning.emission, 70);
     }
     for (const c of level.checkpoints || []) {
       if (!Number.isFinite(c.x) || Math.abs(c.x - camCX) > visW) continue;
