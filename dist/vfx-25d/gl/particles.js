@@ -42,6 +42,7 @@ void main() {
     // So os feixes (luzes com raio negativo = foco) acendem a particula. O cone
     // aqui e um pouco mais largo que o da luz: algumas escapam pela borda.
     vec3 beam = vec3(0.0);
+    float inBeam = 0.0;
     for (int i = 0; i < MAX_LIGHTS; i++) {
       if (i >= uLightCount) break;
       vec4 lp = uLightPos[i];
@@ -54,10 +55,20 @@ void main() {
       float cy = L.y / max(length(L.xy), 1e-3);
       float cone = smoothstep(.80, .985, cy);
       beam += uLightCol[i].rgb * att * cone * shadowFor(uLightCol[i].w, suv);
+      // faixa visivel do feixe: a fonte fica muito acima, entao o cone cobre a
+      // tela toda; o que se ve e uma coluna em volta do x da luz que alarga
+      // devagar para baixo
+      float half = 130.0 + max(0.0, L.y) * .08;
+      float dx = abs(L.x) / half;
+      inBeam = max(inBeam, exp(-dx * dx) * step(.01, uLightCol[i].r + uLightCol[i].g));
     }
     // esporos (camada com brilho proprio) ficam poucos e discretos fora do feixe
     float keep = step(.55, aSeed.w);
     c = uTint * (beam * 2.2 + uSelf * .35 * keep);
+    // fora do feixe: mais apagada, mais fria/cinza e mais rala (no feixe nada muda)
+    float lum = dot(c, vec3(.2126, .7152, .0722));
+    vec3 outside = mix(vec3(lum), c, .35) * .16 * step(.62, aSeed.w);
+    c = mix(outside, c, smoothstep(.15, .7, inBeam));
   }
   vCol = applyFog(c, p.z) * (0.55 + 0.45 * sin(uTime * (1.0 + aSeed.w * 2.0) + aSeed.w * 30.0));
   float s = uSize * (0.5 + aSeed.w) * uPixelScale / max(1.0, -mv.z);
