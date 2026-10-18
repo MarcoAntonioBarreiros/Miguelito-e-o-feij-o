@@ -91,7 +91,12 @@ vec3 accumulateLightAt(vec3 wp, vec3 N, float wrap, float spec, vec2 suv, out ve
     float edge = 1.0 - clamp(N.z, 0.0, 1.0);
     vec2 nxy = N.xy / max(length(N.xy), 1e-4);
     vec2 lxy = l.xy / max(length(l.xy), 1e-4);
-    rim += c * edge * edge * clamp(dot(nxy, lxy), 0.0, 1.0);
+    // so luz que vem de CIMA desenha o contorno: lanterna ou exsudato abaixo
+    // de uma raiz acendiam a borda de baixo dela, e a cena ficava com luz
+    // vindo de dois lados (blocos e raizes iluminados por cima, algumas
+    // laterais por baixo)
+    float fromAbove = smoothstep(-.15, .45, l.y);
+    rim += c * edge * edge * clamp(dot(nxy, lxy), 0.0, 1.0) * fromAbove;
   }
   // varias luzes somadas nao estouram: a soma satura suave perto de 1,3
   // (uma luz sozinha continua quase linear)
