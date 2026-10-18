@@ -78,6 +78,8 @@ import { createPhaseFinale, phaseFinaleSeconds } from './phase-finale.js';
 import { rhizosphereSurfaceY } from '../render/rhizosphere-geometry.js';
 import { GEOMETRY_ENABLED } from '../render/geometry-preference.js';
 import { vfxParticles } from '../render/vfx-particles.js';
+import { drawThreatRadar } from '../render/threat-radar.js';
+const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
 import { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } from '../render/final-root-visual.js';
 import { celebrationCycleSeconds, resolvePlayerSkin } from '../render/player-skins.js';
 import {
@@ -2417,6 +2419,10 @@ function loop(now) {
     renderWorld();
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);
+    // Radar de Ralstonia e nematoide (borda da tela; so alvos fora do quadro)
+    if (!phaseFinale.active) {
+      drawThreatRadar(ctx, sim.state, canvas, now / 1000, Boolean(coarsePointerQuery?.matches));
+    }
     const finaleVisible = phaseFinale.active;
     if (finaleVisible !== hudHiddenByFinale) {
       hudHiddenByFinale = finaleVisible;
