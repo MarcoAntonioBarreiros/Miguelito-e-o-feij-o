@@ -677,7 +677,11 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     const fxBridge = createBridgeContext(fx.ctx, s => captured.push(s), { textTarget });
     nativeBg?.dispose(); nativeTerrain?.dispose();
     nativeBg = nativeTerrain = null;
-    return { bg, terrain, fx, captured, terrainBridge, fxBridge };
+    // Camada de brilho: o que o jogo desenha como fonte de luz (a raiz-objetivo
+    // e sua aura). Nao passa pela iluminacao: sob a luz da cena a aura virava
+    // um tubo solido e a raiz parecia mais grossa.
+    const glow = make('glow');
+    return { bg, terrain, fx, glow, captured, terrainBridge, fxBridge };
   }
 
   function layerMaterial(tex, o) {
@@ -765,6 +769,15 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     meshes.fx = screenMesh(layerMaterial(layers.fx.tex, {
       depth: 0, lit: .6, volume: .35, detail: .2, gain: 3, lodVolume: 2.0, wrap: .7, spec: .3, rim: .5, glow: .7,
     }));
+    meshes.glow = screenMesh(new THREE.ShaderMaterial({
+      uniforms: { uMap: { value: layers.glow.tex } },
+      vertexShader: SCREEN_VERT,
+      fragmentShader: `uniform sampler2D uMap; varying vec2 vUv;
+        void main() { vec4 c = texture2D(uMap, vUv); if (c.a < .003) discard; gl_FragColor = c; }`,
+      transparent: true, depthTest: false, depthWrite: false,
+    }));
+    meshes.glow.renderOrder = 42;
+    scene.add(meshes.glow);
     meshes.vol = screenMesh(new THREE.ShaderMaterial({
       uniforms: { uVol: { value: null }, uStrength: { value: 1 } },
       vertexShader: SCREEN_VERT, fragmentShader: VOL_COMPOSITE_FRAG,
@@ -1095,7 +1108,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     realCtx.restore();
 
     // 1. o jogo desenha nas tres camadas
-    for (const L of settings.native ? [layers.fx] : [layers.bg, layers.terrain, layers.fx]) {
+    for (const L of settings.native ? [layers.fx, layers.glow] : [layers.bg, layers.terrain, layers.fx, layers.glow]) {
       L.ctx.setTransform(1, 0, 0, 1, 0, 0);
       L.ctx.clearRect(0, 0, L.canvas.width, L.canvas.height);
       if (L.scale !== 1) L.ctx.setTransform(L.scale, 0, 0, L.scale, 0, 0);
@@ -1110,14 +1123,15 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       nativeBg.begin(); nativeTerrain.begin();
       nativeTerrain.setCapture(settings.sprites);
       textures.resetStats();
-      drawLayers({ bg: nativeBg.ctx, terrain: nativeTerrain.ctx, fx: layers.fxBridge.ctx });
+      drawLayers({ bg: nativeBg.ctx, terrain: nativeTerrain.ctx, fx: layers.fxBridge.ctx, glow: layers.glow.ctx });
       layers.fx.tex.needsUpdate = true;
+      layers.glow.tex.needsUpdate = true;
       stats.nativeBg = nativeBg.render(rt.bgNative);
       stats.nativeTerrain = nativeTerrain.render(rt.terrainNative);
       stats.uploads = textures.uploads;
     } else {
-      drawLayers({ bg: layers.bg.ctx, terrain: layers.terrainBridge.ctx, fx: layers.fxBridge.ctx });
-      for (const L of [layers.bg, layers.terrain, layers.fx]) L.tex.needsUpdate = true;
+      drawLayers({ bg: layers.bg.ctx, terrain: layers.terrainBridge.ctx, fx: layers.fxBridge.ctx, glow: layers.glow.ctx });
+      for (const L of [layers.bg, layers.terrain, layers.fx, layers.glow]) L.tex.needsUpdate = true;
     }
     const bgTex = native ? rt.bgNative.texture : layers.bg.tex;
     const terrainTex = native ? rt.terrainNative.texture : layers.terrain.tex;

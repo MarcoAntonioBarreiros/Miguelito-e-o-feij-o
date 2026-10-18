@@ -1939,13 +1939,17 @@ function drawWorldLayers25D(layer) {
       trichodermaMeloidogyneControl.render(fx);
       sim.mycorrhizaStructures.render(fx);
       sim.mycorrhiza.render(fx);
-      sim.goal.render(fx);
       sim.gameplay.render(fx);
       sim.bacillusBioprotection.render(fx);
       sim.phosphateSolubilization.render(fx);
       fixedBlockRuntime.render(fx);
       platformVisuals.renderLabel(fx);
     });
+    // raiz-objetivo e sua aura: camada sem iluminacao (fonte de luz, como no 2D)
+    if (layer.glow) {
+      layerSwitch.target(layer.glow);
+      withCamera(layer.glow, glow => sim.goal.render(glow));
+    }
   } finally {
     layerSwitch.target(null);
   }

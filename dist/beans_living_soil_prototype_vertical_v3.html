@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"2f063fe","subject":"2,5D: brilho correndo pelo anel pontilhado do biofilme no sentido horari","builtAt":"2026-10-18 05:18"};
+window.__BEANS_BUILD__ = {"commit":"45ae33b","subject":"2,5D: raizes de fundo mais organicas (tortuosidade propria por raiz, des","builtAt":"2026-10-18 05:26"};
 (() => {
 'use strict';
 const __modules = {
@@ -2999,13 +2999,17 @@ function drawWorldLayers25D(layer) {
       trichodermaMeloidogyneControl.render(fx);
       sim.mycorrhizaStructures.render(fx);
       sim.mycorrhiza.render(fx);
-      sim.goal.render(fx);
       sim.gameplay.render(fx);
       sim.bacillusBioprotection.render(fx);
       sim.phosphateSolubilization.render(fx);
       fixedBlockRuntime.render(fx);
       platformVisuals.renderLabel(fx);
     });
+    // raiz-objetivo e sua aura: camada sem iluminacao (fonte de luz, como no 2D)
+    if (layer.glow) {
+      layerSwitch.target(layer.glow);
+      withCamera(layer.glow, glow => sim.goal.render(glow));
+    }
   } finally {
     layerSwitch.target(null);
   }
