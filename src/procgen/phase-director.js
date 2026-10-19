@@ -44,6 +44,28 @@ const CONNECTOR_RANGE = Object.freeze([2, 3]);
 // Relevo das ligacoes, relativo a saida da ultima sala (negativo sobe)
 const CONNECTOR_OFFSET = Object.freeze([-80, 50]);
 
+// COMBOS: salas encadeadas com 1 bloco de ligacao entre elas. O segundo
+// desafio depende do primeiro (subiu a torre, nodulou e ja sobe; caiu e ja
+// entra no tunel...). No maximo 2 por fase.
+export const DIRECTOR_COMBOS = Object.freeze([
+  Object.freeze({ id: 'torre', rooms: Object.freeze(['ascent', 'ascent']) }),
+  Object.freeze({ id: 'nodula-e-sobe', rooms: Object.freeze(['nitrogenGate', 'ascent']) }),
+  Object.freeze({ id: 'cai-no-tunel', rooms: Object.freeze(['drop', 'dashTunnel']) }),
+  Object.freeze({ id: 'dissolve-e-cai', rooms: Object.freeze(['phosphateTunnel', 'drop']) }),
+  Object.freeze({ id: 'ponte-e-fosfato', rooms: Object.freeze(['bridge', 'phosphateTunnel']) }),
+]);
+const MAX_COMBOS = 2;
+const COMBO_CHANCE = .45;
+
+// DESVIO OPCIONAL com lugar reservado: o diretor guarda uma janela sem tunel
+// nem subida (o desvio passa POR CIMA da rota e o teto do tunel sobe ate a
+// superficie). Dentro dela so salas planas ou de descida.
+const DETOUR_WINDOW_CHUNKS = 17;
+
+const DETOUR_FIRST_CHUNK = 6;
+const DETOUR_MIN_OUTSIDE = 12;
+const DETOUR_ROOMS = new Set(['nitrogenGate', 'bridge', 'drop']);
+
 function blocked(chunk) {
   return !chunk || chunk.isSkillIntro || chunk.allyId || chunk.isCheckpoint;
 }
@@ -76,7 +98,28 @@ export function createPhaseRecipe({
   const reserved = new Set(reservedChunks.flatMap(at => [at, at + 1]));
   const end = Math.min(total - 3, Number.isFinite(lastChunk) ? lastChunk : total - 3);
 
+  // janela do desvio: escolhida antes das salas
+  let detour = null;
+  // So ha desvio se, fora da janela, sobra trecho para as outras salas (os
+  // tuneis nao entram na janela). Fase curta fica sem desvio e com mais salas.
+  if ((end - FIRST_ROOM_CHUNK + 1) - (DETOUR_WINDOW_CHUNKS + 1) >= DETOUR_MIN_OUTSIDE) {
+    const choices = [];
+    // perto do comeco ou do fim da fase: o resto fica num trecho continuo
+    // para as salas (e os tuneis) em vez de picotado dos dois lados
+    const last = end - DETOUR_WINDOW_CHUNKS;
+    for (let at = DETOUR_FIRST_CHUNK; at <= last; at++) {
+      const nearEdge = at <= DETOUR_FIRST_CHUNK + 2 || at >= last - 2;
+      if (nearEdge && !blocked(logic[at]) && !reserved.has(at)) choices.push(at);
+    }
+    if (choices.length) {
+      const startChunk = choices[Math.floor(rnd() * choices.length)];
+      detour = { startChunk, windowEnd: startChunk + DETOUR_WINDOW_CHUNKS };
+    }
+  }
+  const inDetour = at => detour && at >= detour.startChunk && at <= detour.windowEnd;
+
   const rooms = [];
+  const combos = [];
   const used = {};
   const offsets = new Array(total).fill(0);
   let level = baseY;
@@ -88,6 +131,13 @@ export function createPhaseRecipe({
     if ((used[kind] || 0) >= room.max) return false;
     if (kind === last) return false;
     if (at + room.chunks - 1 > end) return false;
+    if (detour) {
+      // o bloco de partida do desvio e comum; dentro da janela, so sala plana
+      // (nem o seguinte: o portao usa o bloco anterior como hospedeiro)
+      if (at <= detour.startChunk + 1 && at + room.chunks - 1 >= detour.startChunk) return false;
+
+      for (let k = 0; k < room.chunks; k++) if (inDetour(at + k) && !DETOUR_ROOMS.has(kind)) return false;
+    }
     for (let k = 0; k < room.chunks; k++) if (blocked(logic[at + k]) || reserved.has(at + k)) return false;
     // o chunk de depois tambem e autoral no portao da FBN e nos tuneis
     if (kind === 'ascent' && level - ASCENT_MAX < envelope.top + LIGHT_MARGIN) return false;
@@ -95,12 +145,73 @@ export function createPhaseRecipe({
     return true;
   };
 
+  const place = (kind, at) => {
+    const room = DIRECTOR_ROOMS[kind];
+    const entry = { kind, chunkIndex: at, chunks: room.chunks, gateKind: room.gateKind, id: `${kind}-${at}` };
+    rooms.push(entry);
+    used[kind] = (used[kind] || 0) + 1;
+    last = kind;
+    if (kind === 'ascent') level -= ASCENT_AVG;
+    if (kind === 'drop') level += 215;
+    return entry;
+  };
+  const connectorAfter = (at, length) => {
+    const offset = Math.round(CONNECTOR_OFFSET[0] + rnd() * (CONNECTOR_OFFSET[1] - CONNECTOR_OFFSET[0]));
+    for (let k = 0; k < length; k++) if (at + k < total) offsets[at + k] = offset;
+  };
+
+  // Tenta um combo a partir de `at`: cada sala cabe, com 1 bloco entre elas.
+  const tryCombo = at => {
+    const options = DIRECTOR_COMBOS.filter(combo => {
+      if (combos.some(c => c.id === combo.id)) return false;
+      if (combo.rooms.every(kind => !available.includes(kind)) || !combo.rooms.every(kind => available.includes(kind))) return false;
+      const savedLevel = level, savedLast = last, savedUsed = { ...used };
+      let cursorAt = at, ok = true;
+      for (const [index, kind] of combo.rooms.entries()) {
+        // a torre repete a sala de proposito
+        if (index && kind === last) last = null;
+        if (!fits(kind, cursorAt)) { ok = false; break; }
+        used[kind] = (used[kind] || 0) + 1;
+        last = kind;
+        if (kind === 'ascent') level -= ASCENT_AVG;
+        if (kind === 'drop') level += 215;
+        cursorAt += DIRECTOR_ROOMS[kind].chunks + 1;
+      }
+      level = savedLevel; last = savedLast;
+      for (const key of Object.keys(used)) delete used[key];
+      Object.assign(used, savedUsed);
+      return ok;
+    });
+    if (!options.length) return 0;
+    const combo = options[Math.floor(rnd() * options.length)];
+    let cursorAt = at;
+    const placed = [];
+    for (const [index, kind] of combo.rooms.entries()) {
+      if (index && kind === last) last = null;
+      placed.push(place(kind, cursorAt).id);
+      cursorAt += DIRECTOR_ROOMS[kind].chunks;
+      if (index < combo.rooms.length - 1) { connectorAfter(cursorAt, 1); cursorAt += 1; }
+    }
+    for (const id of placed) rooms.find(r => r.id === id).comboId = combo.id;
+    combos.push({ id: combo.id, rooms: placed });
+    return cursorAt - at;
+  };
+
   while (cursor <= end) {
+    if (combos.length < MAX_COMBOS && !inDetour(cursor) && rnd() < COMBO_CHANCE) {
+      const span = tryCombo(cursor);
+      if (span) {
+        const connector = CONNECTOR_RANGE[0] + Math.floor(rnd() * (CONNECTOR_RANGE[1] - CONNECTOR_RANGE[0] + 1));
+        connectorAfter(cursor + span, connector);
+        cursor += span + connector;
+        continue;
+      }
+    }
     const options = available.filter(kind => fits(kind, cursor));
     if (!options.length) { cursor++; continue; }
     const weights = options.map(kind => {
       let w = DIRECTOR_ROOMS[kind].weight;
-      if (!used[kind]) w *= 4;                         // cada sala aparece ao menos uma vez
+      if (!used[kind]) w *= /Tunnel$/.test(kind) ? 10 : 4; // cada sala aparece ao menos uma vez
       if (kind === 'drop' && level < 260) w *= 3;      // alto demais: desce
       if (kind === 'ascent' && level > 420) w *= 3;    // baixo demais: sobe
       return w;
@@ -109,19 +220,45 @@ export function createPhaseRecipe({
     let kind = options[0];
     for (let k = 0; k < options.length; k++) { pick -= weights[k]; if (pick <= 0) { kind = options[k]; break; } }
     const room = DIRECTOR_ROOMS[kind];
-    rooms.push({ kind, chunkIndex: cursor, chunks: room.chunks, gateKind: room.gateKind, id: `${kind}-${cursor}` });
-    used[kind] = (used[kind] || 0) + 1;
-    last = kind;
-    if (kind === 'ascent') level -= ASCENT_AVG;
-    if (kind === 'drop') level += 215;
+    place(kind, cursor);
     // ligacao curta: relevo proprio, sem rampa longa
     const connector = CONNECTOR_RANGE[0] + Math.floor(rnd() * (CONNECTOR_RANGE[1] - CONNECTOR_RANGE[0] + 1));
-    const offset = Math.round(CONNECTOR_OFFSET[0] + rnd() * (CONNECTOR_OFFSET[1] - CONNECTOR_OFFSET[0]));
-    for (let k = 0; k < connector; k++) {
-      const at = cursor + room.chunks + k;
-      if (at < total) offsets[at] = offset;
-    }
+    connectorAfter(cursor + room.chunks, connector);
     cursor += room.chunks + connector;
+  }
+
+  // Os dois tuneis sao o desafio central das fases 8-10: se o sorteio nao os
+  // trouxe (a janela do desvio ocupa boa parte da fase), troca uma sala plana
+  // fora da janela pelo tunel que faltou.
+  const startsAt = new Set(rooms.map(r => r.chunkIndex));
+  for (const kind of ['phosphateTunnel', 'dashTunnel']) {
+    if (!available.includes(kind) || rooms.some(r => r.kind === kind)) continue;
+    const other = kind === 'dashTunnel' ? 'phosphateTunnel' : 'dashTunnel';
+    // subida e queda nao entram: mudariam a altura que o resto da receita supos
+    const order = ['nitrogenGate', 'bridge', other];
+    const swap = rooms
+      .filter(r => !r.comboId && order.includes(r.kind))
+      // o outro tunel so cede se ele aparece duas vezes
+      .filter(r => r.kind !== other || (used[other] || 0) > 1)
+      .filter(r => !inDetour(r.chunkIndex) && !inDetour(r.chunkIndex + 1))
+      .filter(r => r.chunks === 2 || (
+        !inDetour(r.chunkIndex) && !inDetour(r.chunkIndex + 1) && r.chunkIndex + 1 <= end
+        && !blocked(logic[r.chunkIndex + 1]) && !reserved.has(r.chunkIndex + 1)
+        && !startsAt.has(r.chunkIndex + 1) && !startsAt.has(r.chunkIndex + 2)
+        && ((used[r.kind] || 0) > 1 || r.kind === 'nitrogenGate' || r.kind === 'bridge')))
+      .filter(r => {
+        const k = rooms.indexOf(r);
+        return rooms[k - 1]?.kind !== kind && rooms[k + 1]?.kind !== kind;
+      })
+      .sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind))[0];
+    if (!swap) continue;
+    used[swap.kind] -= 1;
+    used[kind] = (used[kind] || 0) + 1;
+    swap.swappedFrom = swap.kind;
+    swap.kind = kind;
+    swap.chunks = DIRECTOR_ROOMS[kind].chunks;
+    swap.gateKind = null;
+    swap.id = `${kind}-${swap.chunkIndex}`;
   }
 
   const byChunk = new Map();
@@ -133,7 +270,9 @@ export function createPhaseRecipe({
     offsets,
     envelope,
     baseY,
-    signature: rooms.map(room => room.kind).join('>'),
+    combos,
+    detour,
+    signature: rooms.map(room => (room.comboId ? `[${room.kind}]` : room.kind)).join('>'),
   };
 }
 

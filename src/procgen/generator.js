@@ -434,6 +434,11 @@ function buildTunnelRoomExit(entry, pending, rnd, index) {
   };
 }
 
+// Desvio opcional: 3 telas de 1280 entre os centros, com folga
+const DETOUR_SOCKET_SPAN = 4300;
+const DETOUR_SOCKET_START_WIDTH = 220;
+const DETOUR_SOCKET_REJOIN_WIDTH = 260;
+
 const BASIC_TRAVERSAL_PRIMITIVES = Object.freeze([
   { id: 'standing-jump-short', requires: [] },
   { id: 'running-jump-short', requires: [] },
@@ -616,6 +621,8 @@ export function generateLevel(seedString, {
   let recipe = null;
   let directorLevel = 500;
   let pendingTunnel = null;
+  let detourStart = null;
+  let detourRejoin = null;
   const roomStats = { built: [], skipped: [] };
   if (directorOption && !verticalPlan) {
     recipe = createPhaseRecipe({
@@ -956,6 +963,29 @@ export function generateLevel(seedString, {
       directorLevel = nextPlatform.y;
     }
 
+    // Lugar reservado do desvio opcional (diretor): partida e retorno de raiz,
+    // largos, com ~3 telas entre eles e nada de tunel/subida no meio.
+    if (recipe?.detour) {
+      const plain = !nextPlatform.ascentGate && !nextPlatform.bridgeGate && !nextPlatform.nitrogenGate
+        && !chunk.isCheckpoint && !chunk.allyId && !nextPlatform.encounterInstanceId;
+      const center = nextPlatform.x + nextPlatform.w / 2;
+      if (i === recipe.detour.startChunk && plain) {
+        nextPlatform.type = 'root';
+        nextPlatform.w = Math.max(nextPlatform.w, DETOUR_SOCKET_START_WIDTH);
+        nextPlatform.detourSocket = 'start';
+        detourStart = nextPlatform;
+      } else if (detourStart && !detourRejoin && plain && i <= recipe.detour.windowEnd
+        && center - (detourStart.x + detourStart.w / 2) >= DETOUR_SOCKET_SPAN
+        // o retorno nao fica abaixo do bloco anterior: senao a queda do desvio
+        // bate nele logo na saida (dropInterruptedAtLaunch)
+        && nextPlatform.y <= prevPlatform.y + 8) {
+        nextPlatform.type = 'root';
+        nextPlatform.w = Math.max(nextPlatform.w, DETOUR_SOCKET_REJOIN_WIDTH);
+        nextPlatform.detourSocket = 'rejoin';
+        detourRejoin = nextPlatform;
+      }
+    }
+
     const recoveryRoots = createRecoveryRoots(prevPlatform, nextPlatform, chunk, rnd, i);
     platforms.push(...recoveryRoots, nextPlatform);
     debugInfo.push({
@@ -1038,7 +1068,16 @@ export function generateLevel(seedString, {
     verticalPlanViolations,
     verticalPlanRequested: Boolean(verticalPlanOption),
     directorRecipe: recipe
-      ? { rooms: recipe.rooms, signature: recipe.signature, built: roomStats.built, skipped: roomStats.skipped }
+      ? {
+          rooms: recipe.rooms,
+          combos: recipe.combos,
+          detour: recipe.detour
+            ? { ...recipe.detour, start: detourStart?.logicIndex ?? null, rejoin: detourRejoin?.logicIndex ?? null }
+            : null,
+          signature: recipe.signature,
+          built: roomStats.built,
+          skipped: roomStats.skipped,
+        }
       : null,
     routeGates,
     // Vista filtrada, mantida porque a escada já é lida por nome em `app.js`,

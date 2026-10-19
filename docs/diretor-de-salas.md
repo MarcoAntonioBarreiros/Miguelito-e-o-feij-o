@@ -21,5 +21,28 @@ espaço para os desafios.
 - **Túneis:** o gerador reserva o par de blocos de terra (`tunnelRoomRole`), e `installLowTunnels` instala o teto e o cristal exatamente ali. A raiz nitrogenada e o desvio opcional não usam esses pares.
 - `?v=silhueta` volta ao plano vertical antigo (zonas longas), para comparar.
 
-Etapas seguintes: combos (salas encadeadas), desvio opcional com lugar
-reservado pelo diretor, e patógenos e dificuldade crescente nas fases seguintes.
+## Combos (Etapa 2)
+
+Salas encadeadas com 1 bloco entre elas, no máximo 2 por fase:
+- torre: duas subidas seguidas;
+- nodula-e-sobe: portão N e depois subida;
+- cai-no-tunel: queda e depois túnel com Dash;
+- dissolve-e-cai: túnel de fosfato e depois queda;
+- ponte-e-fosfato: ponte e depois túnel de fosfato.
+
+## Desvio opcional com lugar reservado (Etapa 2)
+
+Em fases com espaço (fora da janela sobram 12 ou mais chunks), o diretor
+reserva uma janela de 17 chunks perto do começo ou do fim da fase.
+- Dentro dela só entram salas planas ou de queda: portão N, ponte e queda. Túnel e subida ficam de fora, porque o desvio passa por cima da rota.
+- O gerador marca a partida (`detourSocket: 'start'`, raiz larga).
+- O retorno (`'rejoin'`) é o primeiro bloco comum a 4300 px ou mais do centro da partida que não fique abaixo do bloco anterior.
+- O planejador do desvio tenta esse par primeiro.
+
+Medido em 60 sementes: o desvio sai em 59 das 60 fases com janela, contra cerca de 50% no sistema antigo.
+
+Se o sorteio não trouxe um dos túneis, uma sala plana fora da janela vira o
+túnel que faltou.
+
+Etapa seguinte: patógenos como salas e dificuldade crescente nas fases depois
+da 10.

@@ -376,6 +376,9 @@ export function collectOptionalDetourCandidates({
         requestedScreenCount: 6,
       });
       if (!candidate) continue;
+      // lugar reservado pelo diretor de salas: tentado primeiro
+      candidate.directorSocket = startPlatform.detourSocket === 'start'
+        && rejoinPlatform.detourSocket === 'rejoin';
       for (const failure of candidate.hardFailures) {
         diagnostics.hardFailureCounts[failure] =
           (diagnostics.hardFailureCounts[failure] || 0) + 1;
@@ -387,6 +390,7 @@ export function collectOptionalDetourCandidates({
   }
   candidates.sort((left, right) => (
     left.hardFailures.length - right.hardFailures.length
+    || Number(right.directorSocket) - Number(left.directorSocket)
     || right.softScore - left.softScore
     || left.startLogicIndex - right.startLogicIndex
     || left.endLogicIndex - right.endLogicIndex
