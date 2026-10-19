@@ -1,6 +1,6 @@
 # Cristais de fosfato procedurais
 
-Branch experimental: `feat/procedural-phosphate-crystals`, baseada em `d591b2c`. A versão publicada e a main não foram alteradas.
+Cristais aprovados visualmente na branch `feat/procedural-phosphate-crystals`, baseada em `d591b2c`. A integração substitui somente o desenho dos depósitos de fosfato no jogo. A abertura normal da campanha permanece; o início direto na fase 7 pertence à prévia de inspeção descrita abaixo.
 
 ## Teste direto, sem percorrer a campanha
 
@@ -34,4 +34,4 @@ O build passou, assim como 63 testes de desenho determinístico, preservação d
 
 O smoke geral exigido pelo repositório foi executado e continua parando no cartão enfileirado de Bacillus (`queued Bacillus card should open after stable support`), a mesma falha de tutorial já reproduzida na main antes desta branch. A alteração não toca nesse sistema.
 
-Para desfazer, descarte esta branch ou reverta apenas o commit dos cristais. A main anterior continua em `d591b2c`.
+Para desfazer a publicação, reverta apenas o commit de integração dos cristais, sem force push. A main anterior (`d591b2c`, que inclui os VFX do Claude e as melhorias WebGL aprovadas) fica preservada na branch remota `backup/main-before-phosphate-crystals-20261018`.
