@@ -209,7 +209,9 @@ export function primaryRouteGeometryHash(level) {
 
 function authoredConflict(route, startIndex, rejoinIndex) {
   return route.slice(startIndex + 1, rejoinIndex).some(platform => (
-    platform.authored
+    // sala de tunel do diretor: o teto sobe ate a superficie
+    platform.tunnelRoomRole
+    || platform.authored
     && (
       platform.signatureChallenge
       || platform.mandatoryAzospirillumTarget
@@ -374,6 +376,9 @@ export function collectOptionalDetourCandidates({
         requestedScreenCount: 6,
       });
       if (!candidate) continue;
+      // lugar reservado pelo diretor de salas: tentado primeiro
+      candidate.directorSocket = startPlatform.detourSocket === 'start'
+        && rejoinPlatform.detourSocket === 'rejoin';
       for (const failure of candidate.hardFailures) {
         diagnostics.hardFailureCounts[failure] =
           (diagnostics.hardFailureCounts[failure] || 0) + 1;
@@ -385,6 +390,7 @@ export function collectOptionalDetourCandidates({
   }
   candidates.sort((left, right) => (
     left.hardFailures.length - right.hardFailures.length
+    || Number(right.directorSocket) - Number(left.directorSocket)
     || right.softScore - left.softScore
     || left.startLogicIndex - right.startLogicIndex
     || left.endLogicIndex - right.endLogicIndex

@@ -924,6 +924,8 @@ function avaliadorFake() {
     containedCount: 0,
     criticalCount: 0,
     blockedSpreadCount: 0,
+    successfulSpreadCount: 0,
+    unresolvedSpreadCount: 0,
   };
   const state = {
     campaign: { phase: 9 },
@@ -968,19 +970,22 @@ test('prevencao e contencao continuam acumulativas', () => {
   }
 });
 
-test('disseminacao contida e leitura DO AGORA, satisfeita por jogar bem', () => {
-  // O objetivo antigo — "bloqueie uma disseminacao" — exigia que a doenca
-  // saisse para poder ser bloqueada, e brigava com o de nao ter murcha critica.
-  // O novo comeca satisfeito e SO se perde se a Ralstonia alcancar outra raiz.
+test('disseminacao pendente acompanha controle e recaida sem apagar historico', () => {
   const { evaluator, ralstonia } = avaliadorFake();
-  const chave = 'succeededRalstoniaSpreadCount';
+  const chave = 'unresolvedRalstoniaSpreadCount';
   assert.equal(resultadoDe(evaluator, chave).passed, true, 'quem nao deixou passar ja cumpre');
 
   ralstonia.successfulSpreadCount = 1;
-  assert.equal(resultadoDe(evaluator, chave).passed, false, 'a doenca alcancou outra raiz');
+  ralstonia.unresolvedSpreadCount = 1;
+  assert.equal(resultadoDe(evaluator, chave).passed, false, 'a outra raiz ainda exige controle');
 
-  // E nao e latched: nao ha como "desfazer" uma disseminacao que chegou, mas a
-  // leitura acompanha o estado real em vez de travar no primeiro quadro.
+  ralstonia.unresolvedSpreadCount = 0;
+  assert.equal(resultadoDe(evaluator, chave).passed, true, 'neutralizar ou conter recupera o objetivo');
+  assert.equal(ralstonia.successfulSpreadCount, 1, 'a chegada passada continua no historico');
+
+  ralstonia.unresolvedSpreadCount = 1;
+  assert.equal(resultadoDe(evaluator, chave).passed, false, 'uma recaida volta a exigir controle');
+
   const requisito = REQUISITOS.find(c => c.key === chave);
   assert.equal(requisito.latch, false);
   assert.equal(requisito.displayMode, 'final-status');
@@ -990,8 +995,9 @@ test('bloquear uma disseminacao continua sendo uma forma de manter isto zerado',
   // A mecanica de bloqueio nao foi removida — deixou de ser obrigatoria.
   const { evaluator, ralstonia } = avaliadorFake();
   ralstonia.blockedSpreadCount = 2;
-  ralstonia.successfulSpreadCount = 0;
-  assert.equal(resultadoDe(evaluator, 'succeededRalstoniaSpreadCount').passed, true);
+  ralstonia.successfulSpreadCount = 1;
+  ralstonia.unresolvedSpreadCount = 0;
+  assert.equal(resultadoDe(evaluator, 'unresolvedRalstoniaSpreadCount').passed, true);
 });
 
 test('a chegada na raiz final continua funcionando', () => {
@@ -1008,17 +1014,16 @@ test('o teste final da fase 9 exige as quatro licoes e a chegada', () => {
     'containedVascularRalstoniaCount',
     'preventedRalstoniaEntryCount',
     'reachedFinalRoot',
-    'succeededRalstoniaSpreadCount',
+    'unresolvedRalstoniaSpreadCount',
   ]);
   const critico = REQUISITOS.find(c => c.key === 'activeCriticalRalstoniaCount');
   assert.equal(critico.latch, false, 'declarado explicitamente como nao-latched');
 
-  // Os DOIS status de fim de fase agora andam juntos, e nenhum contradiz o
-  // outro: manter a doenca nesta raiz e manter nenhum foco critico sao
-  // resultados da MESMA jogada, nao exigencias opostas.
-  const disseminou = REQUISITOS.find(c => c.key === 'succeededRalstoniaSpreadCount');
+  // A situacao atual pode se recuperar sem apagar a historia da partida.
+  const disseminou = REQUISITOS.find(c => c.key === 'unresolvedRalstoniaSpreadCount');
   assert.equal(disseminou.latch, false);
   assert.equal(disseminou.displayMode, 'final-status');
+  assert.ok(!keys.includes('succeededRalstoniaSpreadCount'), 'uma chegada passada nao condena a partida');
   assert.ok(!keys.includes('blockedRalstoniaSpreadCount'),
     'bloquear deixou de ser obrigatorio — era inalcancavel dentro dos 4,5 s de aviso');
 });
@@ -1254,7 +1259,7 @@ test('100 seeds: os dois focos ficam nas janelas declaradas e o alvo é reservad
   assert.deepEqual(problemas, [], problemas.slice(0, 8).join('\n'));
 });
 
-test('100 seeds: toda partida tem uma disseminação bloqueável', { timeout: 900000 }, () => {
+test('100 seeds: uma fonte vascular descontrolada tem uma disseminação bloqueável', { timeout: 900000 }, () => {
   const janela = segmentoDaFaseNove('p9-spread-intro');
   const problemas = [];
   let bloqueadas = 0;
@@ -1286,6 +1291,9 @@ test('100 seeds: toda partida tem uma disseminação bloqueável', { timeout: 90
 
     const contencao = system.foci.find(f => f.role === 'containment');
     goTo(contencao.root); step(1); step(12);
+    // A lição antecipa o aviso de uma fonte perigosa, sem criar propagação
+    // a partir de uma carga residual baixa ou de uma infecção contida.
+    system.lab.setFocus(contencao, { vascularLoad: C.spreadTriggerThreshold + .05 });
 
     const entrada = (state.level.platforms || [])
       .filter(p => !p.recovery && !p.final && (p.logicIndex ?? -1) >= janela.from)
@@ -1333,6 +1341,7 @@ test('a janela de disseminação não é queimada com o foco ainda em warning', 
   b.goTo(contencao.root);
   b.step(DT);
   assert.equal(contencao.activationState, 'warning');
+  b.system.lab.setFocus(contencao, { vascularLoad: C.spreadTriggerThreshold + .05 });
 
   b.goTo(b.platforms[janela.from]);
   b.step(2);
@@ -1349,6 +1358,7 @@ test('falhar em bloquear libera uma nova tentativa, até o limite', () => {
   const b = bench();
   const janela = segmentoDaFaseNove('p9-spread-intro');
   const contencao = prepararFocoAtivo(b, 'containment');
+  b.system.lab.setFocus(contencao, { vascularLoad: C.spreadTriggerThreshold + .05 });
   b.goTo(b.platforms[janela.from]);
   b.step(C.spreadFirstOpportunitySeconds + 3);
   assert.equal(b.system.spreadEventCount, 1);

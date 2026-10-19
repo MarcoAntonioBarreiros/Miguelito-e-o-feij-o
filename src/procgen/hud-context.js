@@ -96,6 +96,7 @@ function ralstoniaContextMarkup(sim, nearbyRoot) {
     `;
 
   if (snapshot.hasFocus) {
+    if (snapshot.supportHint) html += `<div class="context-item" style="font-size: 10px; color: #b8e5dc;">${snapshot.supportHint}</div>`;
     html += ralstoniaBar('Carga superficial', snapshot.surfaceLoad, '#e8c27e');
     html += ralstoniaBar('Carga vascular', snapshot.vascularLoad, critico ? '#ff6f91' : '#e8905e');
     html += ralstoniaBar('Transporte vascular', snapshot.transport, '#7ed6cd');

@@ -157,6 +157,14 @@ export function createRootHealthGameplay({ state, entities }) {
     root.supportIntegrity += (targetSupport - root.supportIntegrity) * clamp(dt * 1.2, 0, 1);
 
     let targetOffset = 0;
+    // Chao de tunel baixo (low-tunnels.js) nao cede: a altura do vao sob o
+    // teto e o que torna o Dash necessario. A saude continua valendo.
+    if (root.lowTunnelAnchor) {
+      root.supportOffset = 0;
+      root.y = root.rootBaseY;
+      root.unstable = false;
+      return;
+    }
     if (root.rootState === 'stressed') targetOffset = 1.5 + (1 - root.supportIntegrity) * 3;
     else if (root.rootState === 'compromised') targetOffset = 6 + (1 - root.supportIntegrity) * 12;
     else if (root.rootState === 'collapse') {

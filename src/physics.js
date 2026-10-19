@@ -4,6 +4,15 @@ import { microbeEncounters } from './data/microbes.js';
 import { recordPhaseObjectiveAction } from './procgen/campaign-objective-progress.js';
 import { unlockCampaignFeature } from './procgen/campaign-progression.js';
 import { cancelJetpack } from './player.js';
+
+// Sob o teto de um tunel baixo (low-tunnels.js) o salto duplo nao funciona: nao
+// ha onde subir. O tunel e anda -> Dash -> anda (ou propulsor).
+function underLowTunnel(level, player) {
+  for (const d of level.ceilingDrops || []) {
+    if (player.x + player.w > d.x && player.x < d.x + d.w && player.y < d.y + d.h + 140) return true;
+  }
+  return false;
+}
 import {
   HOVER_HOLD_SECONDS,
   JETPACK_CONFIG,
@@ -324,7 +333,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
         if (audio.canPlayJump?.() !== false) {
           audio.playFx?.('playerJump', { gain: 1, rate: 1 });
         }
-      } else if (player.jumpBuffer > 0 && player.canDoubleJump && player.airJumpAvailable) {
+      } else if (player.jumpBuffer > 0 && player.canDoubleJump && player.airJumpAvailable && !underLowTunnel(level, player)) {
         player.vy = -445 * jumpMultiplier;
         player.jumpBuffer = 0;
         player.airJumpAvailable = false;
@@ -410,6 +419,45 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
           player.x = p.x + p.w;
           player.vx = 0;
         }
+      }
+    }
+    // Chao criado pelo tunel baixo (beirada que completa o chao ate o vao):
+    // solido como um bloco comum.
+    for (const p of level.tunnelFloors || []) {
+      if (!rects(player, p)) continue;
+      if (prevY + player.h <= p.y + 10 && player.vy >= 0) {
+        player.y = p.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+      } else if (prevY >= p.y + p.h - 8 && player.vy < 0) {
+        player.y = p.y + p.h;
+        player.vy = 0;
+      } else if (player.vx > 0) {
+        player.x = p.x - player.w;
+        player.vx = 0;
+      } else if (player.vx < 0) {
+        player.x = p.x + p.w;
+        player.vx = 0;
+      }
+    }
+    // Tunel baixo: bloco de solo pendurado no teto sobre um vao (ver
+    // low-tunnels.js). Solido como um bloco comum, mas fora de
+    // `level.platforms`: nao e chao, raiz nem suporte de nada.
+    for (const d of level.ceilingDrops || []) {
+      if (!rects(player, d)) continue;
+      if (prevY >= d.y + d.h - 8 && player.vy < 0) {
+        player.y = d.y + d.h;
+        player.vy = 0;
+      } else if (prevY >= d.y + d.h - 12) {
+        // encostado por baixo (propulsor/dash rente ao teto): so empurra para baixo
+        player.y = d.y + d.h;
+        if (player.vy < 0) player.vy = 0;
+      } else if (player.vx > 0) {
+        player.x = d.x - player.w;
+        player.vx = 0;
+      } else if (player.vx < 0) {
+        player.x = d.x + d.w;
+        player.vx = 0;
       }
     }
     for (const c of level.crystals) {

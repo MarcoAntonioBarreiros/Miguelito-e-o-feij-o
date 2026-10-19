@@ -117,7 +117,10 @@ test('a cinematica continua podendo passar do minimo do jogador', () => {
   assert.ok(.22 < DESKTOP_ZOOM_PROFILE.min);
   assert.ok(.22 < TOUCH_ZOOM_PROFILE.min);
   // E `setCinematic` usa esse piso, nao o do perfil.
-  assert.match(camera, /clamp\(value, CINEMATIC_MIN_ZOOM, profile\.max\)/);
+  // E `setCinematic` usa esse piso, nao o do perfil; o teto pode passar do
+  // maximo do jogador (zoom do primeiro nodulo).
+  assert.match(camera, /clamp\(value, CINEMATIC_MIN_ZOOM, Math\.max\(profile\.max, CINEMATIC_MAX_ZOOM\)\)/);
+  assert.match(camera, /const CINEMATIC_MAX_ZOOM = 4\.5;/);
 });
 
 test('o readout nao nasce com valor fixo no HTML', () => {

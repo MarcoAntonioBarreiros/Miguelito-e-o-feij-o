@@ -202,6 +202,34 @@ export function createRhizosphereGeometry({ state, painters }) {
 
   // Linha de baixo do teto em x. Depende só das plataformas (nunca da câmera),
   // então não "nada" quando a câmera anda.
+  // Tunel baixo (low-tunnels.js): o teto desce ate a base do bloco pendurado.
+  // Dentro do bloco a linha e exatamente a base (o que se ve e o que colide);
+  // nas pontas sobe suave em TUNNEL_RAMP px.
+  const TUNNEL_RAMP = 54;
+  function ceilingDrops() {
+    return state.level?.ceilingDrops || [];
+  }
+  function tunnelDepthAt(x, y) {
+    let out = y;
+    for (const d of ceilingDrops()) {
+      const left = d.x;
+      const right = d.x + d.w;
+      if (x < left - TUNNEL_RAMP || x > right + TUNNEL_RAMP) continue;
+      const bottom = d.y + d.h + Math.sin(x * .05) * 2;
+      const edge = x < left ? (x - (left - TUNNEL_RAMP)) / TUNNEL_RAMP
+        : x > right ? ((right + TUNNEL_RAMP) - x) / TUNNEL_RAMP : 1;
+      const k = edge * edge * (3 - 2 * edge);
+      out = Math.max(out, out + (bottom - out) * k);
+    }
+    return out;
+  }
+  function dropsKey(x0, x1) {
+    return ceilingDrops()
+      .filter(d => d.x + d.w + TUNNEL_RAMP > x0 && d.x - TUNNEL_RAMP < x1)
+      .map(d => `${Math.round(d.x)}x${Math.round(d.y + d.h)}`)
+      .join(',');
+  }
+
   function ceilingLineAt(x, platforms, clearance, topLimit) {
     let best = Infinity;
     let nearest = null;
@@ -222,7 +250,7 @@ export function createRhizosphereGeometry({ state, painters }) {
     if (!Number.isFinite(best) && nearest) best = nearest.y - clearance - 66;
     if (!Number.isFinite(best)) return null;
     const bump = (pseudo(hash2(Math.floor(x / CEILING_STEP), 7), 3) - .5) * 14 + Math.sin(x * .013) * 9;
-    return Math.max(topLimit, best + bump);
+    return tunnelDepthAt(x, Math.max(topLimit, best + bump));
   }
 
   // A faixa vai da superfície (linha do colo) até a linha do teto. Acima da
@@ -235,6 +263,20 @@ export function createRhizosphereGeometry({ state, painters }) {
       const x = i * CEILING_STEP;
       const y = ceilingLineAt(x, platforms, clearance, topLimit);
       if (y !== null) line.push([x, y]);
+    }
+    // quinas do tunel: pontos exatos nas bordas do bloco, para a face de baixo
+    // nao arredondar para dentro do vao
+    const extra = [];
+    for (const d of ceilingDrops()) {
+      for (const x of [d.x - TUNNEL_RAMP, d.x - TUNNEL_RAMP / 2, d.x, d.x + 8, d.x + d.w - 8, d.x + d.w, d.x + d.w + TUNNEL_RAMP / 2, d.x + d.w + TUNNEL_RAMP]) {
+        if (x < first * CEILING_STEP || x > last * CEILING_STEP) continue;
+        const y = ceilingLineAt(x, platforms, clearance, topLimit);
+        if (y !== null) extra.push([x, y]);
+      }
+    }
+    if (extra.length) {
+      line.push(...extra);
+      line.sort((a, b) => a[0] - b[0]);
     }
     return line;
   }
@@ -350,12 +392,81 @@ export function createRhizosphereGeometry({ state, painters }) {
 
   const CEILING_CHUNK = 512;
 
+  // Beirada de solo do tunel baixo (low-tunnels.js): continua o chao do bloco
+  // de entrada ate a borda do vao. Mesma textura do solo; a ponta afina.
+  function drawTunnelFloors(ctx, view) {
+    for (const f of state.level?.tunnelFloors || []) {
+      if (f.x + f.w < view.left - 40 || f.x > view.right + 40) continue;
+      if (f.y > view.bottom + 20 || f.y + f.h < view.top - 20) continue;
+      const box = { x: f.x - 6, y: f.y - 6, w: f.w + 12, h: f.h + 16 };
+      cached(ctx, `tunnelfloor:${Math.round(f.x)}:${Math.round(f.y)}:${Math.round(f.w)}`, box, g => {
+        const { x, y, w, h } = f;
+        g.save();
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + w, y);
+        g.quadraticCurveTo(x + w + 3, y + h * .35, x + w - 6, y + h * .62);
+        g.quadraticCurveTo(x + w * .55, y + h * 1.05, x, y + h);
+        g.closePath();
+        g.fillStyle = soilPalette.base;
+        g.fill();
+        g.clip();
+        paintSoilTexture(g, hash2(Math.round(x), 41), x, y, w, h, h, false);
+        const shade = g.createLinearGradient(0, y + 8, 0, y + h);
+        shade.addColorStop(0, 'rgba(12,6,4,0)');
+        shade.addColorStop(1, 'rgba(12,6,4,.45)');
+        g.fillStyle = shade;
+        g.fillRect(x - 4, y, w + 8, h + 4);
+        g.restore();
+        g.save();
+        g.strokeStyle = soilPalette.outline;
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(x + w, y);
+        g.quadraticCurveTo(x + w + 3, y + h * .35, x + w - 6, y + h * .62);
+        g.quadraticCurveTo(x + w * .55, y + h * 1.05, x, y + h);
+        g.stroke();
+        g.restore();
+      });
+    }
+  }
+
+  function drawTunnelColumns(ctx, view, surface) {
+    for (const d of ceilingDrops()) {
+      const left = d.x - TUNNEL_RAMP;
+      const right = d.x + d.w + TUNNEL_RAMP;
+      if (right < view.left - 40 || left > view.right + 40) continue;
+      const bottom = d.y + d.h;
+      const line = [];
+      for (let x = left; x <= right + .1; x += 12) {
+        const edge = x < d.x ? (x - left) / TUNNEL_RAMP : x > d.x + d.w ? (right - x) / TUNNEL_RAMP : 1;
+        const k = Math.max(0, Math.min(1, edge));
+        const y = surface + (bottom + Math.sin(x * .05) * 2 - surface) * (k * k * (3 - 2 * k));
+        line.push([x, y]);
+      }
+      const box = { x: left - 4, y: surface - 4, w: right - left + 8, h: bottom - surface + 30 };
+      cached(ctx, `tunnelcol:${Math.round(d.x)}:${Math.round(bottom)}:${Math.round(surface)}`, box, g => {
+        g.save();
+        g.beginPath();
+        g.rect(box.x, box.y, box.w, box.h);
+        g.clip();
+        paintCeilingBand(g, line, surface);
+        g.restore();
+      });
+    }
+  }
+
   // A faixa vai da superfície (linha do colo) até a linha do teto. Acima da
   // superfície fica o céu da cinemática final, que ela nunca cobre.
   function drawCeiling(ctx, view, platforms, surface) {
     if (!platforms.length) return false;
     // Com propulsão o jogador voa até o limite do mundo: não há onde pôr teto.
-    if (state.campaign?.unlocks?.jetpack) return false;
+    // O tunel baixo continua existindo: vira uma coluna de solo pendurada da
+    // superficie ate a base do bloco.
+    if (state.campaign?.unlocks?.jetpack) {
+      drawTunnelColumns(ctx, view, surface);
+      return false;
+    }
     const clearance = ceilingClearance();
     const topLimit = surface + 40;
     const line = ceilingLine(view.left, view.right, platforms, clearance, topLimit);
@@ -376,7 +487,7 @@ export function createRhizosphereGeometry({ state, painters }) {
       let chunkDeep = -Infinity;
       for (const point of chunkLine) chunkDeep = Math.max(chunkDeep, point[1]);
       const box = { x: x0, y: surface - 4, w: x1 - x0, h: chunkDeep - surface + 30 };
-      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}:${Math.round(burrowX() ?? -1)}`, box, g => {
+      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}:${Math.round(burrowX() ?? -1)}:${dropsKey(x0, x1)}`, box, g => {
         g.save();
         g.beginPath();
         g.rect(x0, surface - 4, x1 - x0, box.h);
@@ -1126,6 +1237,7 @@ export function createRhizosphereGeometry({ state, painters }) {
       }
     }
     R('  terreno/teto', () => drawCeiling(ctx, view, platforms, surface));
+    R('  terreno/tunel', () => drawTunnelFloors(ctx, view));
     R('  terreno/chao', () => drawGround(ctx, view, surface));
     R('  terreno/plantas', () => { for (const plant of plants) {
       if (inX(plant.x - 120, plant.x + 120, 60)) drawPlant(ctx, plant, surface, view);

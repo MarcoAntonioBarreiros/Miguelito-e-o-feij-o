@@ -66,9 +66,11 @@ import { createRhizoctoniaControl } from './rhizoctonia-control.js';
 import { createTrichodermaMeloidogyneControl } from './trichoderma-meloidogyne-control.js';
 import { createTrichodermaRhizoctoniaControl } from './trichoderma-rhizoctonia-control.js';
 import { createRalstoniaVascularWilt } from './ralstonia-vascular-wilt.js';
+import { prepareRalstoniaTeachingEncounters } from './ralstonia-teaching.js';
 import { narrate } from './narrator.js';
 import { createPauseMenu } from './pause-menu.js';
-import { FEATURE_LABELS } from './narration-catalog.js';
+import { FEATURE_LABELS, NARRATION } from './narration-catalog.js';
+import { drawWorldLabel } from './world-label.js';
 import {
   createPathogenArrival,
   PATHOGEN_ARRIVAL_DEFAULTS,
@@ -77,6 +79,9 @@ import { createPhaseFinale, phaseFinaleSeconds } from './phase-finale.js';
 import { rhizosphereSurfaceY } from '../render/rhizosphere-geometry.js';
 import { GEOMETRY_ENABLED } from '../render/geometry-preference.js';
 import { vfxParticles } from '../render/vfx-particles.js';
+import { drawThreatRadar } from '../render/threat-radar.js';
+import { installLowTunnels, lowTunnelDiagnostics } from './low-tunnels.js';
+const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
 import { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } from '../render/final-root-visual.js';
 import { celebrationCycleSeconds, resolvePlayerSkin } from '../render/player-skins.js';
 import {
@@ -293,6 +298,7 @@ const OBJECTIVE_LABELS = {
   activeCriticalRalstoniaCount: 'Chegue à raiz final sem murcha crítica ativa',
   blockedRalstoniaSpreadCount: 'Bloqueie uma disseminação para outra raiz',
   succeededRalstoniaSpreadCount: 'Impeça que a Ralstonia alcance uma segunda raiz',
+  unresolvedRalstoniaSpreadCount: 'Mantenha os focos secundários sob controle',
   averageVascularTransport: 'Preserve o transporte vascular',
   preservedVascularRootCount: 'Preserve raízes com transporte funcional',
   recoveredRootCount: 'Recupere uma raiz danificada',
@@ -560,8 +566,9 @@ function topologyDetourDebug(level) {
 function finalStatusClass(condition, result) {
   // Disseminacao contida e o mesmo tipo de leitura da murcha critica: um STATUS
   // do agora, nao uma conquista. Neutro antes de a doenca comecar, estavel
-  // enquanto nada passou, vermelho quando passou, verde so no fim.
-  if (condition.key === 'succeededRalstoniaSpreadCount') {
+  // enquanto não há ameaça pendente, vermelho quando o controle falta, verde
+  // só no fim. Um secundário recuperado devolve o status estável.
+  if (condition.key === 'unresolvedRalstoniaSpreadCount') {
     const passaram = Number(result?.actual) || 0;
     if (passaram > 0) return 'violated';
     if (levelData?.goal?.completed) return 'completed';
@@ -577,15 +584,16 @@ function finalStatusClass(condition, result) {
 }
 
 function finalStatusNote(condition, result) {
-  if (condition.key === 'succeededRalstoniaSpreadCount') {
+  if (condition.key === 'unresolvedRalstoniaSpreadCount') {
     const passaram = Number(result?.actual) || 0;
-    if (passaram > 0) return `A doença alcançou outra raiz: ${passaram}`;
-    if (levelData?.goal?.completed) return 'Concluído sem disseminação';
+    if (passaram > 0) return `Focos sem controle ou propagações em trânsito: ${passaram}`;
+    if (levelData?.goal?.completed) return 'Concluído com a propagação sob controle';
     if (!ralstoniaControl.challengeStarted) return '';
     const bloqueadas = ralstoniaControl.blockedSpreadCount || 0;
-    return bloqueadas
-      ? `Contida nesta raiz · ${bloqueadas} disseminação${bloqueadas > 1 ? 'ões' : ''} bloqueada${bloqueadas > 1 ? 's' : ''}`
-      : 'Contida nesta raiz';
+    const historico = ralstoniaControl.successfulSpreadCount || 0;
+    return historico
+      ? `Propagação controlada · histórico: ${historico}`
+      : bloqueadas ? `${bloqueadas} disseminação(ões) bloqueada(s)` : 'Nenhuma propagação sem controle';
   }
   if (condition.key !== 'activeCriticalRalstoniaCount') return '';
   const criticos = Number(result?.actual) || 0;
@@ -755,6 +763,9 @@ const PHASE_TOPOLOGY_VARIANTS = [
 // link salvo nao cai fora de modo nenhum, que foi exatamente o acidente do T3b.
 const CLASSIC_PHASE_VARIANTS = ['classic', 'phase-classic'];
 const phaseTopologyMode = !CLASSIC_PHASE_VARIANTS.includes(optionalDetourVariant);
+// Diretor de salas (phase-director.js): padrao da fase 10. `?v=silhueta` volta
+// ao plano vertical antigo (zonas longas) para comparar.
+const phaseDirectorMode = phaseTopologyMode && optionalDetourVariant !== 'silhueta';
 
 const optionalDetourTopologyMode =
   optionalDetourVariant === 'optional-detour-topology-t1'
@@ -801,6 +812,8 @@ window.miguelitoViewport = responsiveCanvas;
 // normal, no lugar onde terminou a fase.
 // Etapa da cinematica em que a comemoracao de particulas ja foi disparada.
 let finaleVfxMode = 'idle';
+// Estado do zoom do primeiro nodulo (ver updateNodulationShowcase).
+const nodShow = { phase: 'idle', site: null, t: 0, from: null, back: 0, stalled: 0, after: 0 };
 window.miguelitoVfx = vfxParticles;
 const phaseFinale = createPhaseFinale({
   state: sim.state,
@@ -880,7 +893,7 @@ sim.goal.setCompletionGuard(() => {
   const result = objectiveEvaluator.evaluate(conditions);
   return {
     passed: result.passed,
-    message: campaign.phase === 5
+    message: campaign.phase === 9 ? ralstoniaControl.completionHint : campaign.phase === 5
       ? 'Falta ferro e controlar o fungo'
       : 'Faltam objetivos: veja a lista',
   };
@@ -996,14 +1009,24 @@ function prepareLevel() {
     // Cada tipo de portão só é pedido se a fase liberou a habilidade que o
     // abre. Sem isso o portão é softlock, não desafio — e é por isso que a
     // lista é montada a partir dos unlocks em vez de ser fixa.
-    verticalPlan: phaseTopologyMode && campaign.phase === 10
+    verticalPlan: phaseTopologyMode && !phaseDirectorMode && campaign.phase === 10
       ? { gateKinds: availableRouteGateKinds() }
       : false,
+    director: phaseDirectorMode && campaign.phase === 10
+      ? {
+          gateKinds: availableRouteGateKinds(),
+          abilities: {
+            dash: Boolean(campaign.unlocks?.dash),
+            // mesmo filtro do portao: habilidade + Bacillus liberado no laboratorio
+            phosphateSolubilization: availableRouteGateKinds().includes('phosphateWall'),
+          },
+        }
+      : null,
   });
   levelData.optionalDetourPlaytestMode = optionalDetourPlaytestMode;
   // Marca lida por `meloidogyne-lifecycle` e `ralstonia-vascular-wilt` no
-  // reset: com ela ligada, nenhum dos dois povoa a fase por conta propria — a
-  // primeira geracao chega pelo controlador.
+  // reset: a contaminação ambiental chega pelo controlador. A fase 9 reserva
+  // separadamente uma raiz já infectada para a lição de contenção.
   levelData.dynamicPathogenArrival = true;
   const traceGeometry = stage => (
     campaign.phase === 3 ? recordRouteGeometryStage(levelData, stage) : null
@@ -1248,8 +1271,16 @@ function prepareLevel() {
   routeAnchors.synchronize();
   anchorPowerPickups(levelData);
   installFinalGoal(levelData);
+  // Resource encounters must exist before resetEcology spawns their agents.
+  // Only phase 9 reserves the independent prevention/containment lessons.
+  prepareRalstoniaTeachingEncounters(levelData, { phaseManifest: getPhaseManifest(campaign.phase), seed });
   applyInitialRootHealth(levelData, campaign.phase);
   synchronizeWorldBounds(levelData);
+  // Tunel baixo (Dash/propulsor): so sobre pares que ja tem o vao certo, depois
+  // de TODA a geometria (ancoras, objetivo final, limites do mundo); nao move plataforma nenhuma.
+  installLowTunnels(levelData, { phase: campaign.phase, seedValue: seed, abilities: campaign.unlocks || {} });
+  window.miguelitoLowTunnels = () => lowTunnelDiagnostics(levelData, campaign.phase);
+  traceGeometry('installLowTunnels');
   // CAPACIDADE MINERAL DA FASE, uma vez, no fim.
   //
   // Depois de TUDO que pode criar ou remover deposito: desafio autoral, portoes
@@ -1374,6 +1405,7 @@ function initGame({ announce = false } = {}) {
   phaseFinale.reset();
   vfxParticles.clear();
   finaleVfxMode = 'idle';
+  stopNodulationShowcase();
   sim.state.campaign = campaign;
   // Nao reinicia audio: `setPhase` compara a faixa mapeada com a que ja toca e
   // so faz crossfade quando muda. Reset da campanha nao recria contexto nem
@@ -1951,6 +1983,7 @@ function drawWorldLayers25D(layer) {
       sim.phosphateSolubilization.render(fx);
       fixedBlockRuntime.render(fx);
       platformVisuals.renderLabel(fx);
+      drawNoduleCaption(fx);
     });
     // raiz-objetivo e sua aura: camada sem iluminacao (fonte de luz, como no 2D)
     if (layer.glow) {
@@ -2077,6 +2110,154 @@ window.miguelito25DMode = value => {
 if (render25DRequested) setVfx(true, { save: false, quiet: true });
 syncVfxUi();
 
+// ---- Zoom do primeiro nodulo (rhizobium-nodulation.js marca o sitio) -------
+// A camera se aproxima do sitio, acompanha as cinco etapas no tempo normal e
+// volta ao Miguelito quando o nodulo amadurece. O jogo continua por baixo e o
+// zoom nao pode ser pulado. Saidas de seguranca: a colonia sumiu, o fim da
+// fase assumiu a camera, ou a nodulacao ficou parada por falta de carbono.
+// 2,5x mais perto que o zoom em que o jogador esta (relativo, nao absoluto).
+const NODULE_ZOOM_FACTOR = 2.5;
+const NODULE_ZOOM_IN = .9;
+const NODULE_ZOOM_OUT = .9;
+const NODULE_HOLD_AFTER_MATURE = 1.6;
+const NODULE_STALL_LIMIT = 5;
+
+function easeInOut(t) { const k = Math.max(0, Math.min(1, t)); return k * k * (3 - 2 * k); }
+
+function viewSize(zoomValue) {
+  return { w: (canvas.width || 1280) / zoomValue, h: (canvas.height || 720) / zoomValue };
+}
+
+function noduleFraming(site) {
+  const zoomValue = (nodShow.back || 1.45) * NODULE_ZOOM_FACTOR;
+  const { w, h } = viewSize(zoomValue);
+  const fx = site.x;
+  const fy = (site.surfaceY || 0) + (site.depth || 24) * .6;
+  return { x: fx - w / 2, y: fy - h / 2, zoom: zoomValue };
+}
+
+function playerFraming(zoomValue) {
+  const pl = sim.state.player;
+  const { w, h } = viewSize(zoomValue);
+  return { x: Math.max(0, pl.x + pl.w / 2 - w / 2), y: pl.y + pl.h / 2 - h * .61, zoom: zoomValue };
+}
+
+function mixFraming(a, b, t) {
+  const k = easeInOut(t);
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, zoom: a.zoom + (b.zoom - a.zoom) * k };
+}
+
+function stopNodulationShowcase() {
+  if (nodShow.phase !== 'idle' && !phaseFinale.active) cameraView.endCinematic();
+  Object.assign(nodShow, { phase: 'idle', site: null, t: 0, from: null, stalled: 0, after: 0 });
+}
+
+function updateNodulationShowcase(dt) {
+  const level = sim.state.level;
+  if (nodShow.phase === 'idle') {
+    const site = level?.nodulationShowcase;
+    if (!site) return;
+    level.nodulationShowcase = null;
+    if (site.mature || phaseFinale.active) return;
+    const start = cameraView.beginCinematic();
+    if (!start) return;
+    Object.assign(nodShow, {
+      phase: 'in', site, t: 0, stalled: 0, after: 0,
+      from: { x: start.x, y: start.y, zoom: start.zoom }, back: start.zoom,
+    });
+  }
+  // o fim da fase assume a camera: sai sem devolver nada
+  if (phaseFinale.active) { Object.assign(nodShow, { phase: 'idle', site: null }); return; }
+  const site = nodShow.site;
+  const alive = (level?.rhizobiumNodules || []).includes(site);
+  nodShow.t += dt;
+
+  if (nodShow.phase === 'in' || nodShow.phase === 'hold') {
+    if (nodShow.phase === 'in') {
+      cameraView.setCinematic(mixFraming(nodShow.from, noduleFraming(site), nodShow.t / NODULE_ZOOM_IN));
+      if (nodShow.t >= NODULE_ZOOM_IN) { nodShow.phase = 'hold'; nodShow.t = 0; }
+    } else {
+      cameraView.setCinematic(noduleFraming(site));
+    }
+    nodShow.stalled = site.paused ? nodShow.stalled + dt : 0;
+    if (site.mature) nodShow.after += dt;
+    const done = !alive
+      || nodShow.after >= NODULE_HOLD_AFTER_MATURE
+      || nodShow.stalled >= NODULE_STALL_LIMIT;
+    if (done) {
+      const cur = sim.state;
+      nodShow.from = { x: cur.cameraX || 0, y: cur.cameraY || 0, zoom: cur.cameraZoom || nodShow.back };
+      nodShow.phase = 'out';
+      nodShow.t = 0;
+    }
+    return;
+  }
+  if (nodShow.phase === 'out') {
+    cameraView.setCinematic(mixFraming(nodShow.from, playerFraming(nodShow.back), nodShow.t / NODULE_ZOOM_OUT));
+    if (nodShow.t >= NODULE_ZOOM_OUT) stopNodulationShowcase();
+  }
+}
+
+// Durante o zoom do primeiro nodulo a explicacao de cada etapa sai do topo da
+// tela (fora do quadro, no celular) e aparece junto do nodulo, como o texto do
+// Bacillus na fase 1: so texto com glow (drawWorldLabel), no mundo.
+const NODULE_STAGE_TEXT = {
+  recognition: 'Reconhecimento: raiz e Rhizobium trocam sinais',
+  'root-hair-curl': NARRATION['rhizobium.curl'].text,
+  'infection-thread': NARRATION['rhizobium.thread'].text,
+  primordium: NARRATION['rhizobium.primordium'].text,
+  'young-nodule': NARRATION['rhizobium.young'].text,
+  'mature-nodule': NARRATION['rhizobium.mature'].text,
+};
+const NODULE_TOAST_TEXTS = new Set(['rhizobium.curl', 'rhizobium.thread', 'rhizobium.primordium', 'rhizobium.young', 'rhizobium.mature']
+  .map(id => NARRATION[id].text));
+
+function noduleShowcaseActive() {
+  return nodShow.phase === 'in' || nodShow.phase === 'hold';
+}
+
+function drawNoduleCaption(target) {
+  if (!noduleShowcaseActive() || !nodShow.site) return;
+  const site = nodShow.site;
+  const text = NODULE_STAGE_TEXT[site.stage];
+  if (!text) return;
+  if (nodShow.captionStage !== site.stage) { nodShow.captionStage = site.stage; nodShow.captionAt = performance.now(); }
+  const fadeIn = Math.min(1, (performance.now() - nodShow.captionAt) / 350);
+  const zoomValue = sim.state.cameraZoom || 1;
+  // tamanho proporcional a altura do canvas (vale para qualquer densidade de
+  // tela) e posicao abaixo do nodulo, dentro do bloco da raiz: acima ficam os
+  // Rhizobium e o Miguelito
+  const screenPx = Math.max(16, (canvas.height || 720) * .036);
+  const visibleW = sim.state.visibleWorldWidth || (canvas.width / zoomValue);
+  const visibleH = sim.state.visibleWorldHeight || (canvas.height / zoomValue);
+  const frameY = (sim.state.cameraY || 0) + visibleH / 2;
+  target.save();
+  target.translate(-(sim.state.cameraX || 0), 0);
+  drawWorldLabel(target, site.x, frameY + visibleH * .3, text, {
+    color: '#ffe58f',
+    font: `900 ${(screenPx / zoomValue).toFixed(2)}px Inter,system-ui`,
+    glow: screenPx * .6 / zoomValue,
+    alpha: fadeIn,
+    maxWidth: visibleW * .92,
+  });
+  target.restore();
+}
+
+// Dica do tunel baixo: ao se aproximar da entrada (o narrador garante uma vez
+// por campanha).
+function announceLowTunnel() {
+  const st = sim.state;
+  if (st.gameState !== 'play' || !st.player) return;
+  const px = st.player.x + st.player.w / 2;
+  for (const d of st.level?.ceilingDrops || []) {
+    if (px < d.entryX - 380 || px > d.entryX) continue;
+    if (Math.abs((st.player.y + st.player.h) - d.floorY) > 140) continue;
+    if (d.phosphate && d.crystal && !d.crystal.broken) narrate(st, 'tunnel.phosphate');
+    else if (!d.merged) narrate(st, st.player.canJetpack ? 'tunnel.dash-jetpack' : 'tunnel.dash');
+    return;
+  }
+}
+
 // ---- Particulas de evento (vfx-particles.js) --------------------------------
 // Inoculacao e vigor vem da simulacao; a comemoracao do fim da fase e
 // disparada aqui, pelas etapas da cinematica.
@@ -2172,6 +2353,7 @@ function renderWorld() {
     // acrescenta feixes e primeiro plano. So visual; nao le nada da fisica.
     lighting?.render(ctx, { finaleActive: phaseFinale.active });
     drawEventParticles(ctx);
+    drawNoduleCaption(ctx);
     platformVisuals.renderLabel(ctx);
   } finally {
     ctx.restore();
@@ -2217,6 +2399,7 @@ function renderWorldProfiled() {
     }
     if (!skip.luz) P.run('iluminacao 2D (escurecer + recortes + feixes)', () => lighting?.render(ctx, { finaleActive: phaseFinale.active }));
     P.run('particulas de efeito (inoculacao, comemoracao)', () => drawEventParticles(ctx));
+    drawNoduleCaption(ctx);
     P.run('rotulos', () => platformVisuals.renderLabel(ctx));
   } finally {
     ctx.restore();
@@ -2273,9 +2456,15 @@ function loop(now) {
     // avancado (um cartao de tutorial aberto congela o jogo, nao a cena).
     phaseFinale.update(dt);
     updateEventParticles(dt, pauseMenu.isOpen || Boolean(tutorialManager?.isOpen));
+    updateNodulationShowcase(pauseMenu.isOpen || tutorialManager?.isOpen ? 0 : dt);
+    announceLowTunnel();
     renderWorld();
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);
+    // Radar de Ralstonia e nematoide (borda da tela; so alvos fora do quadro)
+    if (!phaseFinale.active) {
+      drawThreatRadar(ctx, sim.state, canvas, now / 1000, Boolean(coarsePointerQuery?.matches));
+    }
     const finaleVisible = phaseFinale.active;
     if (finaleVisible !== hudHiddenByFinale) {
       hudHiddenByFinale = finaleVisible;
@@ -2298,6 +2487,11 @@ function loop(now) {
     // mensagem de ciência correspondente.
     sim.narrator.observeTutorial();
     const toastKey = `${sim.state.toast}|${sim.state.toastCardId || ''}|${sim.state.toastSerial || 0}`;
+    if (noduleShowcaseActive() && NODULE_TOAST_TEXTS.has(sim.state.toast)) {
+      // ja esta escrito junto do nodulo; nao repete no topo
+      if (toastDiv.className === 'show') toastDiv.className = '';
+      lastToast = toastKey;
+    }
     if (sim.state.toastTime > 0 && sim.state.toast && toastKey !== lastToast) {
       toastTextSpan.textContent = sim.state.toast;
       const cardId = sim.state.toastCardId || '';

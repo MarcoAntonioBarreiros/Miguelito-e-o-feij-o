@@ -4,6 +4,7 @@ import {
   campaignManifest,
   getPathogenStartChunk,
   getPhaseManifest,
+  getPersistentUnlocksBeforePhase,
   hasPhaseManifestOverride,
 } from './campaign-manifest.js';
 import { createRandom } from './random.js';
@@ -258,6 +259,15 @@ export function getPhaseProfile(campaign) {
 }
 
 export function prepareCampaignGeneration(campaign) {
+  // As habilidades ganhas nas fases anteriores valem sempre (manifesto). Um save
+  // sem alguma delas (fase iniciada direto, coleta perdida) deixava a fase
+  // montada sem a habilidade que ela pressupoe — p.ex. a solubilizacao a partir
+  // da fase 8, sem a qual o tunel de fosfato nao pode existir.
+  const earned = getPersistentUnlocksBeforePhase(campaign.phase);
+  campaign.unlocks = campaign.unlocks || {};
+  for (const [feature, on] of Object.entries(earned)) {
+    if (on && !campaign.unlocks[feature]) campaign.unlocks[feature] = true;
+  }
   const profile = getPhaseProfile(campaign);
   setLogicCampaignProfile(profile);
   return profile;

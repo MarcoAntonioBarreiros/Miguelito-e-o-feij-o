@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="../../">
+  <title>Miguelito · teste da fase 9</title>
+  <link rel="stylesheet" href="experiments/phase9-ralstonia/preview.css">
+</head>
+<body>
+  <header>
+    <div><span class="eyebrow">MIGUELITO · BRANCH DE TESTE</span><h1>Fase 9 · Ralstonia</h1></div>
+    <p id="status" role="status">Preparando a fase 9…</p>
+  </header>
+  <main>
+    <form id="configuration" class="toolbar" aria-label="Configuração da partida">
+      <label>Fase <select id="phase" aria-label="Fase"></select></label>
+      <label>Seed <input id="seed" value="ralstonia-preview-9" maxlength="100" aria-label="Seed procedural"></label>
+      <button id="restart" type="submit" disabled>Reiniciar teste</button>
+      <button id="mode" type="button" disabled>Comparar em 2D</button>
+      <button id="fullscreen" type="button">Tela cheia</button>
+    </form>
+    <nav class="shortcuts" aria-label="Atalhos para testar a fase">
+      <button id="prevention" disabled>Ir à prevenção</button>
+      <button id="containment" disabled>Ir à contenção</button>
+      <button id="goal" disabled>Ir à raiz final</button>
+      <span>Atalhos só movem Miguelito. Recursos, tratamentos e objetivos dependem de jogar.</span>
+    </nav>
+    <div class="game-wrap"><iframe id="game" title="Jogo real — teste da fase 9" allow="fullscreen" allowfullscreen></iframe></div>
+    <p class="hint">O jogo começa funcionando, na aproximação do primeiro encontro. Colete exsudatos, recrute os microrganismos com E, inocule na raiz com E e alimente as colônias com novos pulsos. Use a pausa do próprio jogo para interromper a simulação. G alterna 2D/WebGL.</p>
+    <section class="diagnostics" aria-labelledby="diagnostics-title">
+      <div class="diagnostic-heading"><h2 id="diagnostics-title">Diagnóstico ao vivo</h2><p id="progress">Aguardando o jogo…</p></div>
+      <div id="foci" class="focus-list"></div>
+      <p class="hint">Uma disseminação passada permanece no histórico. O bloqueio depende de eventos em trânsito ou focos secundários que ainda precisam de controle. Nenhum marco é preenchido por esta página.</p>
+    </section>
+  </main>
+  <script type="module" src="experiments/phase9-ralstonia/preview.js"></script>
+</body>
+</html>
