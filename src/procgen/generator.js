@@ -500,14 +500,23 @@ export function generateLevel(seedString, {
   let pendingNitrogenGate = null;
   if (verticalPlanOption) {
     const requested = verticalPlanOption === true ? {} : verticalPlanOption;
-    verticalPlan = createPhaseVerticalPlan({
-      seedValue: seedString,
-      phase,
-      totalChunks: logic.length,
-      baseY: 500,
-      familyId: requested.familyId || null,
-    });
-    verticalPlanViolations = validatePhaseVerticalPlan(verticalPlan);
+    // Um sorteio reprovado (faixa vertical curta, sem subida...) nao derruba a
+    // fase para a geracao antiga, sem combo nenhum: tenta de novo com sementes
+    // derivadas (deterministicas). So desiste depois de varias tentativas.
+    let planAttempts = 0;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      planAttempts = attempt + 1;
+      verticalPlan = createPhaseVerticalPlan({
+        seedValue: attempt ? `${seedString}:plano-${attempt}` : seedString,
+        phase,
+        totalChunks: logic.length,
+        baseY: 500,
+        familyId: requested.familyId || null,
+      });
+      verticalPlanViolations = validatePhaseVerticalPlan(verticalPlan);
+      if (!verticalPlanViolations.length) break;
+    }
+    if (verticalPlan) verticalPlan.attempts = planAttempts;
     if (verticalPlanViolations.length) verticalPlan = null;
     // `ascentGates: true` continua valendo e agora significa TODOS os tipos de
     // portão. Uma lista explícita restringe — é assim que uma fase sem uma das
