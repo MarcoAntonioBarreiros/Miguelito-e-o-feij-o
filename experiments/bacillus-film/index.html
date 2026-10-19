@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="../../">
+  <title>Miguelito · biofilme de Bacillus · fase 1</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="experiments/bacillus-film/preview.css">
+</head>
+<body>
+  <header>
+    <div><span class="eyebrow">MIGUELITO · BRANCH EXPERIMENTAL</span><h1>Biofilme de Bacillus · fase 1</h1></div>
+    <p id="status" role="status">Carregando o jogo real…</p>
+  </header>
+  <main>
+    <form id="configuration" class="toolbar" aria-label="Configuração da partida">
+      <label>Seed <input id="seed" value="bacillus-surface-film-1" maxlength="100" aria-label="Seed procedural"></label>
+      <button id="restart" type="submit" disabled>Reiniciar fase 1</button>
+      <button id="mode" type="button" disabled>Comparar em 2D</button>
+      <button id="fullscreen" type="button">Tela cheia</button>
+    </form>
+    <nav class="shortcuts" aria-label="Atalhos para testar a formação do biofilme">
+      <button id="exudate" disabled>Ir ao exsudato</button>
+      <button id="bacillus" disabled>Ir ao Bacillus</button>
+      <button id="root" disabled>Ir à raiz marcada</button>
+      <span>Os atalhos movem Miguelito. Recrute e inocule usando E.</span>
+    </nav>
+    <div class="game-wrap"><iframe id="game" title="Miguelito — fase 1 real" allow="fullscreen" allowfullscreen></iframe></div>
+    <p class="hint">Colete exsudatos, lance um pulso perto de Bacillus com E e espere o recrutamento. Vá à raiz marcada, selecione Bacillus com ↓ e pressione E para inocular. Acompanhe o crescimento; um novo pulso de exsudato alimenta a colônia. Esc fecha os cartões ou abre a pausa. G alterna 2D/WebGL.</p>
+    <section class="diagnostics" aria-labelledby="diagnostics-title">
+      <h2 id="diagnostics-title">Biologia ao vivo</h2>
+      <p id="progress">Aguardando a inoculação…</p>
+      <ol class="stages" aria-label="Progressão visual contínua">
+        <li>Adesão</li><li>Microcolônia</li><li>Expansão</li><li>Maturação</li>
+      </ol>
+      <div id="colonies"></div>
+      <p class="hint">Estes valores são leituras da simulação. Esta página não concede recursos, não preenche objetivos e não acelera o crescimento. O biofilme torna-se funcional no limiar biológico original de 42% de maturidade.</p>
+    </section>
+  </main>
+  <script type="module" src="experiments/bacillus-film/preview.js"></script>
+</body>
+</html>

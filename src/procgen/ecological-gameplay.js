@@ -1,6 +1,6 @@
 import { H, W } from '../core/constants.js';
-import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from '../render/bacillus-sprite.js';
 import { narrate } from './narrator.js';
+import { drawBacillusBiofilm } from '../render/bacillus-biofilm.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -324,53 +324,6 @@ export function createEcologicalGameplay({ state, input, entities, ecology, path
     ctx.globalAlpha = 1;
   }
 
-  // Fonte unica de posicao do biofilme: quando ele pertence a um checkpoint,
-  // deriva de checkpoint.x/y no momento do render, em vez de depender da copia
-  // film.x/film.y que so e sincronizada quando gameplay.update() roda. Assim a
-  // elipse grande do checkpoint nunca fica presa a uma posicao antiga.
-  function biofilmPosition(film) {
-    if (film.checkpoint) return { x: film.checkpoint.x, y: film.checkpoint.y + 8 };
-    return { x: film.x, y: film.y };
-  }
-
-  function drawBiofilm(ctx, film) {
-    const { x: fx, y: fy } = biofilmPosition(film);
-    const pulse = 1 + Math.sin(state.time * 1.8 + fx * .01) * .04;
-    ctx.save();
-    ctx.translate(fx, fy);
-    ctx.scale(pulse, pulse * .62);
-    const radius = film.radius * film.growth;
-    const matrix = ctx.createRadialGradient(0, 0, 4, 0, 0, radius);
-    matrix.addColorStop(0, film.activated ? 'rgba(112,229,214,.34)' : 'rgba(112,229,214,.24)');
-    matrix.addColorStop(.7, 'rgba(112,229,214,.11)');
-    matrix.addColorStop(1, 'rgba(112,229,214,0)');
-    ctx.fillStyle = matrix;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = film.activated ? 'rgba(190,255,241,.72)' : 'rgba(112,229,214,.45)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([3, 7]);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * .72, 0, TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    // Partículas brilhantes da matriz do biofilme (camada frontal em partículas)
-    for (let i = 0; i < 10; i++) {
-      const angle = i / 10 * TAU + state.time * .12;
-      const radiusOffset = radius * (.28 + (i % 3) * .18);
-      const bx = Math.cos(angle) * radiusOffset;
-      const by = Math.sin(angle) * radiusOffset * 0.45;
-      const alpha = .5 + (i % 3) * .18;
-      ctx.fillStyle = i % 2 ? 'rgba(112,229,214,0.75)' : 'rgba(227,255,245,0.85)';
-      ctx.beginPath();
-      ctx.arc(bx, by - 6, 2.5 + (i % 3) * 0.9, 0, TAU);
-      ctx.fill();
-    }
-    ctx.restore();
-    ctx.globalAlpha = 1;
-  }
-
   function drawInfection(ctx) {
     const infection = clamp(state.player.infection || 0, 0, 1);
     if (infection <= .01) return;
@@ -412,16 +365,17 @@ export function createEcologicalGameplay({ state, input, entities, ecology, path
     ctx.translate(-state.cameraX, 0);
     for (const cloud of clouds) drawCloud(ctx, cloud);
     for (const candidate of formingBiofilms.values()) {
-      const progress = clamp(candidate.progress / 3.4, 0, 1);
-      ctx.strokeStyle = `rgba(112,229,214,${.18 + progress * .42})`;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([3, 6]);
-      ctx.beginPath();
-      ctx.arc(candidate.x, candidate.y, 18 + progress * 48, 0, TAU);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      // This alternate ecological pathway has its own real formation progress.
+      drawBacillusBiofilm(ctx, { film: candidate, progress: clamp(candidate.progress / 3.4, 0, 1) * .42,
+        platforms: state.level.platforms }, state.time);
     }
-    for (const film of biofilms) drawBiofilm(ctx, film);
+    for (const film of biofilms) {
+      // Managed films use entry.maturity in bacillusBioprotection.render; their
+      // generic growth is a different clock and would cover the new film twice.
+      if (!film.bacillusManaged) drawBacillusBiofilm(ctx, { film,
+        progress: .42 + clamp(film.growth || 0, 0, 1) * .58,
+        platforms: state.level.platforms }, state.time);
+    }
     drawInfection(ctx);
     ctx.restore();
   }

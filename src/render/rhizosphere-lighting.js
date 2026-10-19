@@ -347,12 +347,19 @@ export function createRhizosphereLighting({ canvas, state, getAgents, enabled = 
 
     for (const b of level.biofilms || []) {
       if (!Number.isFinite(b.x)) continue;
+      const colony = b.bacillusManaged
+        ? (level.beneficialColonies || []).find(c => c.id === b.bacillusColonyId) : null;
+      const entry = colony?.bacillusState;
+      const maturity = entry ? entry.maturity : b.growth ?? 1;
+      const vitality = entry ? (entry.mode === 'spores' ? 0 : Math.min(1, colony.vigor * 1.4)) : 1;
+      const amount = Math.max(0, Math.min(1, (maturity - .15) / .6)) * vitality;
+      if (amount <= .01) continue;
       lights.push({
         x: b.x,
         y: b.y,
-        maskR: 90, maskA: .50,
-        glowR: 30, glowA: .36,
-        color: '#7fd8ff',
+        maskR: 60, maskA: .18 * amount,
+        glowR: 18, glowA: .08 * amount,
+        color: '#8de7c5',
         kind: 'biofilm',
       });
     }
