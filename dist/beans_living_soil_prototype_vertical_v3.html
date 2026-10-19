@@ -1108,7 +1108,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"cf886db","subject":"Calmaria: particulas nascem na borda da silhueta (no miolo ficavam atras","builtAt":"2026-10-19 20:17"};
+window.__BEANS_BUILD__ = {"commit":"63b511f","subject":"Calmaria: particulas da Ralstonia (o desenho usa uma copia nova do foco ","builtAt":"2026-10-19 20:22"};
 (() => {
 'use strict';
 const __modules = {
@@ -1174,6 +1174,7 @@ const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
 const { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } = __require("src/render/final-root-visual.js");
 const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");
 const { drawCalmGrade2D } = __require("src/render/calm-grade-2d.js");
+const { drawCalmSparkles } = __require("src/render/calm-motes.js");
 const { advanceCampaignPhase, advanceToExtraPhase, displayPhaseNumber, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
   // alcançadas, não só da atual.
 
@@ -3114,10 +3115,10 @@ function drawWorldLayers25D(layer) {
     // raiz-objetivo e sua aura: camada sem iluminacao (fonte de luz, como no 2D)
     if (layer.glow) {
       layerSwitch.target(layer.glow);
-      withCamera(layer.glow, glow => { sim.goal.render(glow); drawEventParticles(glow); });
+      withCamera(layer.glow, glow => { sim.goal.render(glow); drawCalmSparkles(glow, sim.state); drawEventParticles(glow); });
     } else {
       layerSwitch.target(layer.fx);
-      withCamera(layer.fx, drawEventParticles);
+      withCamera(layer.fx, fx => { drawCalmSparkles(fx, sim.state); drawEventParticles(fx); });
     }
   } finally {
     layerSwitch.target(null);
@@ -3500,6 +3501,7 @@ function renderWorld() {
     lighting?.render(ctx, { finaleActive: phaseFinale.active });
     // calmaria (Pseudomonas + Bacillus): no 2,5D quem faz e o passe final da GPU
     drawCalmGrade2D(ctx, sim.state);
+    drawCalmSparkles(ctx, sim.state);
     drawEventParticles(ctx);
     drawNoduleCaption(ctx);
     platformVisuals.renderLabel(ctx);
@@ -12025,7 +12027,57 @@ function drawCalmMotes(ctx, key, { x, y, size, calm, time }) {
   p.motes.length = w;
   ctx.restore();
 }
-Object.assign(__exports, { drawCalmMotes });
+
+
+// Brilhos da area da calmaria: poucos, maiores e lentos, subindo devagar e
+// piscando, espalhados pelo halo. Sem estado: a posicao sai de um hash fixo
+// por indice e do relogio do jogo (nao consome Math.random por quadro).
+const SPARKLES_PER_ZONE = 20;
+const SPARKLE_COLORS = ['#ffe9a8', '#ffc59a', '#ffb3d1', '#ffffff'];
+const hash = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+
+function drawCalmSparkles(ctx, state) {
+  const zones = state?.calmZones;
+  if (!zones?.length) return;
+  const time = state.time || 0;
+  ctx.save();
+  ctx.translate(-(state.cameraX || 0), 0);
+  ctx.globalCompositeOperation = 'lighter';
+  zones.forEach((zone, zi) => {
+    const k = zone.intensity || 0;
+    if (k <= 0) return;
+    const r = zone.radius * .9;
+    const n = Math.round(SPARKLES_PER_ZONE * k);
+    for (let i = 0; i < n; i++) {
+      const seed = zi * 97 + i * 13.7;
+      const speed = 10 + hash(seed + 1) * 16;
+      const span = r * 1.6;
+      const rise = ((time * speed + hash(seed + 2) * span) % span);
+      const x = zone.x + (hash(seed + 3) * 2 - 1) * r + Math.sin(time * .5 + seed) * 14;
+      const y = zone.y + r * .8 - rise;
+      const dx = x - zone.x, dy = y - zone.y;
+      const edge = 1 - Math.min(1, Math.hypot(dx, dy) / r);
+      if (edge <= 0) continue;
+      const tw = .5 + .5 * Math.sin(time * (1 + hash(seed + 4) * 1.8) + seed * 3);
+      const life = Math.sin(Math.PI * rise / span);
+      const a = k * Math.min(1, edge * 2.2) * life * (.35 + .65 * tw);
+      if (a <= .02) continue;
+      const color = SPARKLE_COLORS[(hash(seed + 5) * SPARKLE_COLORS.length) | 0];
+      const radius = 2.4 + hash(seed + 6) * 3.4;
+      const spr = glowSprite(color);
+      const d = radius * 7;
+      ctx.globalAlpha = a;
+      if (spr) ctx.drawImage(spr, x - d / 2, y - d / 2, d, d);
+      ctx.globalAlpha = a * .9;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x, y, radius * .35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  ctx.restore();
+}
+Object.assign(__exports, { glowSprite, drawCalmMotes, drawCalmSparkles });
 },
 "src/procgen/mycorrhiza-growth.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");

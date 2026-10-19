@@ -76,7 +76,20 @@ void main() {
   // emitirem azul e cintilarem fora do raio (ate quando c fosse zero).
   float fogTransmission = exp(-uFogDensity * max(0.0, -p.z));
   vCol = c * fogTransmission * mix(1.0, beamTwinkle(uTime, aSeed.w), core);
-  float s = uSize * (0.5 + aSeed.w) * uPixelScale / max(1.0, -mv.z);
+  // Calmaria: dentro do halo a poeira vira polen dourado, rosa e branco que
+  // pisca devagar, em todo o halo (nao so no feixe). Fora dele cw = 0 e nada
+  // muda: a poeira continua so no miolo dos feixes.
+  float cw = calmAt(p);
+  float calmSize = 1.0;
+  if (cw > 0.0) {
+    float pick = fract(aSeed.w * 7.31);
+    vec3 warm = pick < .4 ? vec3(1.0, .82, .45) : pick < .75 ? vec3(1.0, .58, .74) : vec3(1.0, .96, .9);
+    float tw = .55 + .45 * sin(uTime * (1.2 + aSeed.w * 1.6) + aSeed.w * 61.0);
+    vCol = mix(vCol, warm * (.7 + .6 * tw), cw);
+    vDensity = mix(vDensity, .5 + .5 * tw, cw);
+    calmSize = 1.0 + .6 * cw;
+  }
+  float s = uSize * (0.5 + aSeed.w) * calmSize * uPixelScale / max(1.0, -mv.z);
   gl_PointSize = clamp(s, 1.0, 26.0);
   vFade = smoothstep(1.0, 3.0, gl_PointSize);
 }`;

@@ -86,6 +86,7 @@ const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
 import { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } from '../render/final-root-visual.js';
 import { celebrationCycleSeconds, resolvePlayerSkin } from '../render/player-skins.js';
 import { drawCalmGrade2D } from '../render/calm-grade-2d.js';
+import { drawCalmSparkles } from '../render/calm-motes.js';
 import {
   advanceCampaignPhase,
   advanceToExtraPhase,
@@ -2037,10 +2038,10 @@ function drawWorldLayers25D(layer) {
     // raiz-objetivo e sua aura: camada sem iluminacao (fonte de luz, como no 2D)
     if (layer.glow) {
       layerSwitch.target(layer.glow);
-      withCamera(layer.glow, glow => { sim.goal.render(glow); drawEventParticles(glow); });
+      withCamera(layer.glow, glow => { sim.goal.render(glow); drawCalmSparkles(glow, sim.state); drawEventParticles(glow); });
     } else {
       layerSwitch.target(layer.fx);
-      withCamera(layer.fx, drawEventParticles);
+      withCamera(layer.fx, fx => { drawCalmSparkles(fx, sim.state); drawEventParticles(fx); });
     }
   } finally {
     layerSwitch.target(null);
@@ -2423,6 +2424,7 @@ function renderWorld() {
     lighting?.render(ctx, { finaleActive: phaseFinale.active });
     // calmaria (Pseudomonas + Bacillus): no 2,5D quem faz e o passe final da GPU
     drawCalmGrade2D(ctx, sim.state);
+    drawCalmSparkles(ctx, sim.state);
     drawEventParticles(ctx);
     drawNoduleCaption(ctx);
     platformVisuals.renderLabel(ctx);

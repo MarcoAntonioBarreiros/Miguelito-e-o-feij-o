@@ -10,7 +10,7 @@ const RATE = 9; // por segundo, com calmaria cheia
 const pools = new WeakMap();
 const glowSprites = new Map();
 
-function glowSprite(color) {
+export function glowSprite(color) {
   let s = glowSprites.get(color);
   if (s || typeof document === 'undefined') return s || null;
   const cv = document.createElement('canvas');
@@ -96,3 +96,52 @@ export function drawCalmMotes(ctx, key, { x, y, size, calm, time }) {
   ctx.restore();
 }
 
+
+// Brilhos da area da calmaria: poucos, maiores e lentos, subindo devagar e
+// piscando, espalhados pelo halo. Sem estado: a posicao sai de um hash fixo
+// por indice e do relogio do jogo (nao consome Math.random por quadro).
+const SPARKLES_PER_ZONE = 20;
+const SPARKLE_COLORS = ['#ffe9a8', '#ffc59a', '#ffb3d1', '#ffffff'];
+const hash = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+
+export function drawCalmSparkles(ctx, state) {
+  const zones = state?.calmZones;
+  if (!zones?.length) return;
+  const time = state.time || 0;
+  ctx.save();
+  ctx.translate(-(state.cameraX || 0), 0);
+  ctx.globalCompositeOperation = 'lighter';
+  zones.forEach((zone, zi) => {
+    const k = zone.intensity || 0;
+    if (k <= 0) return;
+    const r = zone.radius * .9;
+    const n = Math.round(SPARKLES_PER_ZONE * k);
+    for (let i = 0; i < n; i++) {
+      const seed = zi * 97 + i * 13.7;
+      const speed = 10 + hash(seed + 1) * 16;
+      const span = r * 1.6;
+      const rise = ((time * speed + hash(seed + 2) * span) % span);
+      const x = zone.x + (hash(seed + 3) * 2 - 1) * r + Math.sin(time * .5 + seed) * 14;
+      const y = zone.y + r * .8 - rise;
+      const dx = x - zone.x, dy = y - zone.y;
+      const edge = 1 - Math.min(1, Math.hypot(dx, dy) / r);
+      if (edge <= 0) continue;
+      const tw = .5 + .5 * Math.sin(time * (1 + hash(seed + 4) * 1.8) + seed * 3);
+      const life = Math.sin(Math.PI * rise / span);
+      const a = k * Math.min(1, edge * 2.2) * life * (.35 + .65 * tw);
+      if (a <= .02) continue;
+      const color = SPARKLE_COLORS[(hash(seed + 5) * SPARKLE_COLORS.length) | 0];
+      const radius = 2.4 + hash(seed + 6) * 3.4;
+      const spr = glowSprite(color);
+      const d = radius * 7;
+      ctx.globalAlpha = a;
+      if (spr) ctx.drawImage(spr, x - d / 2, y - d / 2, d, d);
+      ctx.globalAlpha = a * .9;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x, y, radius * .35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  ctx.restore();
+}
