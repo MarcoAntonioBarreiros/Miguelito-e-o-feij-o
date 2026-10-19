@@ -9,6 +9,7 @@ import { createTrichodermaGrowth } from './trichoderma-growth.js';
 import { createTrichodermaRecruitment } from './trichoderma-recruitment.js';
 import { createTrichodermaColonies } from './trichoderma-colonies.js';
 import { createBeneficialInoculants } from './beneficial-inoculants.js';
+import { createCalmZones } from './calm-zones.js';
 import { createPseudomonasSiderophores } from './pseudomonas-siderophores.js';
 import { createOpportunisticFungus } from './opportunistic-fungus.js';
 import { createBacillusBioprotection } from './bacillus-bioprotection.js';
@@ -248,6 +249,8 @@ export function createSimulator({
   const pathogenPressure = createPathogenPressure({ state });
   const gameplay = createEcologicalGameplay({ state, input, entities, ecology, pathogenPressure });
   const beneficialInoculants = createBeneficialInoculants({ state, input, ecology, entities });
+  // calmaria (Pseudomonas + Bacillus): precisa existir antes dos patogenos lerem
+  const calmZones = createCalmZones({ state, inoculants: beneficialInoculants });
   const pseudomonasSiderophores = createPseudomonasSiderophores({
     state,
     entities,
@@ -351,6 +354,7 @@ export function createSimulator({
     bacillusBioprotection.clear();
     meloidogyneLifecycle.clear();
     beneficialInoculants.clear();
+    calmZones.clear();
     nitrogenRootDevelopment.clear();
     rhizobiumNodulation.clear();
     mycorrhizaStructures.clear();
@@ -384,6 +388,7 @@ export function createSimulator({
     azospirillumRootGrowth.reset();
     azospirillumNitrogen.reset();
     beneficialInoculants.reset();
+    calmZones.reset();
     pseudomonasSiderophores.reset();
     opportunisticFungus.reset();
     bacillusBioprotection.reset();
@@ -414,6 +419,7 @@ export function createSimulator({
     recruitment.update(dt);
     beneficialInoculants.update(dt);
     pseudomonasSiderophores.update(dt);
+    calmZones.update(dt);
     opportunisticFungus.update(dt);
 
     const azospirillumRootsUnlocked = state.campaign
@@ -461,7 +467,7 @@ export function createSimulator({
     biologicalAudio: entities.audio,
     narrator,
     state, input, entities, ecology, mycorrhiza, mycorrhizaStructures,
-    trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
+    trichoderma, recruitment, trichodermaColonies, beneficialInoculants, calmZones,
     pseudomonasSiderophores, opportunisticFungus, bacillusBioprotection, bacillusBioprotectionSafety,
     rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
     azospirillumNitrogen, renewableExudates, pathogenPressure,

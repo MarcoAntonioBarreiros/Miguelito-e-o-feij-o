@@ -85,6 +85,7 @@ import { installLowTunnels, lowTunnelDiagnostics } from './low-tunnels.js';
 const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
 import { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } from '../render/final-root-visual.js';
 import { celebrationCycleSeconds, resolvePlayerSkin } from '../render/player-skins.js';
+import { drawCalmGrade2D } from '../render/calm-grade-2d.js';
 import {
   advanceCampaignPhase,
   advanceToExtraPhase,
@@ -2339,6 +2340,26 @@ function updateEventParticles(dt, frozen) {
   if (!frozen) vfxParticles.update(dt);
 }
 
+// Musica da calmaria: entra quando o Miguelito esta dentro de um halo ativo e
+// sai quando ele sai (ou o halo se desfaz). Atraso nas duas pontas para nao
+// alternar na borda.
+let calmMusicOn = false;
+let calmMusicTimer = 0;
+function updateCalmMusic(dt) {
+  const st = sim.state;
+  const p = st.player;
+  const level = st.gameState === 'play' && p && st.calm
+    ? st.calm.at(p.x + p.w / 2, p.y + p.h / 2)
+    : 0;
+  const want = calmMusicOn ? level > .15 : level > .55;
+  calmMusicTimer = want === calmMusicOn ? 0 : calmMusicTimer + dt;
+  if (calmMusicTimer >= (want ? .6 : 1.8)) {
+    calmMusicOn = want;
+    calmMusicTimer = 0;
+    gameAudio.setMusicOverride?.(calmMusicOn ? 'musicCalmaria' : null);
+  }
+}
+
 function renderWorld() {
   if (renderer25D && render25DActive) {
     renderer25D.renderFrame(drawWorldLayers25D);
@@ -2400,6 +2421,8 @@ function renderWorld() {
     // Luz por ultimo no mundo: escurece o fundo, recorta as fontes de luz e
     // acrescenta feixes e primeiro plano. So visual; nao le nada da fisica.
     lighting?.render(ctx, { finaleActive: phaseFinale.active });
+    // calmaria (Pseudomonas + Bacillus): no 2,5D quem faz e o passe final da GPU
+    drawCalmGrade2D(ctx, sim.state);
     drawEventParticles(ctx);
     drawNoduleCaption(ctx);
     platformVisuals.renderLabel(ctx);
@@ -2483,6 +2506,7 @@ function loop(now) {
         cameraView.update(frameDt);
       },
     });
+    updateCalmMusic(dt);
     gameAudio.update(dt);
     // Depois de `sim.step`: as posições e os estados dos processos deste quadro
     // já estão atualizados, então pan, ganho e limite de vozes usam o presente.

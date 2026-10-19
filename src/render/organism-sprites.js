@@ -58,6 +58,14 @@ export const ORGANISM_SPRITE_SHEETS = Object.freeze({
   }),
 });
 
+// Versoes "calmas" (kawaii) para a calmaria de Pseudomonas + Bacillus. Mesmo
+// formato de folha (quadros 320x400 lado a lado). Para ligar uma, basta
+// acrescentar aqui, por exemplo:
+//   oportunista: Object.freeze({ src: 'assets/organisms/calm/oportunista.png', frameCount: 12, fps: 5 }),
+// Enquanto nao houver arte, o organismo calmo usa a folha normal com um brilho
+// quente suave atras.
+export const CALM_SPRITE_SHEETS = Object.freeze({});
+
 const enabled = new Map(Object.keys(ORGANISM_SPRITE_SHEETS).map(type => [type, true]));
 
 export function calculateOrganismSpriteFrame(type, time = 0, phase = 0) {
@@ -79,14 +87,15 @@ export function createOrganismSpriteRenderer({
 } = {}) {
   const images = new Map();
 
-  function ensureImage(type) {
-    const sheet = ORGANISM_SPRITE_SHEETS[type];
+  function ensureImage(type, calmVariant = false) {
+    const sheet = calmVariant ? CALM_SPRITE_SHEETS[type] : ORGANISM_SPRITE_SHEETS[type];
     if (!sheet) return null;
-    if (images.has(type)) return images.get(type);
+    const key = calmVariant ? `${type}:calm` : type;
+    if (images.has(key)) return images.get(key);
 
     const image = imageFactory(type, sheet);
     const record = { image, loaded: false, failed: !image };
-    images.set(type, record);
+    images.set(key, record);
     if (!image) return record;
 
     image.onload = () => {
@@ -112,33 +121,62 @@ export function createOrganismSpriteRenderer({
     flipX = false,
     anchorX = .5,
     anchorY = .5,
+    calm = 0,
   } = {}) {
     const sheet = ORGANISM_SPRITE_SHEETS[type];
     if (!sheet || !enabled.get(type)) return false;
     const record = ensureImage(type);
     if (!record?.loaded || record.failed) return false;
 
-    const frame = calculateOrganismSpriteFrame(type, time, phase);
     const renderHeight = Math.max(1, height ?? sheet.height);
     const renderWidth = renderHeight * (DEFAULT_FRAME_WIDTH / DEFAULT_FRAME_HEIGHT);
+    const k = Math.max(0, Math.min(1, calm || 0));
+    const calmSheet = k > 0 ? CALM_SPRITE_SHEETS[type] : null;
+    const calmRecord = calmSheet ? ensureImage(type, true) : null;
+    const calmReady = Boolean(calmRecord?.loaded && !calmRecord.failed);
 
-    ctx.save();
-    ctx.globalAlpha *= Math.max(0, Math.min(1, alpha));
-    ctx.translate(x, y);
-    ctx.rotate(rotation);
-    ctx.scale(flipX ? -1 : 1, 1);
-    ctx.drawImage(
-      record.image,
-      frame.sourceX,
-      frame.sourceY,
-      frame.sourceWidth,
-      frame.sourceHeight,
-      -renderWidth * anchorX,
-      -renderHeight * anchorY,
-      renderWidth,
-      renderHeight,
-    );
-    ctx.restore();
+    const blit = (image, frameSheet, a) => {
+      if (a <= 0) return;
+      const raw = Math.floor(Math.max(0, time) * frameSheet.fps + Math.abs(phase) * 3.7);
+      const frameIndex = raw % frameSheet.frameCount;
+      ctx.save();
+      ctx.globalAlpha *= Math.max(0, Math.min(1, alpha)) * a;
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.scale(flipX ? -1 : 1, 1);
+      ctx.drawImage(
+        image,
+        frameIndex * DEFAULT_FRAME_WIDTH,
+        0,
+        DEFAULT_FRAME_WIDTH,
+        DEFAULT_FRAME_HEIGHT,
+        -renderWidth * anchorX,
+        -renderHeight * anchorY,
+        renderWidth,
+        renderHeight,
+      );
+      ctx.restore();
+    };
+
+    if (k > 0 && !calmReady) {
+      // provisorio ate a arte kawaii: brilho quente e suave atras do organismo
+      const cx = x + renderWidth * (.5 - anchorX) * (flipX ? -1 : 1);
+      const cy = y + renderHeight * (.5 - anchorY);
+      const r = Math.max(renderWidth, renderHeight) * .62;
+      ctx.save();
+      ctx.globalAlpha *= Math.max(0, Math.min(1, alpha)) * k;
+      const g = ctx.createRadialGradient(cx, cy, r * .1, cx, cy, r);
+      g.addColorStop(0, 'rgba(255,196,170,.55)');
+      g.addColorStop(.55, 'rgba(255,160,190,.26)');
+      g.addColorStop(1, 'rgba(255,160,190,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    blit(record.image, sheet, calmReady ? 1 - k : 1);
+    if (calmReady) blit(calmRecord.image, calmSheet, k);
     return true;
   }
 

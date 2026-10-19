@@ -2,6 +2,7 @@ import { H, W } from '../core/constants.js';
 import { organismSprites } from '../render/organism-sprites.js';
 import { getPhaseManifest } from './campaign-manifest.js';
 import { narrate } from './narrator.js';
+import { settleCalm } from './calm-zones.js';
 import { hyphalWorldBounds } from './world-bounds.js';
 import { drawOpportunisticMycelium, forgetOpportunisticVisual, opportunisticContactPaths, opportunisticVisualSnapshot, syncOpportunisticVisual } from '../render/opportunistic-mycelium.js';
 
@@ -66,6 +67,23 @@ export function fungalResponse(limitation, fungusConfig, ironConfig) {
     branching: clamp(1 - pressure * ironConfig.growthSuppression * .9, .08, 1),
     sporulation: clamp(1 - pressure * ironConfig.sporulationSuppression, .04, 1) * fungusConfig.sporulationRate,
     adhesion: clamp(1 - pressure * ironConfig.adhesionSuppression, .04, 1),
+  };
+}
+
+// Calmaria (Pseudomonas + Bacillus): a rede para de crescer, ramificar,
+// esporular e aderir; o vigor cai ate o piso do controle por ferro. Nada e
+// removido: as hifas e esporos que ja existem continuam la.
+export function calmFungalResponse(response, calm, ironConfig) {
+  const c = clamp(calm || 0, 0, 1);
+  if (!c) return response;
+  const floor = ironConfig?.minimumFungalVigor ?? .25;
+  return {
+    vigor: response.vigor + (Math.min(response.vigor, floor) - response.vigor) * c,
+    growth: response.growth * (1 - c),
+    branching: response.branching * (1 - c),
+    sporulation: response.sporulation * (1 - c),
+    adhesion: response.adhesion * (1 - c),
+    calm: c,
   };
 }
 
@@ -423,9 +441,14 @@ export function createOpportunisticFungus({ state, entities, ecology, mycoparasi
       0,
       1,
     );
-    const response = fungalResponse(limitation, settings.fungus, settings.iron);
+    const calm = settleCalm(state, network, 'oportunista', network.anchor.x, network.anchor.y, dt);
+    const response = calmFungalResponse(
+      fungalResponse(limitation, settings.fungus, settings.iron),
+      calm,
+      settings.iron,
+    );
     network.response = response;
-    for (const agent of network.agents) agent.fungalVigor = response.vigor;
+    for (const agent of network.agents) { agent.fungalVigor = response.vigor; agent.calm = calm; }
     maximumIronLimitation = Math.max(maximumIronLimitation, limitation);
     updateControlMilestone(network, response.vigor, dt);
 
@@ -458,7 +481,8 @@ export function createOpportunisticFungus({ state, entities, ecology, mycoparasi
       if (Math.abs(segment.end.x - target.x) > 80 || Math.abs(segment.end.y - target.y) > 80) continue;
       if (pointSegmentDistance(target, segment.start, segment.end) < 31) touching++;
     }
-    if (touching) {
+    // calmo: as hifas ficam, mas nao aderem nem prendem o Miguelito
+    if (touching && calm < .5) {
       const pressure = clamp(touching / 5, .16, 1) * response.adhesion;
       contactIntensity += pressure;
       network.attached = clamp(Math.max(network.attached, .34) + dt * pressure * 1.65, 0, 1);
@@ -466,12 +490,12 @@ export function createOpportunisticFungus({ state, entities, ecology, mycoparasi
     } else {
       network.attachmentGrace = Math.max(
         0,
-        network.attachmentGrace - dt * (1 + limitation * 3.5),
+        network.attachmentGrace - dt * (1 + limitation * 3.5 + calm * 4),
       );
       const graceDecay = network.attachmentGrace > 0 ? .006 : .045;
       network.attached = Math.max(
         0,
-        network.attached - dt * (graceDecay + limitation * .62),
+        network.attached - dt * (graceDecay + limitation * .62 + calm * .8),
       );
     }
   }
@@ -564,6 +588,7 @@ export function createOpportunisticFungus({ state, entities, ecology, mycoparasi
       time: state.time,
       phase: network.lesions[0].phase,
       alpha: .5 + vigor * .5,
+      calm: network.calm || 0,
       anchorY: .78,
       flipX: Math.sin(network.lesions[0].phase) < 0,
     })) return;

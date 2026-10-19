@@ -1,6 +1,7 @@
 import { organismSprites } from '../render/organism-sprites.js';
 import { publishControlSignal } from './biological-audio-signals.js';
 import { narrate } from './narrator.js';
+import { settleCalm } from './calm-zones.js';
 import { drawRhizoctoniaMycelium, forgetRhizoctoniaMycelium, rhizoctoniaContactPaths, rhizoctoniaMyceliumSnapshot } from '../render/rhizoctonia-mycelium.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -237,9 +238,11 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     const iron = pseudomonasStrength(enemy, host, dt);
     enemy.bacillusControl = bacillus;
     enemy.ironLimitation = iron;
+    // Calmaria: para de colonizar e de lesionar, sem morrer nem recuar sozinha.
+    const calm = settleCalm(state, enemy, 'rhizoctonia', enemy.infectionX, host.y, dt);
     const synergy = bacillus * (1 + iron * .6);
     const phaseFactor = 1 + Math.min(.35, Math.max(0, (state.campaign?.phase || 1) - 1) * .035);
-    const naturalGrowth = (.012 + enemy.colonization * .012) * phaseFactor * (1 - iron * .58);
+    const naturalGrowth = (.012 + enemy.colonization * .012) * phaseFactor * (1 - iron * .58) * (1 - calm);
     const retreat = synergy * (.018 + bacillus * .025);
     const net = naturalGrowth - retreat;
     enemy.colonization = clamp(enemy.colonization + dt * net, .06, 1);
@@ -250,13 +253,16 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     if (enemy.contained && bacillus < .28) enemy.contained = false;
     if (enemy.contained) enemy.colonization = Math.max(.07, enemy.colonization - dt * .012);
 
-    const control = clamp(bacillus * .74 + iron * .34, 0, 1);
+    // o desenho do micelio le o controle biologico da raiz; a calmaria entra so
+    // na supressao do ataque e da pressao
+    const biologicalControl = clamp(bacillus * .74 + iron * .34, 0, 1);
+    const control = Math.max(biologicalControl, calm);
     const pressure = enemy.contained
       ? .018
-      : clamp(.08 + enemy.colonization * .72 - control * .42, .03, .9);
+      : clamp(.08 + enemy.colonization * .72 - control * .42, .03, .9) * (1 - calm);
     host.rhizoctoniaPressure = Math.max(host.rhizoctoniaPressure || 0, pressure);
     host.rhizoctoniaColonization = Math.max(host.rhizoctoniaColonization || 0, enemy.colonization);
-    host.rhizoctoniaControl = Math.max(host.rhizoctoniaControl || 0, control);
+    host.rhizoctoniaControl = Math.max(host.rhizoctoniaControl || 0, biologicalControl);
 
     if (enemy.contained || net < 0) {
       host.rootDamage = clamp((host.rootDamage || 0) - dt * (.004 + synergy * .013), 0, .94);
@@ -286,7 +292,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       if (!enemy.alive) return;
       activeCount++;
       updateEnemy(enemy, index, dt);
-      if (enemy.contained || (enemy.bacillusControl || 0) >= .45) controlledCount++;
+      if (enemy.contained || (enemy.bacillusControl || 0) >= .45 || (enemy.calm || 0) >= .6) controlledCount++;
     });
   }
 
@@ -410,6 +416,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       phase: enemy.phase ?? index,
       alpha: enemy.contained ? .58 : 1,
       flipX: (enemy.rhizoAttackDirection || 1) < 0,
+      calm: enemy.calm || 0,
     });
   }
 

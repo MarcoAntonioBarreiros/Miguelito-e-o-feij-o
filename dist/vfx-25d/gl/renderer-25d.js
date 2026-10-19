@@ -99,6 +99,8 @@ void main() {
     rim *= sky;
   }
   vec3 lit = albedo * (uAmbient * ao + light) + rim * albedo * uRim;
+  float calmW = calmAt(wp);
+  lit += albedo * CALM_AMBIENT * calmW * mix(1.0, ao, .5);
   // O que e translucido (halo de inoculacao, aura, nevoa desenhada pelo jogo)
   // recebe so a luz da cena, como no 2D original, onde a escuridao cobria os
   // halos. Antes 40% dele passava sem luz nenhuma e o halo verde dominava a tela.
@@ -116,7 +118,15 @@ void main() {
   float pointLike = smoothstep(.12, .45, lum * c.a - aroundLum);
   float solid = smoothstep(.5, .9, c.a);
   col += albedo * uGlow * smoothstep(.45, .85, lum) * smoothstep(.15, .45, sat) * pointLike * solid;
-  if (uDepth < 0.0) col = applyFog(col, uDepth);
+  if (uDepth < 0.0) {
+    vec3 fogged = applyFog(col, uDepth);
+    col = mix(fogged, col, calmW);
+    // fundo claro e quente dentro da calmaria: pessego em cima, rosa embaixo,
+    // mantendo o desenho do fundo como textura
+    vec3 sky = mix(vec3(.96, .46, .58), vec3(1.0, .66, .38), vUv.y);
+    vec3 backdrop = sky * (.58 + .7 * lum);
+    col = mix(col, backdrop, calmW * .82);
+  }
   // Halos translucidos desenhados pelo jogo (nuvem de exsudato, difusao da
   // colonia) terminam num circulo/elipse: sem a escuridao do 2D por cima, essa
   // borda aparecia recortada. A cauda do alfa cai mais devagar ate zero.
@@ -163,6 +173,7 @@ void main() {
   vec3 light = accumulateLight(vWorld + vec3(0.0, 0.0, 6.0), N, .55, .12, rim);
   // a arte e o ponto de partida: luz modula, nao substitui
   vec3 lit = c.rgb * (uFloor + uAmbient + light * .6 * uLightScale) + rim * c.rgb * uRimGain;
+  lit += c.rgb * CALM_AMBIENT * .7 * calmAt(vWorld);
   vec3 col = mix(c.rgb, lit, uLightingOn);
   gl_FragColor = vec4(col * a, a);
 }`;
@@ -317,7 +328,22 @@ uniform vec2 uShake;
 uniform float uTime;
 uniform float uExposure;
 uniform float uGrade;
+// calmaria: ate 4 halos, em pixels do jogo (x, y com origem no topo, raio,
+// intensidade); uViewport = tamanho do jogo em pixels
+uniform vec4 uCalm[4];
+uniform vec2 uViewport;
 varying vec2 vUv;
+float calmWeight(vec2 uv) {
+  vec2 px = vec2(uv.x, 1.0 - uv.y) * uViewport;
+  float w = 0.0;
+  for (int i = 0; i < 4; i++) {
+    vec4 z = uCalm[i];
+    if (z.w <= 0.0) continue;
+    float edge = max(60.0, z.z * .28);
+    w = max(w, z.w * (1.0 - smoothstep(z.z - edge, z.z, distance(px, z.xy))));
+  }
+  return w;
+}
 // Ombro que preserva matiz e saturacao: abaixo de .72 a cor da arte passa
 // intacta; so o que passa disso e comprimido, pelo canal mais alto. O ACES
 // anterior lavava os sprites (dessatura e achata os medios).
@@ -347,8 +373,19 @@ void main() {
   vec3 lightTint = vec3(1.04, 1.0, .95);
   mapped *= mix(mix(vec3(1.0), shadowTint, uGrade), mix(vec3(1.0), lightTint, uGrade), smoothstep(.15, .8, l));
   mapped = clamp(mix(vec3(l), mapped, 1.0 + .06 * uGrade), 0.0, 1.0);
+  // calmaria: a luz vem das camadas (ambiente quente, fundo claro, contraluz);
+  // aqui so o acabamento: leve rosa nas sombras, laranja nas luzes e um veu
+  // quente fino (nao denso: os organismos continuam legiveis)
+  float calm = calmWeight(uv);
+  if (calm > 0.0) {
+    vec3 warmShadow = vec3(1.06, .95, .98);
+    vec3 warmLight = vec3(1.05, 1.0, .9);
+    mapped *= mix(vec3(1.0), mix(warmShadow, warmLight, smoothstep(.1, .7, l)), calm);
+    mapped = mix(mapped, vec3(1.0, .78, .70), calm * .12 * (1.0 - l));
+    mapped = clamp(mapped, 0.0, 1.0);
+  }
   float vig = smoothstep(.85, .25, r2 * 1.6);
-  mapped *= mix(1.0, mix(.62, 1.0, vig), uGrade);
+  mapped *= mix(1.0, mix(.62, 1.0, vig), uGrade * (1.0 - calm * .75));
   vec3 outc = pow(max(mapped, 0.0), vec3(1.0 / 2.2));
   // curva S leve no espaco de exibicao: devolve o contraste que o ombro
   // (mais fiel a cor da arte) nao aplica
@@ -853,6 +890,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     uniforms: {
       uScene: { value: null }, uShake: { value: new THREE.Vector2() }, uTime: { value: 0 },
       uExposure: { value: 1.0 }, uGrade: { value: 1 },
+      uCalm: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) },
+      uViewport: { value: new THREE.Vector2(W, H) },
     },
     vertexShader: SCREEN_VERT, fragmentShader: FINAL_FRAG,
   }));
@@ -1050,6 +1089,17 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       pushLight(a.x, -a.y, 40, 170, r, g, b, .3 + .12 * Math.sin(time * 2.4 + (a.phase || 0)), 0, 10, false, agentId(a));
     }
     fadeLights(time);
+    // calmaria: contraluz quente vindo de cima do halo (acende as bordas)
+    {
+      const cz = shared.uCalmZones.value;
+      const zones = state.calmZones || [];
+      for (let i = 0; i < cz.length; i++) {
+        const zone = zones[i];
+        if (!zone || !(zone.intensity > 0)) { cz[i].set(0, 0, 0, 0); continue; }
+        cz[i].set(zone.x, -zone.y, zone.radius, zone.intensity);
+        pushLight(zone.x, -(zone.y - zone.radius * .55), 260, zone.radius * 1.9, 1.0, .64, .46, 1.3 * zone.intensity, 0, 150, false, 'calm' + i);
+      }
+    }
     lights.sort((a, b) => b.key - a.key);
     const n = Math.min(MAX_LIGHTS, lights.length);
     shared.uLightCount.value = n;
@@ -1311,6 +1361,20 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     finalPass.material.uniforms.uTime.value = time;
     finalPass.material.uniforms.uGrade.value = settings.grade ? 1 : 0;
     finalPass.material.uniforms.uExposure.value = tuning.exposure;
+    {
+      // halos da calmaria em pixels do jogo (mesma conta do toWorld, ao contrario)
+      const zoom = Number(state.cameraZoom) || 1;
+      const camX = Number(state.cameraX) || 0;
+      const camY = Number(state.cameraY) || 0;
+      const zones = state.calmZones || [];
+      const slots = finalPass.material.uniforms.uCalm.value;
+      for (let i = 0; i < slots.length; i++) {
+        const zone = zones[i];
+        if (!zone || !(zone.intensity > 0)) { slots[i].set(0, 0, 0, 0); continue; }
+        slots[i].set((zone.x - camX) * zoom, (zone.y - camY) * zoom, zone.radius * zoom, zone.intensity);
+      }
+      finalPass.material.uniforms.uViewport.value.set(W, H);
+    }
     for (const b of batches.values()) b.mesh.material.uniforms.uLightScale.value = tuning.spriteLight;
     renderer.setRenderTarget(null);
     finalPass.render(renderer);

@@ -186,6 +186,9 @@ export const NARRATION = Object.freeze({
     text: 'Já no xilema: agora é conter' },
   'ralst.neutralized': { kind: 'science', cardId: 'organism-ralstonia',
     text: 'Neutralizada antes de entrar nos vasos' },
+  // Calmaria: Pseudomonas + Bacillus juntos induzem resistencia na planta.
+  'calm.first': { kind: 'hint',
+    text: 'Calmaria: Pseudomonas e Bacillus acalmam os patógenos' },
   'ralst.contained': { kind: 'science', cardId: 'process-ralstonia-containment',
     text: 'Infecção contida: a raiz segue funcional' },
   'ralst.spread-warning': { kind: 'danger', scope: 'always',

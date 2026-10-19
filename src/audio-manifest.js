@@ -80,6 +80,8 @@ export const DROP_SCHEDULE = Object.freeze({
 });
 
 export const MUSIC_CROSSFADE_SECONDS = 1.5;
+// entrada/saida da musica da calmaria: mais lenta, acompanha a luz
+export const MUSIC_CALM_CROSSFADE_SECONDS = 2.5;
 export const MUSIC_FIRST_FADE_SECONDS = 0.8;
 // Redução aplicada a música e ambiente quando um cartão de tutorial está aberto,
 // durante o respawn e no encerramento.
@@ -189,6 +191,16 @@ const CORE_TRACKS = Object.freeze({
   musicRalstonia: Object.freeze({
     id: 'musicRalstonia',
     src: `${MUSIC}music_ralstonia_vascular_wilt_loop.ogg`,
+    kind: 'music',
+    loop: true,
+    defaultGain: 1,
+    preload: 'metadata',
+  }),
+  // Calmaria (Pseudomonas + Bacillus): entra por cima da musica da fase
+  // enquanto o Miguelito esta dentro do halo.
+  musicCalmaria: Object.freeze({
+    id: 'musicCalmaria',
+    src: `${MUSIC}music_calmaria_respirar_em_luz_loop.ogg`,
     kind: 'music',
     loop: true,
     defaultGain: 1,

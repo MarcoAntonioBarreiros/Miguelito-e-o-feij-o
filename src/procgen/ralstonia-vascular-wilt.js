@@ -46,6 +46,7 @@ import {
   ralstoniaSpreadOpening,
 } from './ralstonia-spread.js';
 import { narrate } from './narrator.js';
+import { settleCalm } from './calm-zones.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -80,6 +81,26 @@ export function ralstoniaDoorLabel(opening, config = RALSTONIA_DEFAULTS) {
 
 export function ralstoniaDoorColor(opening, config = RALSTONIA_DEFAULTS) {
   return RALSTONIA_DOOR_COLORS[ralstoniaDoorLabel(opening, config)];
+}
+
+// Calmaria: taxas positivas (avanço) caem com a calmaria; negativas (o
+// controle vencendo) ficam como estao. "Segurando" passa a valer quando o
+// avanço vascular zera.
+export function calmRalstoniaGrowth(growth, calm, focus, config) {
+  const c = Math.max(0, Math.min(1, calm || 0));
+  if (!c) return growth;
+  const damp = rate => (rate > 0 ? rate * (1 - c) : rate);
+  const vascularRate = damp(growth.vascularRate);
+  const surfaceRate = damp(growth.surfaceRate);
+  const entered = (focus?.vascularLoad ?? 0) >= config.vascularEntryThreshold;
+  return {
+    ...growth,
+    surfaceRate,
+    vascularRate,
+    holdingVascular: entered && vascularRate <= 1e-4,
+    holdingSurface: !entered && surfaceRate < 0,
+    calm: c,
+  };
 }
 
 export function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas }) {
@@ -968,7 +989,9 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
 
   function applyGameplayPressure(focus, dt) {
     if (!standingOn(focus.root) || focus.neutralized) return;
-    const vascular = focus.vascularLoad;
+    const calm = focus.calm || 0;
+    // calma, a raiz murcha nao castiga o Miguelito
+    const vascular = focus.vascularLoad * (1 - calm);
     if (vascular > .42) {
       state.player.moveMultiplier = Math.min(state.player.moveMultiplier ?? 1, 1 - vascular * .18);
       state.player.jumpMultiplier = Math.min(state.player.jumpMultiplier ?? 1, 1 - vascular * .1);
@@ -1074,7 +1097,10 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
 
     updateWound(focus, dt);
 
-    const growth = ralstoniaNetGrowth({
+    // Calmaria (Pseudomonas + Bacillus do jogador): o que cresceria para de
+    // crescer. O que o controle ja reduz continua reduzindo. Nao neutraliza.
+    const calm = settleCalm(state, focus, 'ralstonia', focus.x, focus.root.y, dt);
+    const rawGrowth = ralstoniaNetGrowth({
       surfaceLoad: focus.surfaceLoad,
       vascularLoad: focus.vascularLoad,
       woundOpening: focus.woundOpening,
@@ -1082,6 +1108,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       pseudomonasControl: focus.pseudomonasControl,
       config: CONFIG,
     });
+    const growth = calmRalstoniaGrowth(rawGrowth, calm, focus, CONFIG);
     focus.surfaceNetRate = growth.surfaceRate;
     focus.vascularNetRate = growth.vascularRate;
     focus.controlStrength = growth.control;
@@ -1122,7 +1149,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     }
 
     // CONTENÇÃO. Já entrou, o avanço parou e o controle se manteve.
-    if (progressing && focus.everEnteredVascular && growth.holdingVascular && growth.control > .25) {
+    if (progressing && focus.everEnteredVascular && growth.holdingVascular && (growth.control > .25 || calm >= .6)) {
       focus.containHold += dt;
       if (focus.containHold >= CONFIG.containmentHoldSeconds) {
         contain(focus);
@@ -1213,6 +1240,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       && focus.everEnteredVascular
       && focus.vascularLoad >= CONFIG.spreadTriggerThreshold
       && focus.activationState === 'active'
+      && (focus.calm || 0) < .5
       && focus.spreadGeneration < CONFIG.maximumSpreadGeneration
       && !hasActiveEvent(focus)
     )) || null;
@@ -1537,6 +1565,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       alpha: entrando ? alphaBase * (1 - t * .8) : alphaBase,
       anchorY: .88,
       flipX: (focus.surfaceMotionDirection || 1) < 0,
+      calm: focus.calm || 0,
     }) || drawCell(ctx, focus.visualX ?? focus.x, root.y - 12, {
       height: 44, phase: focus.phase, alpha: alphaBase, scale: 2.4,
     });

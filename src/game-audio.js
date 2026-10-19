@@ -35,6 +35,7 @@ import {
   DUCK_LEVELS,
   INTERNAL_ROOT_FLOW,
   MUSIC_CROSSFADE_SECONDS,
+  MUSIC_CALM_CROSSFADE_SECONDS,
   MUSIC_FIRST_FADE_SECONDS,
   MUSIC_SUPPRESSION_SECONDS,
   STINGER_FADE_SECONDS,
@@ -78,6 +79,7 @@ export function createNoopAudio() {
     unlock() {},
     update() {},
     setPhase() {},
+    setMusicOverride() {},
     // Sem audio no ambiente: o pedido nao foi recusado, so nao ha som. Quem
     // chama pode marcar a transicao e seguir em frente.
     playFx() { return { accepted: false, state: 'suppressed' }; },
@@ -559,11 +561,26 @@ export function createGameAudio({
 
   // ---- música e crossfade -------------------------------------------------
 
+  // Faixa que substitui a da fase enquanto um estado do jogo pede (calmaria).
+  let musicOverrideId = null;
+  function desiredMusicId(phase) {
+    return musicOverrideId || musicTrackForPhase(phase);
+  }
+  function setMusicOverride(trackId = null) {
+    if (destroyed) return;
+    const next = trackId && AUDIO_TRACKS[trackId] ? trackId : null;
+    if (next === musicOverrideId) return;
+    musicOverrideId = next;
+    if (!unlocked || !context) return;
+    const target = desiredMusicId(musicPhase);
+    if (target && target !== currentMusicId) crossfadeTo(target, MUSIC_CALM_CROSSFADE_SECONDS);
+  }
+
   async function setPhase(phase, { immediate = false, forcePlayback = false } = {}) {
     if (destroyed) return;
     musicPhase = phase;
     if (!unlocked || !context) return;
-    const trackId = musicTrackForPhase(phase);
+    const trackId = desiredMusicId(phase);
     // Mesma faixa: NÃO reinicia nem volta ao começo — a menos que o deck esteja
     // parado porque a reprodução foi recusada no primeiro unlock.
     if (trackId === currentMusicId) {
@@ -1165,6 +1182,7 @@ export function createGameAudio({
     unlock,
     update,
     setPhase,
+    setMusicOverride,
     playFx,
     playStinger,
     preloadBiologicalGroup,

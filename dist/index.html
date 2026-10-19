@@ -1108,7 +1108,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"fd1bf3a","subject":"Mescla: micelio organico do fungo oportunista (GPT, aprovado)","builtAt":"2026-10-19 16:44"};
+window.__BEANS_BUILD__ = {"commit":"8dd2536","subject":"Add files via upload","builtAt":"2026-10-19 18:55"};
 (() => {
 'use strict';
 const __modules = {
@@ -1173,6 +1173,7 @@ const { installLowTunnels, lowTunnelDiagnostics } = __require("src/procgen/low-t
 const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
 const { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } = __require("src/render/final-root-visual.js");
 const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");
+const { drawCalmGrade2D } = __require("src/render/calm-grade-2d.js");
 const { advanceCampaignPhase, advanceToExtraPhase, displayPhaseNumber, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
   // alcançadas, não só da atual.
 
@@ -3416,6 +3417,26 @@ function updateEventParticles(dt, frozen) {
   if (!frozen) vfxParticles.update(dt);
 }
 
+// Musica da calmaria: entra quando o Miguelito esta dentro de um halo ativo e
+// sai quando ele sai (ou o halo se desfaz). Atraso nas duas pontas para nao
+// alternar na borda.
+let calmMusicOn = false;
+let calmMusicTimer = 0;
+function updateCalmMusic(dt) {
+  const st = sim.state;
+  const p = st.player;
+  const level = st.gameState === 'play' && p && st.calm
+    ? st.calm.at(p.x + p.w / 2, p.y + p.h / 2)
+    : 0;
+  const want = calmMusicOn ? level > .15 : level > .55;
+  calmMusicTimer = want === calmMusicOn ? 0 : calmMusicTimer + dt;
+  if (calmMusicTimer >= (want ? .6 : 1.8)) {
+    calmMusicOn = want;
+    calmMusicTimer = 0;
+    gameAudio.setMusicOverride?.(calmMusicOn ? 'musicCalmaria' : null);
+  }
+}
+
 function renderWorld() {
   if (renderer25D && render25DActive) {
     renderer25D.renderFrame(drawWorldLayers25D);
@@ -3477,6 +3498,8 @@ function renderWorld() {
     // Luz por ultimo no mundo: escurece o fundo, recorta as fontes de luz e
     // acrescenta feixes e primeiro plano. So visual; nao le nada da fisica.
     lighting?.render(ctx, { finaleActive: phaseFinale.active });
+    // calmaria (Pseudomonas + Bacillus): no 2,5D quem faz e o passe final da GPU
+    drawCalmGrade2D(ctx, sim.state);
     drawEventParticles(ctx);
     drawNoduleCaption(ctx);
     platformVisuals.renderLabel(ctx);
@@ -3560,6 +3583,7 @@ function loop(now) {
         cameraView.update(frameDt);
       },
     });
+    updateCalmMusic(dt);
     gameAudio.update(dt);
     // Depois de `sim.step`: as posições e os estados dos processos deste quadro
     // já estão atualizados, então pan, ganho e limite de vozes usam o presente.
@@ -7850,6 +7874,7 @@ const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js
 const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");
 const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");
 const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");
+const { createCalmZones } = __require("src/procgen/calm-zones.js");
 const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");
 const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");
 const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");
@@ -8085,6 +8110,8 @@ function createSimulator({
   const pathogenPressure = createPathogenPressure({ state });
   const gameplay = createEcologicalGameplay({ state, input, entities, ecology, pathogenPressure });
   const beneficialInoculants = createBeneficialInoculants({ state, input, ecology, entities });
+  // calmaria (Pseudomonas + Bacillus): precisa existir antes dos patogenos lerem
+  const calmZones = createCalmZones({ state, inoculants: beneficialInoculants });
   const pseudomonasSiderophores = createPseudomonasSiderophores({
     state,
     entities,
@@ -8188,6 +8215,7 @@ function createSimulator({
     bacillusBioprotection.clear();
     meloidogyneLifecycle.clear();
     beneficialInoculants.clear();
+    calmZones.clear();
     nitrogenRootDevelopment.clear();
     rhizobiumNodulation.clear();
     mycorrhizaStructures.clear();
@@ -8221,6 +8249,7 @@ function createSimulator({
     azospirillumRootGrowth.reset();
     azospirillumNitrogen.reset();
     beneficialInoculants.reset();
+    calmZones.reset();
     pseudomonasSiderophores.reset();
     opportunisticFungus.reset();
     bacillusBioprotection.reset();
@@ -8251,6 +8280,7 @@ function createSimulator({
     recruitment.update(dt);
     beneficialInoculants.update(dt);
     pseudomonasSiderophores.update(dt);
+    calmZones.update(dt);
     opportunisticFungus.update(dt);
 
     const azospirillumRootsUnlocked = state.campaign
@@ -8298,7 +8328,7 @@ function createSimulator({
     biologicalAudio: entities.audio,
     narrator,
     state, input, entities, ecology, mycorrhiza, mycorrhizaStructures,
-    trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
+    trichoderma, recruitment, trichodermaColonies, beneficialInoculants, calmZones,
     pseudomonasSiderophores, opportunisticFungus, bacillusBioprotection, bacillusBioprotectionSafety,
     rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
     azospirillumNitrogen, renewableExudates, pathogenPressure,
@@ -11701,6 +11731,14 @@ const ORGANISM_SPRITE_SHEETS = Object.freeze({
   }),
 });
 
+// Versoes "calmas" (kawaii) para a calmaria de Pseudomonas + Bacillus. Mesmo
+// formato de folha (quadros 320x400 lado a lado). Para ligar uma, basta
+// acrescentar aqui, por exemplo:
+//   oportunista: Object.freeze({ src: 'assets/organisms/calm/oportunista.png', frameCount: 12, fps: 5 }),
+// Enquanto nao houver arte, o organismo calmo usa a folha normal com um brilho
+// quente suave atras.
+const CALM_SPRITE_SHEETS = Object.freeze({});
+
 const enabled = new Map(Object.keys(ORGANISM_SPRITE_SHEETS).map(type => [type, true]));
 
 function calculateOrganismSpriteFrame(type, time = 0, phase = 0) {
@@ -11722,14 +11760,15 @@ function createOrganismSpriteRenderer({
 } = {}) {
   const images = new Map();
 
-  function ensureImage(type) {
-    const sheet = ORGANISM_SPRITE_SHEETS[type];
+  function ensureImage(type, calmVariant = false) {
+    const sheet = calmVariant ? CALM_SPRITE_SHEETS[type] : ORGANISM_SPRITE_SHEETS[type];
     if (!sheet) return null;
-    if (images.has(type)) return images.get(type);
+    const key = calmVariant ? `${type}:calm` : type;
+    if (images.has(key)) return images.get(key);
 
     const image = imageFactory(type, sheet);
     const record = { image, loaded: false, failed: !image };
-    images.set(type, record);
+    images.set(key, record);
     if (!image) return record;
 
     image.onload = () => {
@@ -11755,33 +11794,62 @@ function createOrganismSpriteRenderer({
     flipX = false,
     anchorX = .5,
     anchorY = .5,
+    calm = 0,
   } = {}) {
     const sheet = ORGANISM_SPRITE_SHEETS[type];
     if (!sheet || !enabled.get(type)) return false;
     const record = ensureImage(type);
     if (!record?.loaded || record.failed) return false;
 
-    const frame = calculateOrganismSpriteFrame(type, time, phase);
     const renderHeight = Math.max(1, height ?? sheet.height);
     const renderWidth = renderHeight * (DEFAULT_FRAME_WIDTH / DEFAULT_FRAME_HEIGHT);
+    const k = Math.max(0, Math.min(1, calm || 0));
+    const calmSheet = k > 0 ? CALM_SPRITE_SHEETS[type] : null;
+    const calmRecord = calmSheet ? ensureImage(type, true) : null;
+    const calmReady = Boolean(calmRecord?.loaded && !calmRecord.failed);
 
-    ctx.save();
-    ctx.globalAlpha *= Math.max(0, Math.min(1, alpha));
-    ctx.translate(x, y);
-    ctx.rotate(rotation);
-    ctx.scale(flipX ? -1 : 1, 1);
-    ctx.drawImage(
-      record.image,
-      frame.sourceX,
-      frame.sourceY,
-      frame.sourceWidth,
-      frame.sourceHeight,
-      -renderWidth * anchorX,
-      -renderHeight * anchorY,
-      renderWidth,
-      renderHeight,
-    );
-    ctx.restore();
+    const blit = (image, frameSheet, a) => {
+      if (a <= 0) return;
+      const raw = Math.floor(Math.max(0, time) * frameSheet.fps + Math.abs(phase) * 3.7);
+      const frameIndex = raw % frameSheet.frameCount;
+      ctx.save();
+      ctx.globalAlpha *= Math.max(0, Math.min(1, alpha)) * a;
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.scale(flipX ? -1 : 1, 1);
+      ctx.drawImage(
+        image,
+        frameIndex * DEFAULT_FRAME_WIDTH,
+        0,
+        DEFAULT_FRAME_WIDTH,
+        DEFAULT_FRAME_HEIGHT,
+        -renderWidth * anchorX,
+        -renderHeight * anchorY,
+        renderWidth,
+        renderHeight,
+      );
+      ctx.restore();
+    };
+
+    if (k > 0 && !calmReady) {
+      // provisorio ate a arte kawaii: brilho quente e suave atras do organismo
+      const cx = x + renderWidth * (.5 - anchorX) * (flipX ? -1 : 1);
+      const cy = y + renderHeight * (.5 - anchorY);
+      const r = Math.max(renderWidth, renderHeight) * .62;
+      ctx.save();
+      ctx.globalAlpha *= Math.max(0, Math.min(1, alpha)) * k;
+      const g = ctx.createRadialGradient(cx, cy, r * .1, cx, cy, r);
+      g.addColorStop(0, 'rgba(255,196,170,.55)');
+      g.addColorStop(.55, 'rgba(255,160,190,.26)');
+      g.addColorStop(1, 'rgba(255,160,190,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    blit(record.image, sheet, calmReady ? 1 - k : 1);
+    if (calmReady) blit(calmRecord.image, calmSheet, k);
     return true;
   }
 
@@ -11839,7 +11907,7 @@ if (typeof window !== 'undefined') {
     },
   };
 }
-Object.assign(__exports, { ORGANISM_SPRITE_SHEETS, calculateOrganismSpriteFrame, createOrganismSpriteRenderer, isOrganismSpriteEnabled, setOrganismSpriteEnabled, organismSprites });
+Object.assign(__exports, { ORGANISM_SPRITE_SHEETS, CALM_SPRITE_SHEETS, calculateOrganismSpriteFrame, createOrganismSpriteRenderer, isOrganismSpriteEnabled, setOrganismSpriteEnabled, organismSprites });
 },
 "src/procgen/mycorrhiza-growth.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");
@@ -12259,7 +12327,7 @@ Object.assign(__exports, { createMycorrhizaGrowth });
 // números dele para escolher uma gota mudaria o nível gerado.
 //
 // O bundler aceita apenas `export const` / `export function`.
-const { AMBIENCE_LAYERS, AMBIENCE_LAYER_GAINS, AUDIO_DEFAULTS, BIOLOGICAL_AUDIO_GROUPS, BIOLOGICAL_BUS_SCALE, BIOLOGICAL_TUTORIAL_DUCK, CRITICAL_FX_QUEUE_SECONDS, fxDeliveryClass, AUDIO_STORAGE_KEY, AUDIO_STORAGE_KEY_V1, AUDIO_STORAGE_VERSION, AUDIO_TRACKS, DROP_SCHEDULE, DROP_TRACK_IDS, DUCK_LEVELS, INTERNAL_ROOT_FLOW, MUSIC_CROSSFADE_SECONDS, MUSIC_FIRST_FADE_SECONDS, MUSIC_SUPPRESSION_SECONDS, STINGER_FADE_SECONDS, migrateAudioSettings, musicTrackForPhase } = __require("src/audio-manifest.js");
+const { AMBIENCE_LAYERS, AMBIENCE_LAYER_GAINS, AUDIO_DEFAULTS, BIOLOGICAL_AUDIO_GROUPS, BIOLOGICAL_BUS_SCALE, BIOLOGICAL_TUTORIAL_DUCK, CRITICAL_FX_QUEUE_SECONDS, fxDeliveryClass, AUDIO_STORAGE_KEY, AUDIO_STORAGE_KEY_V1, AUDIO_STORAGE_VERSION, AUDIO_TRACKS, DROP_SCHEDULE, DROP_TRACK_IDS, DUCK_LEVELS, INTERNAL_ROOT_FLOW, MUSIC_CROSSFADE_SECONDS, MUSIC_CALM_CROSSFADE_SECONDS, MUSIC_FIRST_FADE_SECONDS, MUSIC_SUPPRESSION_SECONDS, STINGER_FADE_SECONDS, migrateAudioSettings, musicTrackForPhase } = __require("src/audio-manifest.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 // Janela máxima que um efeito TRANSITÓRIO pode esperar pelo próprio buffer.
@@ -12296,6 +12364,7 @@ function createNoopAudio() {
     unlock() {},
     update() {},
     setPhase() {},
+    setMusicOverride() {},
     // Sem audio no ambiente: o pedido nao foi recusado, so nao ha som. Quem
     // chama pode marcar a transicao e seguir em frente.
     playFx() { return { accepted: false, state: 'suppressed' }; },
@@ -12777,11 +12846,26 @@ function createGameAudio({
 
   // ---- música e crossfade -------------------------------------------------
 
+  // Faixa que substitui a da fase enquanto um estado do jogo pede (calmaria).
+  let musicOverrideId = null;
+  function desiredMusicId(phase) {
+    return musicOverrideId || musicTrackForPhase(phase);
+  }
+  function setMusicOverride(trackId = null) {
+    if (destroyed) return;
+    const next = trackId && AUDIO_TRACKS[trackId] ? trackId : null;
+    if (next === musicOverrideId) return;
+    musicOverrideId = next;
+    if (!unlocked || !context) return;
+    const target = desiredMusicId(musicPhase);
+    if (target && target !== currentMusicId) crossfadeTo(target, MUSIC_CALM_CROSSFADE_SECONDS);
+  }
+
   async function setPhase(phase, { immediate = false, forcePlayback = false } = {}) {
     if (destroyed) return;
     musicPhase = phase;
     if (!unlocked || !context) return;
-    const trackId = musicTrackForPhase(phase);
+    const trackId = desiredMusicId(phase);
     // Mesma faixa: NÃO reinicia nem volta ao começo — a menos que o deck esteja
     // parado porque a reprodução foi recusada no primeiro unlock.
     if (trackId === currentMusicId) {
@@ -13383,6 +13467,7 @@ function createGameAudio({
     unlock,
     update,
     setPhase,
+    setMusicOverride,
     playFx,
     playStinger,
     preloadBiologicalGroup,
@@ -13519,6 +13604,8 @@ const DROP_SCHEDULE = Object.freeze({
 });
 
 const MUSIC_CROSSFADE_SECONDS = 1.5;
+// entrada/saida da musica da calmaria: mais lenta, acompanha a luz
+const MUSIC_CALM_CROSSFADE_SECONDS = 2.5;
 const MUSIC_FIRST_FADE_SECONDS = 0.8;
 // Redução aplicada a música e ambiente quando um cartão de tutorial está aberto,
 // durante o respawn e no encerramento.
@@ -13628,6 +13715,16 @@ const CORE_TRACKS = Object.freeze({
   musicRalstonia: Object.freeze({
     id: 'musicRalstonia',
     src: `${MUSIC}music_ralstonia_vascular_wilt_loop.ogg`,
+    kind: 'music',
+    loop: true,
+    defaultGain: 1,
+    preload: 'metadata',
+  }),
+  // Calmaria (Pseudomonas + Bacillus): entra por cima da musica da fase
+  // enquanto o Miguelito esta dentro do halo.
+  musicCalmaria: Object.freeze({
+    id: 'musicCalmaria',
+    src: `${MUSIC}music_calmaria_respirar_em_luz_loop.ogg`,
     kind: 'music',
     loop: true,
     defaultGain: 1,
@@ -14212,7 +14309,7 @@ function migrateAudioSettings(stored) {
 function audioTracksOfKind(kind) {
   return Object.values(AUDIO_TRACKS).filter(track => track.kind === kind);
 }
-Object.assign(__exports, { AUDIO_STORAGE_KEY, AUDIO_STORAGE_VERSION, AUDIO_STORAGE_KEY_V1, AUDIO_DEFAULTS, AUDIO_DEFAULTS_V1, AMBIENCE_LAYER_GAINS, INTERNAL_ROOT_FLOW, DROP_SCHEDULE, MUSIC_CROSSFADE_SECONDS, MUSIC_FIRST_FADE_SECONDS, DUCK_LEVELS, MUSIC_SUPPRESSION_SECONDS, STINGER_FADE_SECONDS, PHASE_VICTORY_TRANSITION_SECONDS, PHASE_VICTORY_TOAST_SECONDS, VICTORY_AUDIO_FALLBACK_SECONDS, CRITICAL_FX_QUEUE_SECONDS, fxDeliveryClass, BIOLOGICAL_TRACKS, INTERACTION_TRACKS, EXUDATE_PICKUP_TRACKS, DISCOVERABLE_MICROBE_IDS, COLONY_ESTABLISHMENT_GROWTH, AUDIO_TRACKS, BIOLOGICAL_AUDIO_GROUPS, BIOLOGICAL_BUS_SCALE, BIOLOGICAL_TUTORIAL_DUCK, BIOLOGICAL_SPATIAL, BIOLOGICAL_FADES, BIOLOGICAL_LOOP_LIMIT, BIOLOGICAL_LOOP_LIMITS, BIOLOGICAL_LOOP_PRIORITY, BIOLOGICAL_COOLDOWNS, biologicalGroupsForPhaseManifest, biologicalGroupsForProgress, AMBIENCE_LAYERS, DROP_TRACK_IDS, PHASE_MUSIC, FALLBACK_MUSIC_ID, musicTrackForPhase, migrateAudioSettings, audioTracksOfKind });
+Object.assign(__exports, { AUDIO_STORAGE_KEY, AUDIO_STORAGE_VERSION, AUDIO_STORAGE_KEY_V1, AUDIO_DEFAULTS, AUDIO_DEFAULTS_V1, AMBIENCE_LAYER_GAINS, INTERNAL_ROOT_FLOW, DROP_SCHEDULE, MUSIC_CROSSFADE_SECONDS, MUSIC_CALM_CROSSFADE_SECONDS, MUSIC_FIRST_FADE_SECONDS, DUCK_LEVELS, MUSIC_SUPPRESSION_SECONDS, STINGER_FADE_SECONDS, PHASE_VICTORY_TRANSITION_SECONDS, PHASE_VICTORY_TOAST_SECONDS, VICTORY_AUDIO_FALLBACK_SECONDS, CRITICAL_FX_QUEUE_SECONDS, fxDeliveryClass, BIOLOGICAL_TRACKS, INTERACTION_TRACKS, EXUDATE_PICKUP_TRACKS, DISCOVERABLE_MICROBE_IDS, COLONY_ESTABLISHMENT_GROWTH, AUDIO_TRACKS, BIOLOGICAL_AUDIO_GROUPS, BIOLOGICAL_BUS_SCALE, BIOLOGICAL_TUTORIAL_DUCK, BIOLOGICAL_SPATIAL, BIOLOGICAL_FADES, BIOLOGICAL_LOOP_LIMIT, BIOLOGICAL_LOOP_LIMITS, BIOLOGICAL_LOOP_PRIORITY, BIOLOGICAL_COOLDOWNS, biologicalGroupsForPhaseManifest, biologicalGroupsForProgress, AMBIENCE_LAYERS, DROP_TRACK_IDS, PHASE_MUSIC, FALLBACK_MUSIC_ID, musicTrackForPhase, migrateAudioSettings, audioTracksOfKind });
 },
 "src/procgen/hyphal-growth.js": (__exports, __require) => {
 const { H } = __require("src/core/constants.js");
@@ -15454,6 +15551,9 @@ const NARRATION = Object.freeze({
     text: 'Já no xilema: agora é conter' },
   'ralst.neutralized': { kind: 'science', cardId: 'organism-ralstonia',
     text: 'Neutralizada antes de entrar nos vasos' },
+  // Calmaria: Pseudomonas + Bacillus juntos induzem resistencia na planta.
+  'calm.first': { kind: 'hint',
+    text: 'Calmaria: Pseudomonas e Bacillus acalmam os patógenos' },
   'ralst.contained': { kind: 'science', cardId: 'process-ralstonia-containment',
     text: 'Infecção contida: a raiz segue funcional' },
   'ralst.spread-warning': { kind: 'danger', scope: 'always',
@@ -17596,6 +17696,192 @@ function createVfxParticles() {
 const vfxParticles = createVfxParticles();
 Object.assign(__exports, { createVfxParticles, vfxParticles });
 },
+"src/procgen/calm-zones.js": (__exports, __require) => {
+// Calmaria: Pseudomonas + Bacillus inoculados pelo jogador na mesma raiz (ou em
+// raizes vizinhas) induzem resistencia sistemica na planta. Dentro do halo os
+// patogenos e nematoides ficam "calmos": param de avancar e de causar dano,
+// mas NAO sao removidos. Sai do halo (ou o halo se desfaz) e voltam ao normal
+// aos poucos. O Trichoderma continua sendo o unico que mata.
+//
+// O raio NAO vem da area de influencia das colonias (que e pequena, ~60-130 px):
+// e um raio proprio da calmaria, amplo, modulado pelo vigor somado do par.
+const { narrate } = __require("src/procgen/narrator.js");
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+const CALM_ZONE_CONFIG = Object.freeze({
+  // distancia maxima entre as duas colonias para formar o par
+  pairDistance: 420,
+  // raio do halo: vai de min a max conforme o vigor medio do par
+  minRadius: 420,
+  maxRadius: 600,
+  // faixa da borda em que a calmaria cai de 1 para 0
+  edge: 110,
+  // colonia precisa ter aderido (crescimento) e ter vigor para contar
+  minimumGrowth: .62,
+  minimumVigor: .18,
+  // entrada e saida do halo (s)
+  rampIn: 1.5,
+  rampOut: 2,
+  // estado de cada patogeno acompanha a calmaria local com este atraso (s)
+  entitySettle: 1.2,
+  // calmaria sustentada por este tempo conta como controle (objetivos)
+  controlHoldSeconds: 4,
+  controlThreshold: .6,
+  maxZones: 4,
+});
+
+function eligible(colony, config) {
+  return colony
+    && !colony.authored
+    && !colony.dormant
+    && (colony.type === 'pseudomonas' || colony.type === 'bacillus')
+    && (colony.growth ?? 0) >= config.minimumGrowth
+    && (colony.vigor ?? 0) >= config.minimumVigor;
+}
+
+// Pares Pseudomonas x Bacillus. Cada colonia entra no par mais proximo; pares
+// cujo centro cai dentro de outro halo viram um so (o maior).
+function findCalmPairs(colonies = [], config = CALM_ZONE_CONFIG) {
+  const pseudo = colonies.filter(c => eligible(c, config) && c.type === 'pseudomonas');
+  const bacillus = colonies.filter(c => eligible(c, config) && c.type === 'bacillus');
+  const candidates = [];
+  for (const p of pseudo) {
+    for (const b of bacillus) {
+      const distance = Math.hypot(p.x - b.x, p.y - b.y);
+      if (distance <= config.pairDistance) candidates.push({ p, b, distance });
+    }
+  }
+  candidates.sort((a, b) => a.distance - b.distance);
+  const used = new Set();
+  const pairs = [];
+  for (const candidate of candidates) {
+    if (used.has(candidate.p) || used.has(candidate.b)) continue;
+    used.add(candidate.p);
+    used.add(candidate.b);
+    const vigor = clamp(((candidate.p.vigor ?? 0) + (candidate.b.vigor ?? 0)) / 2, 0, 1);
+    pairs.push({
+      key: `${candidate.p.id}|${candidate.b.id}`,
+      x: (candidate.p.x + candidate.b.x) / 2,
+      y: (candidate.p.y + candidate.b.y) / 2,
+      vigor,
+      radius: config.minRadius + (config.maxRadius - config.minRadius) * vigor,
+      members: [candidate.p.id, candidate.b.id],
+    });
+  }
+  pairs.sort((a, b) => b.radius - a.radius);
+  const merged = [];
+  for (const pair of pairs) {
+    if (merged.some(zone => Math.hypot(zone.x - pair.x, zone.y - pair.y) < zone.radius * .5)) continue;
+    merged.push(pair);
+  }
+  return merged.slice(0, config.maxZones);
+}
+
+function calmLevelAt(zones, x, y, config = CALM_ZONE_CONFIG) {
+  let best = 0;
+  for (const zone of zones || []) {
+    if (!(zone.intensity > 0)) continue;
+    const distance = Math.hypot(x - zone.x, y - zone.y);
+    const inner = zone.radius - config.edge;
+    const local = distance <= inner ? 1
+      : distance >= zone.radius ? 0
+        : 1 - (distance - inner) / config.edge;
+    best = Math.max(best, local * zone.intensity);
+  }
+  return clamp(best, 0, 1);
+}
+
+function createCalmZones({ state, inoculants, config = CALM_ZONE_CONFIG }) {
+  const zones = [];
+  const controlled = new Map();
+  const counts = new Map();
+  let announced = false;
+
+  function publish() {
+    state.calmZones = zones;
+    state.calm = api;
+  }
+
+  function update(dt) {
+    if (state.gameState !== 'play') { publish(); return; }
+    const pairs = findCalmPairs(inoculants?.colonies || [], config);
+    const seen = new Set();
+    for (const pair of pairs) {
+      let zone = zones.find(item => item.key === pair.key);
+      if (!zone) {
+        zone = { ...pair, intensity: 0, active: true };
+        zones.push(zone);
+      }
+      Object.assign(zone, pair, { active: true });
+      seen.add(zone);
+    }
+    for (const zone of zones) {
+      if (!seen.has(zone)) zone.active = false;
+      zone.intensity = zone.active
+        ? clamp(zone.intensity + dt / config.rampIn, 0, 1)
+        : clamp(zone.intensity - dt / config.rampOut, 0, 1);
+    }
+    for (let i = zones.length - 1; i >= 0; i--) {
+      if (!zones[i].active && zones[i].intensity <= 0) zones.splice(i, 1);
+    }
+    if (!announced && zones.some(zone => zone.intensity >= .6)) {
+      announced = true;
+      narrate(state, 'calm.first');
+    }
+    publish();
+  }
+
+  // Nivel da calmaria no ponto, ja suavizado no objeto (o patogeno nao "pisca"
+  // ao cruzar a borda) e com o marco de controle: calmo por controlHoldSeconds
+  // conta uma vez por objeto e por tipo.
+  function settle(entity, type, x, y, dt) {
+    const target = calmLevelAt(zones, x, y, config);
+    const current = entity.calm || 0;
+    const step = dt / config.entitySettle;
+    entity.calm = target > current ? Math.min(target, current + step) : Math.max(target, current - step);
+    if (entity.calm < .002) entity.calm = 0;
+    if (entity.calm >= config.controlThreshold) {
+      entity.calmHold = (entity.calmHold || 0) + dt;
+      if (entity.calmHold >= config.controlHoldSeconds && !controlled.has(entity)) {
+        controlled.set(entity, type);
+        counts.set(type, (counts.get(type) || 0) + 1);
+      }
+    } else {
+      entity.calmHold = 0;
+    }
+    return entity.calm;
+  }
+
+  function reset() {
+    zones.length = 0;
+    controlled.clear();
+    counts.clear();
+    announced = false;
+    publish();
+  }
+
+  const api = {
+    update,
+    reset,
+    clear: reset,
+    settle,
+    at: (x, y) => calmLevelAt(zones, x, y, config),
+    calmedCount: type => counts.get(type) || 0,
+    get zones() { return zones; },
+    get activeCount() { return zones.filter(zone => zone.intensity > 0).length; },
+    config,
+  };
+  publish();
+  return api;
+}
+
+// Leitura segura para os modulos de patogeno: sem calmaria instalada, 0.
+function settleCalm(state, entity, type, x, y, dt) {
+  if (!state?.calm || !entity) return 0;
+  return state.calm.settle(entity, type, x, y, dt);
+}
+Object.assign(__exports, { CALM_ZONE_CONFIG, findCalmPairs, calmLevelAt, createCalmZones, settleCalm });
+},
 "src/procgen/pseudomonas-siderophores.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");
 const { createRandom } = __require("src/procgen/random.js");
@@ -18285,6 +18571,7 @@ const { H, W } = __require("src/core/constants.js");
 const { organismSprites } = __require("src/render/organism-sprites.js");
 const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const { narrate } = __require("src/procgen/narrator.js");
+const { settleCalm } = __require("src/procgen/calm-zones.js");
 const { hyphalWorldBounds } = __require("src/procgen/world-bounds.js");
 const { drawOpportunisticMycelium, forgetOpportunisticVisual, opportunisticContactPaths, opportunisticVisualSnapshot, syncOpportunisticVisual } = __require("src/render/opportunistic-mycelium.js");
 const TAU = Math.PI * 2;
@@ -18348,6 +18635,23 @@ function fungalResponse(limitation, fungusConfig, ironConfig) {
     branching: clamp(1 - pressure * ironConfig.growthSuppression * .9, .08, 1),
     sporulation: clamp(1 - pressure * ironConfig.sporulationSuppression, .04, 1) * fungusConfig.sporulationRate,
     adhesion: clamp(1 - pressure * ironConfig.adhesionSuppression, .04, 1),
+  };
+}
+
+// Calmaria (Pseudomonas + Bacillus): a rede para de crescer, ramificar,
+// esporular e aderir; o vigor cai ate o piso do controle por ferro. Nada e
+// removido: as hifas e esporos que ja existem continuam la.
+function calmFungalResponse(response, calm, ironConfig) {
+  const c = clamp(calm || 0, 0, 1);
+  if (!c) return response;
+  const floor = ironConfig?.minimumFungalVigor ?? .25;
+  return {
+    vigor: response.vigor + (Math.min(response.vigor, floor) - response.vigor) * c,
+    growth: response.growth * (1 - c),
+    branching: response.branching * (1 - c),
+    sporulation: response.sporulation * (1 - c),
+    adhesion: response.adhesion * (1 - c),
+    calm: c,
   };
 }
 
@@ -18705,9 +19009,14 @@ function createOpportunisticFungus({ state, entities, ecology, mycoparasitism = 
       0,
       1,
     );
-    const response = fungalResponse(limitation, settings.fungus, settings.iron);
+    const calm = settleCalm(state, network, 'oportunista', network.anchor.x, network.anchor.y, dt);
+    const response = calmFungalResponse(
+      fungalResponse(limitation, settings.fungus, settings.iron),
+      calm,
+      settings.iron,
+    );
     network.response = response;
-    for (const agent of network.agents) agent.fungalVigor = response.vigor;
+    for (const agent of network.agents) { agent.fungalVigor = response.vigor; agent.calm = calm; }
     maximumIronLimitation = Math.max(maximumIronLimitation, limitation);
     updateControlMilestone(network, response.vigor, dt);
 
@@ -18740,7 +19049,8 @@ function createOpportunisticFungus({ state, entities, ecology, mycoparasitism = 
       if (Math.abs(segment.end.x - target.x) > 80 || Math.abs(segment.end.y - target.y) > 80) continue;
       if (pointSegmentDistance(target, segment.start, segment.end) < 31) touching++;
     }
-    if (touching) {
+    // calmo: as hifas ficam, mas nao aderem nem prendem o Miguelito
+    if (touching && calm < .5) {
       const pressure = clamp(touching / 5, .16, 1) * response.adhesion;
       contactIntensity += pressure;
       network.attached = clamp(Math.max(network.attached, .34) + dt * pressure * 1.65, 0, 1);
@@ -18748,12 +19058,12 @@ function createOpportunisticFungus({ state, entities, ecology, mycoparasitism = 
     } else {
       network.attachmentGrace = Math.max(
         0,
-        network.attachmentGrace - dt * (1 + limitation * 3.5),
+        network.attachmentGrace - dt * (1 + limitation * 3.5 + calm * 4),
       );
       const graceDecay = network.attachmentGrace > 0 ? .006 : .045;
       network.attached = Math.max(
         0,
-        network.attached - dt * (graceDecay + limitation * .62),
+        network.attached - dt * (graceDecay + limitation * .62 + calm * .8),
       );
     }
   }
@@ -18846,6 +19156,7 @@ function createOpportunisticFungus({ state, entities, ecology, mycoparasitism = 
       time: state.time,
       phase: network.lesions[0].phase,
       alpha: .5 + vigor * .5,
+      calm: network.calm || 0,
       anchorY: .78,
       flipX: Math.sin(network.lesions[0].phase) < 0,
     })) return;
@@ -18957,7 +19268,7 @@ function createOpportunisticFungus({ state, entities, ecology, mycoparasitism = 
     get controlledOpportunisticFungusCount() { return controlledOpportunisticFungusCount; },
   };
 }
-Object.assign(__exports, { FUNGUS_CONTROL_THRESHOLD, FUNGUS_CONTROL_HOLD_SECONDS, MAX_HYPHAL_SEGMENTS_PER_FOCUS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, fungalResponse, createOpportunisticFungus });
+Object.assign(__exports, { FUNGUS_CONTROL_THRESHOLD, FUNGUS_CONTROL_HOLD_SECONDS, MAX_HYPHAL_SEGMENTS_PER_FOCUS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, fungalResponse, calmFungalResponse, createOpportunisticFungus });
 },
 "src/render/opportunistic-mycelium.js": (__exports, __require) => {
 // Presentation of the EXISTING opportunist network. No biological writes,
@@ -27073,6 +27384,7 @@ const { createRootHealthGameplay } = __require("src/procgen/root-health-gameplay
 const { narrate } = __require("src/procgen/narrator.js");
 const { MELOIDOGYNE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
 const { rootEffectY } = __require("src/render/rhizosphere-geometry.js");
+const { settleCalm } = __require("src/procgen/calm-zones.js");
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const hash = (p, s = 0) => {
@@ -27566,7 +27878,9 @@ function createMeloidogyneLifecycle({ state, entities }) {
       const suppression = clamp(m.trichodermaSuppression || 0, 0, 1);
       if (m.neutralized) { m.eggs = 0; m.emptyAge += dt; continue; }
       if (m.eggs <= 0) { m.emptyAge += dt; continue; }
-      m.hatch -= dt * (1 - suppression * .98);
+      // calmaria: a massa nao eclode enquanto a planta esta em resistencia
+      const calm = settleCalm(state, m, 'meloidogyne-egg', m.x, m.y, dt);
+      m.hatch -= dt * (1 - suppression * .98) * (1 - calm);
       m.trichodermaSuppression = Math.max(0, suppression - dt * .18);
       m.trichodermaLysis = Math.max(0, (m.trichodermaLysis || 0) - dt * .06);
       if (m.hatch <= 0 && spawnJ2(m)) {
@@ -27631,7 +27945,10 @@ function createMeloidogyneLifecycle({ state, entities }) {
     if (!j.targetRoot || !roots().includes(j.targetRoot) || j.retarget <= 0) { chooseRoot(j); j.retarget = 1.2 + Math.random() * 1.1; }
     if (!j.targetRoot) { j.x += j.vx * dt; j.y += j.vy * dt; return; }
     const q = pointOnRoot(j.targetRoot, j.targetX); j.targetX = q.x;
-    if (steer(j, q.x, q.y, dt, MELOIDOGYNE_BASE_SPEED + j.generation * 2.5) > 13 || j.cooldown > 0) return;
+    const calmSpeed = 1 - (j.calm || 0) * .8;
+    if (steer(j, q.x, q.y, dt, (MELOIDOGYNE_BASE_SPEED + j.generation * 2.5) * calmSpeed) > 13 || j.cooldown > 0) return;
+    // calmo: chega a raiz mas nao penetra; segue vagando
+    if ((j.calm || 0) >= .5) { j.cooldown = 1.2; j.targetRoot = null; return; }
     if (occupancy(j.targetRoot) >= 2) { j.targetRoot = null; j.cooldown = 1.5; return; }
     const defense = bacillusDefense(j.targetRoot, q.x);
     if (defense > .58 && Math.random() < defense * .72) {
@@ -27644,7 +27961,7 @@ function createMeloidogyneLifecycle({ state, entities }) {
   function penetrate(j, dt) {
     const p = j.targetRoot;
     if (!p) { j.state = 'seeking'; return; }
-    j.progress = clamp(j.progress + dt * .19 * (1 - bacillusDefense(p, j.targetX) * .72), 0, 1);
+    j.progress = clamp(j.progress + dt * .19 * (1 - bacillusDefense(p, j.targetX) * .72) * (1 - (j.calm || 0)), 0, 1);
     j.x = j.targetX + Math.sin(j.progress * Math.PI * 4 + j.phase) * 3;
     j.y = p.y + j.progress * Math.min(15, p.h * .22);
     if (j.progress < 1) return;
@@ -27675,8 +27992,8 @@ function createMeloidogyneLifecycle({ state, entities }) {
   function migrate(j, dt) {
     const p = j.targetRoot;
     if (!p) { j.state = 'seeking'; return; }
-    j.progress = clamp(j.progress + dt * .17, 0, 1);
-    j.x += (j.feedingX - j.x) * clamp(dt * 2.2, 0, 1);
+    j.progress = clamp(j.progress + dt * .17 * (1 - (j.calm || 0)), 0, 1);
+    j.x += (j.feedingX - j.x) * clamp(dt * 2.2 * (1 - (j.calm || 0)), 0, 1);
     j.y = p.y + 10 + Math.sin(j.progress * Math.PI) * Math.min(26, p.h * .38);
     if (j.progress >= 1) addGall(j);
   }
@@ -27696,6 +28013,7 @@ function createMeloidogyneLifecycle({ state, entities }) {
       // Em trânsito, o trajeto manda — e só ele. Nada de `seek`, nada de
       // retarget, nada de penetração: o J2 ainda não chegou.
       if (j.arrivalTransit) { updateArrivalTransit(j, dt); continue; }
+      settleCalm(state, j, 'meloidogyne-j2', j.x, j.y, dt);
       if (j.age > 32 && j.state === 'seeking') j.alive = false;
       if (!j.alive) continue;
       if (j.state === 'seeking') seek(j, dt); else if (j.state === 'penetrating') penetrate(j, dt); else migrate(j, dt);
@@ -27729,11 +28047,14 @@ function createMeloidogyneLifecycle({ state, entities }) {
     for (const g of galls) {
       g.age += dt; g.x = clamp(g.x, g.platform.x + 28, g.platform.x + g.platform.w - 28);
       g.y = g.platform.y + Math.min(22, g.platform.h * .34);
-      if (g.progress < 1) g.progress = clamp(g.progress + dt * (.045 + (1 - clamp(g.platform.rootHealth ?? 1, .15, 1)) * .012), 0, 1);
+      // calmaria: a galha nao cresce, a femea nao amadurece nem ovipoe
+      const calm = g.dead ? 0 : settleCalm(state, g, 'meloidogyne-gall', g.x, g.y, dt);
+      const pace = 1 - calm;
+      if (g.progress < 1) g.progress = clamp(g.progress + dt * pace * (.045 + (1 - clamp(g.platform.rootHealth ?? 1, .15, 1)) * .012), 0, 1);
       else if (!g.eggMassesLaid) {
-        g.femaleMaturity = clamp(g.femaleMaturity + dt * .09, 0, 1);
-        g.eggTimer -= dt;
-        if (g.femaleMaturity >= .8 && g.eggTimer <= 0) layEggs(g);
+        g.femaleMaturity = clamp(g.femaleMaturity + dt * .09 * pace, 0, 1);
+        g.eggTimer -= dt * pace;
+        if (g.femaleMaturity >= .8 && g.eggTimer <= 0 && calm < .5) layEggs(g);
       } else if (!g.dead) {
         // Depois de ovipor, a femea entra em senescencia: para de produzir e a
         // drenagem cai ate zero. Ela nao poe uma segunda massa.
@@ -27750,7 +28071,7 @@ function createMeloidogyneLifecycle({ state, entities }) {
       // dano ativo, mas tambem sem devolver a saude maxima perdida.
       const liveDrain = .085 + g.femaleMaturity * .035;
       g.adultDrain = g.dead ? 0
-        : g.progress >= .78 ? liveDrain * (1 - g.senescence)
+        : g.progress >= .78 ? liveDrain * (1 - g.senescence) * pace
           : 0;
       if (g.progress >= .78 && !g.adultAnnounced) {
         g.adultAnnounced = true;
@@ -27843,6 +28164,7 @@ function createMeloidogyneLifecycle({ state, entities }) {
       phase: j.phase,
       alpha: caught ? .52 : 1,
       flipX: (j.vx || 1) < 0,
+      calm: j.calm || 0,
     })) {
       ctx.save();
       ctx.font = '700 7px Inter,system-ui';
@@ -49923,6 +50245,7 @@ Object.assign(__exports, { MAXIMUM_STEP_SPACING, TOP_STEP_TO_DESTINATION, azospi
 const { organismSprites } = __require("src/render/organism-sprites.js");
 const { publishControlSignal } = __require("src/procgen/biological-audio-signals.js");
 const { narrate } = __require("src/procgen/narrator.js");
+const { settleCalm } = __require("src/procgen/calm-zones.js");
 const { drawRhizoctoniaMycelium, forgetRhizoctoniaMycelium, rhizoctoniaContactPaths, rhizoctoniaMyceliumSnapshot } = __require("src/render/rhizoctonia-mycelium.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
@@ -50158,9 +50481,11 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     const iron = pseudomonasStrength(enemy, host, dt);
     enemy.bacillusControl = bacillus;
     enemy.ironLimitation = iron;
+    // Calmaria: para de colonizar e de lesionar, sem morrer nem recuar sozinha.
+    const calm = settleCalm(state, enemy, 'rhizoctonia', enemy.infectionX, host.y, dt);
     const synergy = bacillus * (1 + iron * .6);
     const phaseFactor = 1 + Math.min(.35, Math.max(0, (state.campaign?.phase || 1) - 1) * .035);
-    const naturalGrowth = (.012 + enemy.colonization * .012) * phaseFactor * (1 - iron * .58);
+    const naturalGrowth = (.012 + enemy.colonization * .012) * phaseFactor * (1 - iron * .58) * (1 - calm);
     const retreat = synergy * (.018 + bacillus * .025);
     const net = naturalGrowth - retreat;
     enemy.colonization = clamp(enemy.colonization + dt * net, .06, 1);
@@ -50171,13 +50496,16 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     if (enemy.contained && bacillus < .28) enemy.contained = false;
     if (enemy.contained) enemy.colonization = Math.max(.07, enemy.colonization - dt * .012);
 
-    const control = clamp(bacillus * .74 + iron * .34, 0, 1);
+    // o desenho do micelio le o controle biologico da raiz; a calmaria entra so
+    // na supressao do ataque e da pressao
+    const biologicalControl = clamp(bacillus * .74 + iron * .34, 0, 1);
+    const control = Math.max(biologicalControl, calm);
     const pressure = enemy.contained
       ? .018
-      : clamp(.08 + enemy.colonization * .72 - control * .42, .03, .9);
+      : clamp(.08 + enemy.colonization * .72 - control * .42, .03, .9) * (1 - calm);
     host.rhizoctoniaPressure = Math.max(host.rhizoctoniaPressure || 0, pressure);
     host.rhizoctoniaColonization = Math.max(host.rhizoctoniaColonization || 0, enemy.colonization);
-    host.rhizoctoniaControl = Math.max(host.rhizoctoniaControl || 0, control);
+    host.rhizoctoniaControl = Math.max(host.rhizoctoniaControl || 0, biologicalControl);
 
     if (enemy.contained || net < 0) {
       host.rootDamage = clamp((host.rootDamage || 0) - dt * (.004 + synergy * .013), 0, .94);
@@ -50207,7 +50535,7 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       if (!enemy.alive) return;
       activeCount++;
       updateEnemy(enemy, index, dt);
-      if (enemy.contained || (enemy.bacillusControl || 0) >= .45) controlledCount++;
+      if (enemy.contained || (enemy.bacillusControl || 0) >= .45 || (enemy.calm || 0) >= .6) controlledCount++;
     });
   }
 
@@ -50331,6 +50659,7 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       phase: enemy.phase ?? index,
       alpha: enemy.contained ? .58 : 1,
       flipX: (enemy.rhizoAttackDirection || 1) < 0,
+      calm: enemy.calm || 0,
     });
   }
 
@@ -51689,6 +52018,7 @@ const { publishControlSignal } = __require("src/procgen/biological-audio-signals
 const { RALSTONIA_DOOR_COLORS, RALSTONIA_STATE_LABELS, isRalstoniaRootEligible, ralstoniaAzospirillumClosure, ralstoniaNetGrowth, ralstoniaStageForLoads, ralstoniaWoundDynamics, ralstoniaWoundPressure } = __require("src/procgen/ralstonia-wilt-core.js");
 const { canRalstoniaFocusSpread, chooseRalstoniaSpreadTarget, ralstoniaArrivalProtection, ralstoniaSpreadOpening } = __require("src/procgen/ralstonia-spread.js");
 const { narrate } = __require("src/procgen/narrator.js");
+const { settleCalm } = __require("src/procgen/calm-zones.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -51722,6 +52052,26 @@ function ralstoniaDoorLabel(opening, config = RALSTONIA_DEFAULTS) {
 
 function ralstoniaDoorColor(opening, config = RALSTONIA_DEFAULTS) {
   return RALSTONIA_DOOR_COLORS[ralstoniaDoorLabel(opening, config)];
+}
+
+// Calmaria: taxas positivas (avanço) caem com a calmaria; negativas (o
+// controle vencendo) ficam como estao. "Segurando" passa a valer quando o
+// avanço vascular zera.
+function calmRalstoniaGrowth(growth, calm, focus, config) {
+  const c = Math.max(0, Math.min(1, calm || 0));
+  if (!c) return growth;
+  const damp = rate => (rate > 0 ? rate * (1 - c) : rate);
+  const vascularRate = damp(growth.vascularRate);
+  const surfaceRate = damp(growth.surfaceRate);
+  const entered = (focus?.vascularLoad ?? 0) >= config.vascularEntryThreshold;
+  return {
+    ...growth,
+    surfaceRate,
+    vascularRate,
+    holdingVascular: entered && vascularRate <= 1e-4,
+    holdingSurface: !entered && surfaceRate < 0,
+    calm: c,
+  };
 }
 
 function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas }) {
@@ -52610,7 +52960,9 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
 
   function applyGameplayPressure(focus, dt) {
     if (!standingOn(focus.root) || focus.neutralized) return;
-    const vascular = focus.vascularLoad;
+    const calm = focus.calm || 0;
+    // calma, a raiz murcha nao castiga o Miguelito
+    const vascular = focus.vascularLoad * (1 - calm);
     if (vascular > .42) {
       state.player.moveMultiplier = Math.min(state.player.moveMultiplier ?? 1, 1 - vascular * .18);
       state.player.jumpMultiplier = Math.min(state.player.jumpMultiplier ?? 1, 1 - vascular * .1);
@@ -52716,7 +53068,10 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
 
     updateWound(focus, dt);
 
-    const growth = ralstoniaNetGrowth({
+    // Calmaria (Pseudomonas + Bacillus do jogador): o que cresceria para de
+    // crescer. O que o controle ja reduz continua reduzindo. Nao neutraliza.
+    const calm = settleCalm(state, focus, 'ralstonia', focus.x, focus.root.y, dt);
+    const rawGrowth = ralstoniaNetGrowth({
       surfaceLoad: focus.surfaceLoad,
       vascularLoad: focus.vascularLoad,
       woundOpening: focus.woundOpening,
@@ -52724,6 +53079,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
       pseudomonasControl: focus.pseudomonasControl,
       config: CONFIG,
     });
+    const growth = calmRalstoniaGrowth(rawGrowth, calm, focus, CONFIG);
     focus.surfaceNetRate = growth.surfaceRate;
     focus.vascularNetRate = growth.vascularRate;
     focus.controlStrength = growth.control;
@@ -52764,7 +53120,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     }
 
     // CONTENÇÃO. Já entrou, o avanço parou e o controle se manteve.
-    if (progressing && focus.everEnteredVascular && growth.holdingVascular && growth.control > .25) {
+    if (progressing && focus.everEnteredVascular && growth.holdingVascular && (growth.control > .25 || calm >= .6)) {
       focus.containHold += dt;
       if (focus.containHold >= CONFIG.containmentHoldSeconds) {
         contain(focus);
@@ -52855,6 +53211,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
       && focus.everEnteredVascular
       && focus.vascularLoad >= CONFIG.spreadTriggerThreshold
       && focus.activationState === 'active'
+      && (focus.calm || 0) < .5
       && focus.spreadGeneration < CONFIG.maximumSpreadGeneration
       && !hasActiveEvent(focus)
     )) || null;
@@ -53179,6 +53536,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
       alpha: entrando ? alphaBase * (1 - t * .8) : alphaBase,
       anchorY: .88,
       flipX: (focus.surfaceMotionDirection || 1) < 0,
+      calm: focus.calm || 0,
     }) || drawCell(ctx, focus.visualX ?? focus.x, root.y - 12, {
       height: 44, phase: focus.phase, alpha: alphaBase, scale: 2.4,
     });
@@ -53916,7 +54274,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     reset,
   };
 }
-Object.assign(__exports, { ralstoniaDoorLabel, ralstoniaDoorColor, createRalstoniaVascularWilt });
+Object.assign(__exports, { ralstoniaDoorLabel, ralstoniaDoorColor, calmRalstoniaGrowth, createRalstoniaVascularWilt });
 },
 "src/procgen/ralstonia-spread.js": (__exports, __require) => {
 // Disseminação da Ralstonia — regras puras
@@ -55545,6 +55903,45 @@ function lowTunnelDiagnostics(level, phase) {
   return { reasons, pairs };
 }
 Object.assign(__exports, { LOW_TUNNEL, tunnelGapFor, lowTunnelCandidates, installLowTunnels, lowTunnelDiagnostics });
+},
+"src/render/calm-grade-2d.js": (__exports, __require) => {
+// Calmaria no modo 2D: aproximacao da correcao de cor do 2,5D com modos de
+// mistura do canvas. Desenha em coordenadas do mundo (zoom/Y da camera ja aplicados).
+// So visual: le state.calmZones e nao escreve nada.
+
+function drawCalmGrade2D(ctx, state) {
+  const zones = state?.calmZones;
+  if (!zones?.length) return;
+  // como os outros sistemas do mundo: a camera aplica zoom e Y; o X e de cada um
+  ctx.save();
+  ctx.translate(-(state.cameraX || 0), 0);
+  for (const zone of zones) {
+    const k = zone.intensity || 0;
+    if (k <= 0) continue;
+    const r = zone.radius;
+    const inner = Math.max(1, r - Math.max(60, r * .28));
+    ctx.save();
+    // primeiro clareia (screen levanta o escuro para pessego/rosa claro)...
+    ctx.globalCompositeOperation = 'screen';
+    let g = ctx.createRadialGradient(zone.x, zone.y - r * .2, 0, zone.x, zone.y, r);
+    g.addColorStop(0, `rgba(255,186,140,${.5 * k})`);
+    g.addColorStop(inner / r, `rgba(250,150,170,${.36 * k})`);
+    g.addColorStop(1, 'rgba(250,150,170,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(zone.x - r, zone.y - r, r * 2, r * 2);
+    // ...depois aquece os tons sem escurecer
+    ctx.globalCompositeOperation = 'soft-light';
+    g = ctx.createRadialGradient(zone.x, zone.y, 0, zone.x, zone.y, r);
+    g.addColorStop(0, `rgba(255,170,110,${.35 * k})`);
+    g.addColorStop(inner / r, `rgba(255,140,170,${.3 * k})`);
+    g.addColorStop(1, 'rgba(255,140,170,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(zone.x - r, zone.y - r, r * 2, r * 2);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+Object.assign(__exports, { drawCalmGrade2D });
 },
 "src/procgen/mobile-controls.js": (__exports, __require) => {
 const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");

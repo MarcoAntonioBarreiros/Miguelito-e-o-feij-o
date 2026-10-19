@@ -30,6 +30,8 @@ export function createSharedUniforms() {
     uFogDensity: { value: 0.0026 },
     uLightingOn: { value: 1 },
     uShadowsOn: { value: 1 },
+    // calmaria: ate 4 halos em mundo GL (x, y para cima, raio, intensidade)
+    uCalmZones: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
   };
 }
 
@@ -47,6 +49,21 @@ uniform vec3 uFogColor;
 uniform float uFogDensity;
 uniform float uLightingOn;
 uniform float uShadowsOn;
+uniform vec4 uCalmZones[4];
+
+// Calmaria (Pseudomonas + Bacillus): 0..1 no ponto do mundo, borda suave.
+float calmAt(vec3 wp) {
+  float w = 0.0;
+  for (int i = 0; i < 4; i++) {
+    vec4 z = uCalmZones[i];
+    if (z.w <= 0.0) continue;
+    float edge = max(60.0, z.z * .28);
+    w = max(w, z.w * (1.0 - smoothstep(z.z - edge, z.z, distance(wp.xy, z.xy))));
+  }
+  return w;
+}
+// luz ambiente quente da calmaria (rosa-pessego): clareia, nao tinge
+const vec3 CALM_AMBIENT = vec3(.86, .52, .44);
 
 float shadowFor(float slotPlusOne, vec2 suv) {
   // o passe de visibilidade roda sempre: sem "Sombras" ele so calcula a luz

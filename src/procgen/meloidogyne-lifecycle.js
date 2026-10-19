@@ -5,6 +5,7 @@ import { createRootHealthGameplay } from './root-health-gameplay.js';
 import { narrate } from './narrator.js';
 import { MELOIDOGYNE_DEFAULTS } from './campaign-manifest.js';
 import { rootEffectY } from '../render/rhizosphere-geometry.js';
+import { settleCalm } from './calm-zones.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -499,7 +500,9 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       const suppression = clamp(m.trichodermaSuppression || 0, 0, 1);
       if (m.neutralized) { m.eggs = 0; m.emptyAge += dt; continue; }
       if (m.eggs <= 0) { m.emptyAge += dt; continue; }
-      m.hatch -= dt * (1 - suppression * .98);
+      // calmaria: a massa nao eclode enquanto a planta esta em resistencia
+      const calm = settleCalm(state, m, 'meloidogyne-egg', m.x, m.y, dt);
+      m.hatch -= dt * (1 - suppression * .98) * (1 - calm);
       m.trichodermaSuppression = Math.max(0, suppression - dt * .18);
       m.trichodermaLysis = Math.max(0, (m.trichodermaLysis || 0) - dt * .06);
       if (m.hatch <= 0 && spawnJ2(m)) {
@@ -564,7 +567,10 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     if (!j.targetRoot || !roots().includes(j.targetRoot) || j.retarget <= 0) { chooseRoot(j); j.retarget = 1.2 + Math.random() * 1.1; }
     if (!j.targetRoot) { j.x += j.vx * dt; j.y += j.vy * dt; return; }
     const q = pointOnRoot(j.targetRoot, j.targetX); j.targetX = q.x;
-    if (steer(j, q.x, q.y, dt, MELOIDOGYNE_BASE_SPEED + j.generation * 2.5) > 13 || j.cooldown > 0) return;
+    const calmSpeed = 1 - (j.calm || 0) * .8;
+    if (steer(j, q.x, q.y, dt, (MELOIDOGYNE_BASE_SPEED + j.generation * 2.5) * calmSpeed) > 13 || j.cooldown > 0) return;
+    // calmo: chega a raiz mas nao penetra; segue vagando
+    if ((j.calm || 0) >= .5) { j.cooldown = 1.2; j.targetRoot = null; return; }
     if (occupancy(j.targetRoot) >= 2) { j.targetRoot = null; j.cooldown = 1.5; return; }
     const defense = bacillusDefense(j.targetRoot, q.x);
     if (defense > .58 && Math.random() < defense * .72) {
@@ -577,7 +583,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
   function penetrate(j, dt) {
     const p = j.targetRoot;
     if (!p) { j.state = 'seeking'; return; }
-    j.progress = clamp(j.progress + dt * .19 * (1 - bacillusDefense(p, j.targetX) * .72), 0, 1);
+    j.progress = clamp(j.progress + dt * .19 * (1 - bacillusDefense(p, j.targetX) * .72) * (1 - (j.calm || 0)), 0, 1);
     j.x = j.targetX + Math.sin(j.progress * Math.PI * 4 + j.phase) * 3;
     j.y = p.y + j.progress * Math.min(15, p.h * .22);
     if (j.progress < 1) return;
@@ -608,8 +614,8 @@ export function createMeloidogyneLifecycle({ state, entities }) {
   function migrate(j, dt) {
     const p = j.targetRoot;
     if (!p) { j.state = 'seeking'; return; }
-    j.progress = clamp(j.progress + dt * .17, 0, 1);
-    j.x += (j.feedingX - j.x) * clamp(dt * 2.2, 0, 1);
+    j.progress = clamp(j.progress + dt * .17 * (1 - (j.calm || 0)), 0, 1);
+    j.x += (j.feedingX - j.x) * clamp(dt * 2.2 * (1 - (j.calm || 0)), 0, 1);
     j.y = p.y + 10 + Math.sin(j.progress * Math.PI) * Math.min(26, p.h * .38);
     if (j.progress >= 1) addGall(j);
   }
@@ -629,6 +635,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       // Em trânsito, o trajeto manda — e só ele. Nada de `seek`, nada de
       // retarget, nada de penetração: o J2 ainda não chegou.
       if (j.arrivalTransit) { updateArrivalTransit(j, dt); continue; }
+      settleCalm(state, j, 'meloidogyne-j2', j.x, j.y, dt);
       if (j.age > 32 && j.state === 'seeking') j.alive = false;
       if (!j.alive) continue;
       if (j.state === 'seeking') seek(j, dt); else if (j.state === 'penetrating') penetrate(j, dt); else migrate(j, dt);
@@ -662,11 +669,14 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     for (const g of galls) {
       g.age += dt; g.x = clamp(g.x, g.platform.x + 28, g.platform.x + g.platform.w - 28);
       g.y = g.platform.y + Math.min(22, g.platform.h * .34);
-      if (g.progress < 1) g.progress = clamp(g.progress + dt * (.045 + (1 - clamp(g.platform.rootHealth ?? 1, .15, 1)) * .012), 0, 1);
+      // calmaria: a galha nao cresce, a femea nao amadurece nem ovipoe
+      const calm = g.dead ? 0 : settleCalm(state, g, 'meloidogyne-gall', g.x, g.y, dt);
+      const pace = 1 - calm;
+      if (g.progress < 1) g.progress = clamp(g.progress + dt * pace * (.045 + (1 - clamp(g.platform.rootHealth ?? 1, .15, 1)) * .012), 0, 1);
       else if (!g.eggMassesLaid) {
-        g.femaleMaturity = clamp(g.femaleMaturity + dt * .09, 0, 1);
-        g.eggTimer -= dt;
-        if (g.femaleMaturity >= .8 && g.eggTimer <= 0) layEggs(g);
+        g.femaleMaturity = clamp(g.femaleMaturity + dt * .09 * pace, 0, 1);
+        g.eggTimer -= dt * pace;
+        if (g.femaleMaturity >= .8 && g.eggTimer <= 0 && calm < .5) layEggs(g);
       } else if (!g.dead) {
         // Depois de ovipor, a femea entra em senescencia: para de produzir e a
         // drenagem cai ate zero. Ela nao poe uma segunda massa.
@@ -683,7 +693,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       // dano ativo, mas tambem sem devolver a saude maxima perdida.
       const liveDrain = .085 + g.femaleMaturity * .035;
       g.adultDrain = g.dead ? 0
-        : g.progress >= .78 ? liveDrain * (1 - g.senescence)
+        : g.progress >= .78 ? liveDrain * (1 - g.senescence) * pace
           : 0;
       if (g.progress >= .78 && !g.adultAnnounced) {
         g.adultAnnounced = true;
@@ -776,6 +786,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       phase: j.phase,
       alpha: caught ? .52 : 1,
       flipX: (j.vx || 1) < 0,
+      calm: j.calm || 0,
     })) {
       ctx.save();
       ctx.font = '700 7px Inter,system-ui';
