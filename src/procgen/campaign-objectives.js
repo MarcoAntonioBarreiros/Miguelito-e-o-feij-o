@@ -100,9 +100,12 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'containedVascularRalstoniaCount') return systems.ralstonia?.containedCount || 0;
     if (key === 'activeCriticalRalstoniaCount') return systems.ralstonia?.criticalCount || 0;
     if (key === 'blockedRalstoniaSpreadCount') return systems.ralstonia?.blockedSpreadCount || 0;
-    // Quantas disseminacoes CHEGARAM a outra raiz. Zero e o estado que a fase 9
-    // pede no fim: a doenca nao saiu de onde comecou.
+    // Historico de chegadas preservado para telemetria e avaliacao da partida.
+    // O bloqueio da raiz final usa a situacao recuperavel abaixo, sem apaga-lo.
     if (key === 'succeededRalstoniaSpreadCount') return systems.ralstonia?.successfulSpreadCount || 0;
+    // Eventos em aviso/transito + focos secundarios ainda sem controle. O
+    // controlador inclui recaidas e murcha critica nesta leitura instantanea.
+    if (key === 'unresolvedRalstoniaSpreadCount') return systems.ralstonia?.unresolvedSpreadCount || 0;
     if (key === 'averageVascularTransport') return systems.ralstonia?.averageTransport ?? 1;
     if (key === 'preservedVascularRootCount') return systems.ralstonia?.preservedVascularRootCount || 0;
     if (key === 'ecologicalScore') return Number(state.level.ecologicalScore || 0);

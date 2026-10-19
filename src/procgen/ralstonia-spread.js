@@ -32,7 +32,8 @@ export const RALSTONIA_SPREAD_STATES = Object.freeze([
 //
 // `pedagogicalSpread` é a exceção controlada da estreia: quando o jogador
 // alcança a região da terceira lição, o runtime marca UM foco vascular para
-// abrir o evento didático mesmo que ele esteja abaixo do limiar ou já contido.
+// antecipar o aviso de uma fonte ainda descontrolada. A lição nunca invalida
+// uma contenção efetiva nem faz uma carga residual baixa disseminar.
 export function canRalstoniaFocusSpread(focus, {
   config = RALSTONIA_DEFAULTS,
   activeEventForFocus = false,
@@ -41,6 +42,7 @@ export function canRalstoniaFocusSpread(focus, {
   if (!focus) return false;
   if (focus.activationState !== 'active') return false;
   if (focus.neutralized) return false;
+  if (focus.contained) return false;
   if (activeEventForFocus) return false;
 
   const generationCap = Number.isFinite(maximumGeneration)
@@ -51,13 +53,7 @@ export function canRalstoniaFocusSpread(focus, {
   const budget = config.maximumSpreadEventsPerFocus + (focus.spreadBudgetBonus || 0);
   if (finite(focus.spreadEventsUsed) >= budget) return false;
 
-  if (focus.pedagogicalSpread === true) {
-    // Ainda exige que a bactéria esteja DENTRO do vaso: sem xilema colonizado
-    // não existe exsudato bacteriano para disseminar.
-    return Boolean(focus.everEnteredVascular);
-  }
-
-  if (focus.contained) return false;
+  if (focus.pedagogicalSpread === true && !focus.everEnteredVascular) return false;
   return clamp(finite(focus.vascularLoad), 0, 1) >= config.spreadTriggerThreshold;
 }
 

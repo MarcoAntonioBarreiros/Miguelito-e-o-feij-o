@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"769edb2","subject":"Substitui fosfato por cristais procedurais facetados (#2)","builtAt":"2026-10-19 12:15"};
+window.__BEANS_BUILD__ = {"commit":"3e6628d","subject":"Merge remote-tracking branch 'origin/main' into experimental/visual-2_5d","builtAt":"2026-10-19 13:08"};
 (() => {
 'use strict';
 const __modules = {
@@ -1138,14 +1138,19 @@ const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.
 const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");
 const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");
 const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");
+const { prepareRalstoniaTeachingEncounters } = __require("src/procgen/ralstonia-teaching.js");
 const { narrate } = __require("src/procgen/narrator.js");
 const { createPauseMenu } = __require("src/procgen/pause-menu.js");
-const { FEATURE_LABELS } = __require("src/procgen/narration-catalog.js");
+const { FEATURE_LABELS, NARRATION } = __require("src/procgen/narration-catalog.js");
+const { drawWorldLabel } = __require("src/procgen/world-label.js");
 const { createPathogenArrival, PATHOGEN_ARRIVAL_DEFAULTS } = __require("src/procgen/pathogen-arrival.js");
 const { createPhaseFinale, phaseFinaleSeconds } = __require("src/procgen/phase-finale.js");
 const { rhizosphereSurfaceY } = __require("src/render/rhizosphere-geometry.js");
 const { GEOMETRY_ENABLED } = __require("src/render/geometry-preference.js");
 const { vfxParticles } = __require("src/render/vfx-particles.js");
+const { drawThreatRadar } = __require("src/render/threat-radar.js");
+const { installLowTunnels, lowTunnelDiagnostics } = __require("src/procgen/low-tunnels.js");
+const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
 const { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } = __require("src/render/final-root-visual.js");
 const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");
 const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
@@ -1353,6 +1358,7 @@ const OBJECTIVE_LABELS = {
   activeCriticalRalstoniaCount: 'Chegue à raiz final sem murcha crítica ativa',
   blockedRalstoniaSpreadCount: 'Bloqueie uma disseminação para outra raiz',
   succeededRalstoniaSpreadCount: 'Impeça que a Ralstonia alcance uma segunda raiz',
+  unresolvedRalstoniaSpreadCount: 'Mantenha os focos secundários sob controle',
   averageVascularTransport: 'Preserve o transporte vascular',
   preservedVascularRootCount: 'Preserve raízes com transporte funcional',
   recoveredRootCount: 'Recupere uma raiz danificada',
@@ -1620,8 +1626,9 @@ function topologyDetourDebug(level) {
 function finalStatusClass(condition, result) {
   // Disseminacao contida e o mesmo tipo de leitura da murcha critica: um STATUS
   // do agora, nao uma conquista. Neutro antes de a doenca comecar, estavel
-  // enquanto nada passou, vermelho quando passou, verde so no fim.
-  if (condition.key === 'succeededRalstoniaSpreadCount') {
+  // enquanto não há ameaça pendente, vermelho quando o controle falta, verde
+  // só no fim. Um secundário recuperado devolve o status estável.
+  if (condition.key === 'unresolvedRalstoniaSpreadCount') {
     const passaram = Number(result?.actual) || 0;
     if (passaram > 0) return 'violated';
     if (levelData?.goal?.completed) return 'completed';
@@ -1637,15 +1644,16 @@ function finalStatusClass(condition, result) {
 }
 
 function finalStatusNote(condition, result) {
-  if (condition.key === 'succeededRalstoniaSpreadCount') {
+  if (condition.key === 'unresolvedRalstoniaSpreadCount') {
     const passaram = Number(result?.actual) || 0;
-    if (passaram > 0) return `A doença alcançou outra raiz: ${passaram}`;
-    if (levelData?.goal?.completed) return 'Concluído sem disseminação';
+    if (passaram > 0) return `Focos sem controle ou propagações em trânsito: ${passaram}`;
+    if (levelData?.goal?.completed) return 'Concluído com a propagação sob controle';
     if (!ralstoniaControl.challengeStarted) return '';
     const bloqueadas = ralstoniaControl.blockedSpreadCount || 0;
-    return bloqueadas
-      ? `Contida nesta raiz · ${bloqueadas} disseminação${bloqueadas > 1 ? 'ões' : ''} bloqueada${bloqueadas > 1 ? 's' : ''}`
-      : 'Contida nesta raiz';
+    const historico = ralstoniaControl.successfulSpreadCount || 0;
+    return historico
+      ? `Propagação controlada · histórico: ${historico}`
+      : bloqueadas ? `${bloqueadas} disseminação(ões) bloqueada(s)` : 'Nenhuma propagação sem controle';
   }
   if (condition.key !== 'activeCriticalRalstoniaCount') return '';
   const criticos = Number(result?.actual) || 0;
@@ -1815,6 +1823,9 @@ const PHASE_TOPOLOGY_VARIANTS = [
 // link salvo nao cai fora de modo nenhum, que foi exatamente o acidente do T3b.
 const CLASSIC_PHASE_VARIANTS = ['classic', 'phase-classic'];
 const phaseTopologyMode = !CLASSIC_PHASE_VARIANTS.includes(optionalDetourVariant);
+// Diretor de salas (phase-director.js): padrao da fase 10. `?v=silhueta` volta
+// ao plano vertical antigo (zonas longas) para comparar.
+const phaseDirectorMode = phaseTopologyMode && optionalDetourVariant !== 'silhueta';
 
 const optionalDetourTopologyMode =
   optionalDetourVariant === 'optional-detour-topology-t1'
@@ -1861,6 +1872,8 @@ window.miguelitoViewport = responsiveCanvas;
 // normal, no lugar onde terminou a fase.
 // Etapa da cinematica em que a comemoracao de particulas ja foi disparada.
 let finaleVfxMode = 'idle';
+// Estado do zoom do primeiro nodulo (ver updateNodulationShowcase).
+const nodShow = { phase: 'idle', site: null, t: 0, from: null, back: 0, stalled: 0, after: 0 };
 window.miguelitoVfx = vfxParticles;
 const phaseFinale = createPhaseFinale({
   state: sim.state,
@@ -1940,7 +1953,7 @@ sim.goal.setCompletionGuard(() => {
   const result = objectiveEvaluator.evaluate(conditions);
   return {
     passed: result.passed,
-    message: campaign.phase === 5
+    message: campaign.phase === 9 ? ralstoniaControl.completionHint : campaign.phase === 5
       ? 'Falta ferro e controlar o fungo'
       : 'Faltam objetivos: veja a lista',
   };
@@ -2056,14 +2069,24 @@ function prepareLevel() {
     // Cada tipo de portão só é pedido se a fase liberou a habilidade que o
     // abre. Sem isso o portão é softlock, não desafio — e é por isso que a
     // lista é montada a partir dos unlocks em vez de ser fixa.
-    verticalPlan: phaseTopologyMode && campaign.phase === 10
+    verticalPlan: phaseTopologyMode && !phaseDirectorMode && campaign.phase === 10
       ? { gateKinds: availableRouteGateKinds() }
       : false,
+    director: phaseDirectorMode && campaign.phase === 10
+      ? {
+          gateKinds: availableRouteGateKinds(),
+          abilities: {
+            dash: Boolean(campaign.unlocks?.dash),
+            // mesmo filtro do portao: habilidade + Bacillus liberado no laboratorio
+            phosphateSolubilization: availableRouteGateKinds().includes('phosphateWall'),
+          },
+        }
+      : null,
   });
   levelData.optionalDetourPlaytestMode = optionalDetourPlaytestMode;
   // Marca lida por `meloidogyne-lifecycle` e `ralstonia-vascular-wilt` no
-  // reset: com ela ligada, nenhum dos dois povoa a fase por conta propria — a
-  // primeira geracao chega pelo controlador.
+  // reset: a contaminação ambiental chega pelo controlador. A fase 9 reserva
+  // separadamente uma raiz já infectada para a lição de contenção.
   levelData.dynamicPathogenArrival = true;
   const traceGeometry = stage => (
     campaign.phase === 3 ? recordRouteGeometryStage(levelData, stage) : null
@@ -2308,8 +2331,16 @@ function prepareLevel() {
   routeAnchors.synchronize();
   anchorPowerPickups(levelData);
   installFinalGoal(levelData);
+  // Resource encounters must exist before resetEcology spawns their agents.
+  // Only phase 9 reserves the independent prevention/containment lessons.
+  prepareRalstoniaTeachingEncounters(levelData, { phaseManifest: getPhaseManifest(campaign.phase), seed });
   applyInitialRootHealth(levelData, campaign.phase);
   synchronizeWorldBounds(levelData);
+  // Tunel baixo (Dash/propulsor): so sobre pares que ja tem o vao certo, depois
+  // de TODA a geometria (ancoras, objetivo final, limites do mundo); nao move plataforma nenhuma.
+  installLowTunnels(levelData, { phase: campaign.phase, seedValue: seed, abilities: campaign.unlocks || {} });
+  window.miguelitoLowTunnels = () => lowTunnelDiagnostics(levelData, campaign.phase);
+  traceGeometry('installLowTunnels');
   // CAPACIDADE MINERAL DA FASE, uma vez, no fim.
   //
   // Depois de TUDO que pode criar ou remover deposito: desafio autoral, portoes
@@ -2434,6 +2465,7 @@ function initGame({ announce = false } = {}) {
   phaseFinale.reset();
   vfxParticles.clear();
   finaleVfxMode = 'idle';
+  stopNodulationShowcase();
   sim.state.campaign = campaign;
   // Nao reinicia audio: `setPhase` compara a faixa mapeada com a que ja toca e
   // so faz crossfade quando muda. Reset da campanha nao recria contexto nem
@@ -3011,6 +3043,7 @@ function drawWorldLayers25D(layer) {
       sim.phosphateSolubilization.render(fx);
       fixedBlockRuntime.render(fx);
       platformVisuals.renderLabel(fx);
+      drawNoduleCaption(fx);
     });
     // raiz-objetivo e sua aura: camada sem iluminacao (fonte de luz, como no 2D)
     if (layer.glow) {
@@ -3137,6 +3170,154 @@ window.miguelito25DMode = value => {
 if (render25DRequested) setVfx(true, { save: false, quiet: true });
 syncVfxUi();
 
+// ---- Zoom do primeiro nodulo (rhizobium-nodulation.js marca o sitio) -------
+// A camera se aproxima do sitio, acompanha as cinco etapas no tempo normal e
+// volta ao Miguelito quando o nodulo amadurece. O jogo continua por baixo e o
+// zoom nao pode ser pulado. Saidas de seguranca: a colonia sumiu, o fim da
+// fase assumiu a camera, ou a nodulacao ficou parada por falta de carbono.
+// 2,5x mais perto que o zoom em que o jogador esta (relativo, nao absoluto).
+const NODULE_ZOOM_FACTOR = 2.5;
+const NODULE_ZOOM_IN = .9;
+const NODULE_ZOOM_OUT = .9;
+const NODULE_HOLD_AFTER_MATURE = 1.6;
+const NODULE_STALL_LIMIT = 5;
+
+function easeInOut(t) { const k = Math.max(0, Math.min(1, t)); return k * k * (3 - 2 * k); }
+
+function viewSize(zoomValue) {
+  return { w: (canvas.width || 1280) / zoomValue, h: (canvas.height || 720) / zoomValue };
+}
+
+function noduleFraming(site) {
+  const zoomValue = (nodShow.back || 1.45) * NODULE_ZOOM_FACTOR;
+  const { w, h } = viewSize(zoomValue);
+  const fx = site.x;
+  const fy = (site.surfaceY || 0) + (site.depth || 24) * .6;
+  return { x: fx - w / 2, y: fy - h / 2, zoom: zoomValue };
+}
+
+function playerFraming(zoomValue) {
+  const pl = sim.state.player;
+  const { w, h } = viewSize(zoomValue);
+  return { x: Math.max(0, pl.x + pl.w / 2 - w / 2), y: pl.y + pl.h / 2 - h * .61, zoom: zoomValue };
+}
+
+function mixFraming(a, b, t) {
+  const k = easeInOut(t);
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, zoom: a.zoom + (b.zoom - a.zoom) * k };
+}
+
+function stopNodulationShowcase() {
+  if (nodShow.phase !== 'idle' && !phaseFinale.active) cameraView.endCinematic();
+  Object.assign(nodShow, { phase: 'idle', site: null, t: 0, from: null, stalled: 0, after: 0 });
+}
+
+function updateNodulationShowcase(dt) {
+  const level = sim.state.level;
+  if (nodShow.phase === 'idle') {
+    const site = level?.nodulationShowcase;
+    if (!site) return;
+    level.nodulationShowcase = null;
+    if (site.mature || phaseFinale.active) return;
+    const start = cameraView.beginCinematic();
+    if (!start) return;
+    Object.assign(nodShow, {
+      phase: 'in', site, t: 0, stalled: 0, after: 0,
+      from: { x: start.x, y: start.y, zoom: start.zoom }, back: start.zoom,
+    });
+  }
+  // o fim da fase assume a camera: sai sem devolver nada
+  if (phaseFinale.active) { Object.assign(nodShow, { phase: 'idle', site: null }); return; }
+  const site = nodShow.site;
+  const alive = (level?.rhizobiumNodules || []).includes(site);
+  nodShow.t += dt;
+
+  if (nodShow.phase === 'in' || nodShow.phase === 'hold') {
+    if (nodShow.phase === 'in') {
+      cameraView.setCinematic(mixFraming(nodShow.from, noduleFraming(site), nodShow.t / NODULE_ZOOM_IN));
+      if (nodShow.t >= NODULE_ZOOM_IN) { nodShow.phase = 'hold'; nodShow.t = 0; }
+    } else {
+      cameraView.setCinematic(noduleFraming(site));
+    }
+    nodShow.stalled = site.paused ? nodShow.stalled + dt : 0;
+    if (site.mature) nodShow.after += dt;
+    const done = !alive
+      || nodShow.after >= NODULE_HOLD_AFTER_MATURE
+      || nodShow.stalled >= NODULE_STALL_LIMIT;
+    if (done) {
+      const cur = sim.state;
+      nodShow.from = { x: cur.cameraX || 0, y: cur.cameraY || 0, zoom: cur.cameraZoom || nodShow.back };
+      nodShow.phase = 'out';
+      nodShow.t = 0;
+    }
+    return;
+  }
+  if (nodShow.phase === 'out') {
+    cameraView.setCinematic(mixFraming(nodShow.from, playerFraming(nodShow.back), nodShow.t / NODULE_ZOOM_OUT));
+    if (nodShow.t >= NODULE_ZOOM_OUT) stopNodulationShowcase();
+  }
+}
+
+// Durante o zoom do primeiro nodulo a explicacao de cada etapa sai do topo da
+// tela (fora do quadro, no celular) e aparece junto do nodulo, como o texto do
+// Bacillus na fase 1: so texto com glow (drawWorldLabel), no mundo.
+const NODULE_STAGE_TEXT = {
+  recognition: 'Reconhecimento: raiz e Rhizobium trocam sinais',
+  'root-hair-curl': NARRATION['rhizobium.curl'].text,
+  'infection-thread': NARRATION['rhizobium.thread'].text,
+  primordium: NARRATION['rhizobium.primordium'].text,
+  'young-nodule': NARRATION['rhizobium.young'].text,
+  'mature-nodule': NARRATION['rhizobium.mature'].text,
+};
+const NODULE_TOAST_TEXTS = new Set(['rhizobium.curl', 'rhizobium.thread', 'rhizobium.primordium', 'rhizobium.young', 'rhizobium.mature']
+  .map(id => NARRATION[id].text));
+
+function noduleShowcaseActive() {
+  return nodShow.phase === 'in' || nodShow.phase === 'hold';
+}
+
+function drawNoduleCaption(target) {
+  if (!noduleShowcaseActive() || !nodShow.site) return;
+  const site = nodShow.site;
+  const text = NODULE_STAGE_TEXT[site.stage];
+  if (!text) return;
+  if (nodShow.captionStage !== site.stage) { nodShow.captionStage = site.stage; nodShow.captionAt = performance.now(); }
+  const fadeIn = Math.min(1, (performance.now() - nodShow.captionAt) / 350);
+  const zoomValue = sim.state.cameraZoom || 1;
+  // tamanho proporcional a altura do canvas (vale para qualquer densidade de
+  // tela) e posicao abaixo do nodulo, dentro do bloco da raiz: acima ficam os
+  // Rhizobium e o Miguelito
+  const screenPx = Math.max(16, (canvas.height || 720) * .036);
+  const visibleW = sim.state.visibleWorldWidth || (canvas.width / zoomValue);
+  const visibleH = sim.state.visibleWorldHeight || (canvas.height / zoomValue);
+  const frameY = (sim.state.cameraY || 0) + visibleH / 2;
+  target.save();
+  target.translate(-(sim.state.cameraX || 0), 0);
+  drawWorldLabel(target, site.x, frameY + visibleH * .3, text, {
+    color: '#ffe58f',
+    font: `900 ${(screenPx / zoomValue).toFixed(2)}px Inter,system-ui`,
+    glow: screenPx * .6 / zoomValue,
+    alpha: fadeIn,
+    maxWidth: visibleW * .92,
+  });
+  target.restore();
+}
+
+// Dica do tunel baixo: ao se aproximar da entrada (o narrador garante uma vez
+// por campanha).
+function announceLowTunnel() {
+  const st = sim.state;
+  if (st.gameState !== 'play' || !st.player) return;
+  const px = st.player.x + st.player.w / 2;
+  for (const d of st.level?.ceilingDrops || []) {
+    if (px < d.entryX - 380 || px > d.entryX) continue;
+    if (Math.abs((st.player.y + st.player.h) - d.floorY) > 140) continue;
+    if (d.phosphate && d.crystal && !d.crystal.broken) narrate(st, 'tunnel.phosphate');
+    else if (!d.merged) narrate(st, st.player.canJetpack ? 'tunnel.dash-jetpack' : 'tunnel.dash');
+    return;
+  }
+}
+
 // ---- Particulas de evento (vfx-particles.js) --------------------------------
 // Inoculacao e vigor vem da simulacao; a comemoracao do fim da fase e
 // disparada aqui, pelas etapas da cinematica.
@@ -3232,6 +3413,7 @@ function renderWorld() {
     // acrescenta feixes e primeiro plano. So visual; nao le nada da fisica.
     lighting?.render(ctx, { finaleActive: phaseFinale.active });
     drawEventParticles(ctx);
+    drawNoduleCaption(ctx);
     platformVisuals.renderLabel(ctx);
   } finally {
     ctx.restore();
@@ -3277,6 +3459,7 @@ function renderWorldProfiled() {
     }
     if (!skip.luz) P.run('iluminacao 2D (escurecer + recortes + feixes)', () => lighting?.render(ctx, { finaleActive: phaseFinale.active }));
     P.run('particulas de efeito (inoculacao, comemoracao)', () => drawEventParticles(ctx));
+    drawNoduleCaption(ctx);
     P.run('rotulos', () => platformVisuals.renderLabel(ctx));
   } finally {
     ctx.restore();
@@ -3333,9 +3516,15 @@ function loop(now) {
     // avancado (um cartao de tutorial aberto congela o jogo, nao a cena).
     phaseFinale.update(dt);
     updateEventParticles(dt, pauseMenu.isOpen || Boolean(tutorialManager?.isOpen));
+    updateNodulationShowcase(pauseMenu.isOpen || tutorialManager?.isOpen ? 0 : dt);
+    announceLowTunnel();
     renderWorld();
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);
+    // Radar de Ralstonia e nematoide (borda da tela; so alvos fora do quadro)
+    if (!phaseFinale.active) {
+      drawThreatRadar(ctx, sim.state, canvas, now / 1000, Boolean(coarsePointerQuery?.matches));
+    }
     const finaleVisible = phaseFinale.active;
     if (finaleVisible !== hudHiddenByFinale) {
       hudHiddenByFinale = finaleVisible;
@@ -3358,6 +3547,11 @@ function loop(now) {
     // mensagem de ciência correspondente.
     sim.narrator.observeTutorial();
     const toastKey = `${sim.state.toast}|${sim.state.toastCardId || ''}|${sim.state.toastSerial || 0}`;
+    if (noduleShowcaseActive() && NODULE_TOAST_TEXTS.has(sim.state.toast)) {
+      // ja esta escrito junto do nodulo; nao repete no topo
+      if (toastDiv.className === 'show') toastDiv.className = '';
+      lastToast = toastKey;
+    }
     if (sim.state.toastTime > 0 && sim.state.toast && toastKey !== lastToast) {
       toastTextSpan.textContent = sim.state.toast;
       const cardId = sim.state.toastCardId || '';
@@ -3533,8 +3727,9 @@ requestAnimationFrame(loop);
 },
 "src/procgen/generator.js": (__exports, __require) => {
 const { createRandom } = __require("src/procgen/random.js");
-const { createPhaseVerticalPlan, plannedRouteGates, ROUTE_GATE_KINDS, validatePhaseVerticalPlan, verticalBandAt } = __require("src/procgen/phase-vertical-plan.js");
+const { AZO_ASCENT_RISE_RANGE, createPhaseVerticalPlan, MYCORRHIZA_BRIDGE_GAP_RANGE, MYCORRHIZA_BRIDGE_MAX_DELTA, NITROGEN_GATE_LANDING_GAP_RANGE, NITROGEN_GATE_TARGET_WIDTH_RANGE, plannedRouteGates, ROUTE_GATE_KINDS, validatePhaseVerticalPlan, verticalBandAt } = __require("src/procgen/phase-vertical-plan.js");
 const { generateLogicGraph } = __require("src/procgen/logic.js");
+const { createPhaseRecipe, directorBand } = __require("src/procgen/phase-director.js");
 const { generatePrimitives } = __require("src/procgen/primitives.js");
 const { generateGeometry } = __require("src/procgen/geometry.js");
 const { validateChunk } = __require("src/procgen/agents.js");
@@ -3596,7 +3791,7 @@ function traversalLimits(chunk, primitive, index) {
   };
 }
 
-function stabilizeGeometry(candidate, previous, chunk, primitive, index, verticalPlan = null) {
+function stabilizeGeometry(candidate, previous, chunk, primitive, index, band = null) {
   const limits = traversalLimits(chunk, primitive, index);
   const previousEnd = previous.x + previous.w;
   const rawGap = candidate.x - previousEnd;
@@ -3606,7 +3801,6 @@ function stabilizeGeometry(candidate, previous, chunk, primitive, index, vertica
 
   // A faixa vem do plano vertical quando ele existe; sem plano é a faixa fixa
   // de sempre, e o resultado é byte a byte o de antes.
-  const band = verticalPlan ? verticalBandAt(verticalPlan, index) : null;
   const floorY = band ? band.top : 235;
   const ceilingY = band ? band.bottom : 565;
 
@@ -3884,6 +4078,83 @@ function createRecoveryRoots(previous, next, chunk, rnd, index) {
   }];
 }
 
+// SALAS DO DIRETOR sem portao (ver phase-director.js). Geometria autoral: nao
+// passam por `stabilizeGeometry`, que achataria a queda em 92 px.
+//
+// Queda: um passo so, forte. Vao curto para nao virar salto de precisao.
+function buildDropRoomPlatform(previous, room, rnd, index, envelope) {
+  const room_ = envelope.bottom - 40 - previous.y;
+  if (room_ < 160) return null;
+  const drop = Math.round(clamp(lerp(170, 260, rnd()), 160, room_));
+  const gap = Math.round(lerp(48, 100, rnd()));
+  return {
+    x: previous.x + previous.w + gap,
+    y: previous.y + drop,
+    w: Math.round(lerp(210, 270, rnd())),
+    h: 54,
+    type: 'root',
+    logicIndex: index,
+    dropRoom: true,
+    dropRoomDepth: drop,
+    directorRoom: room.id,
+    directorRoomKind: room.kind,
+  };
+}
+
+// Tunel: o gerador so reserva o PAR de blocos de terra (entrada larga e saida
+// na mesma altura, com vao no tamanho que o tunel usa). O teto, o cristal e a
+// colonia de Bacillus vem de `installLowTunnels`, que le as marcas.
+function buildTunnelRoomEntry(previous, room, rnd, index, band, primitives) {
+  const basic = primitives.find(p => p.id === 'running-jump-short') || primitives[0];
+  const planned = band ? band.target - previous.y : 0;
+  const tries = [
+    { gap: Math.round(lerp(56, 96, rnd())), dy: Math.round(clamp(planned, -30, 36)) },
+    { gap: 44, dy: 0 },
+  ];
+  for (const { gap, dy } of tries) {
+    const entry = {
+      x: previous.x + previous.w + gap,
+      y: previous.y + dy,
+      w: Math.round(lerp(300, 340, rnd())),
+      h: 54,
+      type: 'soil',
+      logicIndex: index,
+      tunnelRoomRole: 'entry',
+      tunnelRoomKind: room.kind,
+      tunnelRoomId: room.id,
+      directorRoom: room.id,
+      directorRoomKind: room.kind,
+    };
+    if (validateChunk({ ...previous }, { ...entry }, basic, 'normal')) return entry;
+  }
+  return null;
+}
+
+function buildTunnelRoomExit(entry, pending, rnd, index) {
+  const phosphate = pending.kind === 'phosphateTunnel';
+  // fosfato aceita os dois tipos (sem vao: |dy| <= 6 e vao <= 300)
+  const dy = Math.round(phosphate ? lerp(0, 6, rnd()) : lerp(0, 20, rnd()));
+  const gap = Math.round(phosphate ? lerp(150, 200, rnd()) : lerp(170, 220, rnd()));
+  return {
+    x: entry.x + entry.w + gap,
+    y: Math.min(entry.y + dy, 560),
+    w: Math.round(lerp(260, 300, rnd())),
+    h: 54,
+    type: 'soil',
+    logicIndex: index,
+    tunnelRoomRole: 'exit',
+    tunnelRoomKind: pending.kind,
+    tunnelRoomId: pending.id,
+    directorRoom: pending.id,
+    directorRoomKind: pending.kind,
+  };
+}
+
+// Desvio opcional: 3 telas de 1280 entre os centros, com folga
+const DETOUR_SOCKET_SPAN = 4300;
+const DETOUR_SOCKET_START_WIDTH = 220;
+const DETOUR_SOCKET_REJOIN_WIDTH = 260;
+
 const BASIC_TRAVERSAL_PRIMITIVES = Object.freeze([
   { id: 'standing-jump-short', requires: [] },
   { id: 'running-jump-short', requires: [] },
@@ -3990,6 +4261,9 @@ function generateLevel(seedString, {
   // geração é exatamente a que está no ar. O fallback do modo topológico não é
   // um segundo caminho a manter — é a ausência deste.
   verticalPlan: verticalPlanOption = false,
+  // Diretor de salas (ver phase-director.js). Quando presente, substitui o
+  // plano vertical: { gateKinds, abilities }.
+  director: directorOption = null,
 } = {}) {
   const rnd = createRandom(seedString);
   const primitives = generatePrimitives();
@@ -4027,14 +4301,23 @@ function generateLevel(seedString, {
   let pendingNitrogenGate = null;
   if (verticalPlanOption) {
     const requested = verticalPlanOption === true ? {} : verticalPlanOption;
-    verticalPlan = createPhaseVerticalPlan({
-      seedValue: seedString,
-      phase,
-      totalChunks: logic.length,
-      baseY: 500,
-      familyId: requested.familyId || null,
-    });
-    verticalPlanViolations = validatePhaseVerticalPlan(verticalPlan);
+    // Um sorteio reprovado (faixa vertical curta, sem subida...) nao derruba a
+    // fase para a geracao antiga, sem combo nenhum: tenta de novo com sementes
+    // derivadas (deterministicas). So desiste depois de varias tentativas.
+    let planAttempts = 0;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      planAttempts = attempt + 1;
+      verticalPlan = createPhaseVerticalPlan({
+        seedValue: attempt ? `${seedString}:plano-${attempt}` : seedString,
+        phase,
+        totalChunks: logic.length,
+        baseY: 500,
+        familyId: requested.familyId || null,
+      });
+      verticalPlanViolations = validatePhaseVerticalPlan(verticalPlan);
+      if (!verticalPlanViolations.length) break;
+    }
+    if (verticalPlan) verticalPlan.attempts = planAttempts;
     if (verticalPlanViolations.length) verticalPlan = null;
     // `ascentGates: true` continua valendo e agora significa TODOS os tipos de
     // portão. Uma lista explícita restringe — é assim que uma fase sem uma das
@@ -4049,11 +4332,79 @@ function generateLevel(seedString, {
     }
   }
 
+  // Diretor: a receita nasce com semente propria (nao desloca o `rnd`) e os
+  // portoes que ela pede entram pelo mesmo ramo autoral dos portoes do plano.
+  let recipe = null;
+  let directorLevel = 500;
+  let pendingTunnel = null;
+  let detourStart = null;
+  let detourRejoin = null;
+  const roomStats = { built: [], skipped: [] };
+  if (directorOption && !verticalPlan) {
+    recipe = createPhaseRecipe({
+      seedValue: seedString,
+      phase,
+      logic,
+      gateKinds: directorOption.gateKinds || [],
+      abilities: directorOption.abilities || {},
+      lastChunk: logic.length - 6,
+      reservedChunks: [...traversalPlans.keys()],
+    });
+    for (const room of recipe?.rooms || []) {
+      if (!room.gateKind) continue;
+      const params = room.gateKind === 'azospirillumAscent'
+        ? { riseRange: AZO_ASCENT_RISE_RANGE }
+        : room.gateKind === 'mycorrhizaBridge'
+          ? { gapRange: MYCORRHIZA_BRIDGE_GAP_RANGE, maximumVerticalDelta: MYCORRHIZA_BRIDGE_MAX_DELTA }
+          : { landingGapRange: NITROGEN_GATE_LANDING_GAP_RANGE, targetWidthRange: NITROGEN_GATE_TARGET_WIDTH_RANGE };
+      routeGateRequests.set(room.chunkIndex, {
+        chunkIndex: room.chunkIndex,
+        zoneId: room.id,
+        mechanic: room.gateKind,
+        directorRoom: room.id,
+        ...params,
+      });
+    }
+  }
+  const bandAt = index => (verticalPlan
+    ? verticalBandAt(verticalPlan, index)
+    : recipe ? directorBand(recipe, index, directorLevel) : null);
+
   let prevPlatform = { x: 50, y: 500, w: 240, h: 100, type: 'root', logicIndex: -1 };
   platforms.push(prevPlatform);
 
   for (let i = 0; i < logic.length; i++) {
     const chunk = logic[i];
+    // Sala do diretor sem portao (queda, tuneis): geometria autoral, segue.
+    const room = recipe?.byChunk.get(i);
+    const roomPlatform = pendingTunnel && pendingTunnel.chunkIndex === i - 1
+      ? buildTunnelRoomExit(prevPlatform, pendingTunnel, rnd, i)
+      : room && !room.gateKind && !prevPlatform.encounterInstanceId
+        ? (room.kind === 'drop'
+          ? buildDropRoomPlatform(prevPlatform, room, rnd, i, recipe.envelope)
+          : buildTunnelRoomEntry(prevPlatform, room, rnd, i, bandAt(i), primitives))
+        : null;
+    if (room && !room.gateKind && !roomPlatform) roomStats.skipped.push(room.id);
+    if (roomPlatform) {
+      if (roomPlatform.tunnelRoomRole === 'entry') pendingTunnel = { ...room, chunkIndex: i };
+      else if (roomPlatform.tunnelRoomRole === 'exit') pendingTunnel = null;
+      if (roomPlatform.tunnelRoomRole !== 'entry') {
+        roomStats.built.push(roomPlatform.directorRoom);
+        directorLevel = roomPlatform.y;
+      }
+      platforms.push(roomPlatform);
+      debugInfo.push({
+        index: i,
+        logic: chunk,
+        primitive: `diretor:${roomPlatform.directorRoomKind}`,
+        repairs: 0,
+        accepted: true,
+        recoveryRoots: 0,
+        gap: Math.round(roomPlatform.x - (prevPlatform.x + prevPlatform.w)),
+      });
+      prevPlatform = roomPlatform;
+      continue;
+    }
     const traversalPlan = traversalPlans.get(i);
     if (traversalPlan) {
       const template = getTraversalEncounterTemplate(traversalPlan.templateId, {
@@ -4134,7 +4485,7 @@ function generateLevel(seedString, {
     // Fecha o trio da FBN: a plataforma seguinte ao alvo tambem e autoral, ou o
     // vao total nao bate com a conta que `nitrogen-root.js` exige.
     if (pendingNitrogenGate && pendingNitrogenGate.chunkIndex === i - 1) {
-      const band = verticalPlan ? verticalBandAt(verticalPlan, i) : null;
+      const band = bandAt(i);
       const right = buildNitrogenGatePlatform(prevPlatform, pendingNitrogenGate, rnd, i, band, 'right');
       right.nitrogenGate = 'right';
       nextPlatform = right;
@@ -4155,7 +4506,7 @@ function generateLevel(seedString, {
       // Alarga o hospedeiro ANTES de medir o vão: a inoculação precisa de
       // superfície, e alargar à direita não afeta o salto que chegou até aqui.
       prevPlatform.w = Math.max(prevPlatform.w, ROUTE_GATE_HOST_MIN_WIDTH);
-      const band = verticalPlan ? verticalBandAt(verticalPlan, i) : null;
+      const band = bandAt(i);
       const gatePlatform = gateRequest.mechanic === 'mycorrhizaBridge'
         ? buildBridgeGatePlatform(prevPlatform, gateRequest, rnd, i, band)
         : gateRequest.mechanic === 'azospirillumAscent'
@@ -4211,10 +4562,10 @@ function generateLevel(seedString, {
     // o laço na PRIMEIRA tentativa, matando as 12 repetições.
     while (attempts < 12 && !accepted) {
       prim = validPrims[Math.floor(rnd() * validPrims.length)];
-      const plannedBand = verticalPlan ? verticalBandAt(verticalPlan, i) : null;
+      const plannedBand = bandAt(i);
       nextPlatform = stabilizeGeometry(
         generateGeometry(chunk, prevPlatform, prim, rnd, plannedBand),
-        prevPlatform, chunk, prim, i, verticalPlan,
+        prevPlatform, chunk, prim, i, plannedBand,
       );
       accepted = validated(nextPlatform, prevPlatform, prim, chunk, i);
       attempts++;
@@ -4223,7 +4574,7 @@ function generateLevel(seedString, {
     if (!accepted) {
       const fallback = createSafeFallback(
         prevPlatform, chunk, primitives, rnd, i,
-        verticalPlan ? verticalBandAt(verticalPlan, i) : null,
+        bandAt(i),
       );
       nextPlatform = fallback.platform;
       prim = fallback.primitive;
@@ -4320,6 +4671,37 @@ function generateLevel(seedString, {
       });
     }
 
+    if (recipe && gateRequest?.directorRoom && gateRequest.chunkIndex === i) {
+      const built = nextPlatform.ascentGate || nextPlatform.bridgeGate || nextPlatform.nitrogenGate === 'target';
+      (built ? roomStats.built : roomStats.skipped).push(gateRequest.directorRoom);
+    }
+    if (recipe && (nextPlatform.ascentGate || nextPlatform.bridgeGate || nextPlatform.nitrogenGate)) {
+      directorLevel = nextPlatform.y;
+    }
+
+    // Lugar reservado do desvio opcional (diretor): partida e retorno de raiz,
+    // largos, com ~3 telas entre eles e nada de tunel/subida no meio.
+    if (recipe?.detour) {
+      const plain = !nextPlatform.ascentGate && !nextPlatform.bridgeGate && !nextPlatform.nitrogenGate
+        && !chunk.isCheckpoint && !chunk.allyId && !nextPlatform.encounterInstanceId;
+      const center = nextPlatform.x + nextPlatform.w / 2;
+      if (i === recipe.detour.startChunk && plain) {
+        nextPlatform.type = 'root';
+        nextPlatform.w = Math.max(nextPlatform.w, DETOUR_SOCKET_START_WIDTH);
+        nextPlatform.detourSocket = 'start';
+        detourStart = nextPlatform;
+      } else if (detourStart && !detourRejoin && plain && i <= recipe.detour.windowEnd
+        && center - (detourStart.x + detourStart.w / 2) >= DETOUR_SOCKET_SPAN
+        // o retorno nao fica abaixo do bloco anterior: senao a queda do desvio
+        // bate nele logo na saida (dropInterruptedAtLaunch)
+        && nextPlatform.y <= prevPlatform.y + 8) {
+        nextPlatform.type = 'root';
+        nextPlatform.w = Math.max(nextPlatform.w, DETOUR_SOCKET_REJOIN_WIDTH);
+        nextPlatform.detourSocket = 'rejoin';
+        detourRejoin = nextPlatform;
+      }
+    }
+
     const recoveryRoots = createRecoveryRoots(prevPlatform, nextPlatform, chunk, rnd, i);
     platforms.push(...recoveryRoots, nextPlatform);
     debugInfo.push({
@@ -4401,6 +4783,18 @@ function generateLevel(seedString, {
     verticalPlan,
     verticalPlanViolations,
     verticalPlanRequested: Boolean(verticalPlanOption),
+    directorRecipe: recipe
+      ? {
+          rooms: recipe.rooms,
+          combos: recipe.combos,
+          detour: recipe.detour
+            ? { ...recipe.detour, start: detourStart?.logicIndex ?? null, rejoin: detourRejoin?.logicIndex ?? null }
+            : null,
+          signature: recipe.signature,
+          built: roomStats.built,
+          skipped: roomStats.skipped,
+        }
+      : null,
     routeGates,
     // Vista filtrada, mantida porque a escada já é lida por nome em `app.js`,
     // nos testes e no painel de debug. Somar sem quebrar o anterior.
@@ -5674,7 +6068,7 @@ const FINAL_TEST_KEYS = Object.freeze({
     // Fase 9 (Ralstonia): prevencao, contencao, murcha critica e disseminacao.
     'preventedRalstoniaEntryCount', 'containedVascularRalstoniaCount',
     'activeCriticalRalstoniaCount', 'blockedRalstoniaSpreadCount',
-    'succeededRalstoniaSpreadCount',
+    'succeededRalstoniaSpreadCount', 'unresolvedRalstoniaSpreadCount',
     'averageVascularTransport', 'preservedVascularRootCount',
     'deployedExudateCount', 'bacillusColonyCount',
     'opportunisticFungusVigor', 'controlledOpportunisticFungusCount', 'solubilizedPhosphateDepositCount',
@@ -6227,33 +6621,19 @@ const phases = [
     // Nao exige eliminar todos os focos nem zerar a carga vascular: exige provar
     // que o jogador sabe PREVENIR uma entrada e CONTER uma infeccao que ja
     // entrou — e que nenhuma murcha critica ficou solta no fim.
-    finalTest: { id: 'p9-test', goal: 'Prevenir uma entrada, conter uma infecção vascular, impedir que a doença alcance uma segunda raiz e chegar à raiz final sem foco crítico ativo.', requires: [
+    finalTest: { id: 'p9-test', goal: 'Prevenir uma entrada, conter uma infecção vascular, controlar qualquer disseminação e chegar à raiz final sem foco crítico ativo.', requires: [
       { type: 'worldState', key: 'preventedRalstoniaEntryCount', operator: '>=', value: 1 },
       { type: 'worldState', key: 'containedVascularRalstoniaCount', operator: '>=', value: 1 },
-      // NAO PEDE MAIS "bloqueie uma disseminacao".
-      //
-      // Aquilo exigia que uma disseminacao SAISSE para poder ser bloqueada — e
-      // bloquear exige protecao >= 0,5 na raiz-alvo, ou seja, um biofilme de
-      // Bacillus ja estabelecido la, dentro dos 4,5 s de aviso, com o alvo a ate
-      // 850 px. Medido na seed campanha-497125: duas disseminacoes dispararam,
-      // nenhuma bloqueavel a tempo. Pior, o objetivo brigava com o de baixo:
-      // para ter o que bloquear era preciso deixar a doenca avancar, e deixar
-      // avancar acende a murcha critica.
-      //
-      // A licao continua a mesma — nao deixe a Ralstonia passar desta raiz — mas
-      // agora ela e cumprida por PREVENIR e CONTER, que e o que a fase ensina.
-      // Quem joga bem satisfaz o objetivo jogando bem. Bloquear uma
-      // disseminacao continua valendo: e uma das maneiras de manter isto zerado.
-      { type: 'worldState', key: 'succeededRalstoniaSpreadCount', operator: '===', value: 0,
+      // O fim depende do que ainda exige controle: eventos em aviso/transito e
+      // focos secundarios nao neutralizados nem atualmente contidos. Uma chegada
+      // passada permanece no historico, mas nao condena o restante da partida:
+      // prevenir a entrada secundaria ou conter seu foco vascular recupera o
+      // objetivo. Uma recaida ou nova disseminacao volta a deixa-lo pendente.
+      { type: 'worldState', key: 'unresolvedRalstoniaSpreadCount', operator: '===', value: 0,
         latch: false, displayMode: 'final-status' },
-      // `latch: false` = leitura do AGORA. Sem a flag esta condicao nasce
-      // satisfeita (zero focos criticos no primeiro quadro), trava, e o objetivo
-      // aparece verde antes de a fase comecar. O runtime garante pelo menos uma
-      // oportunidade de disseminacao bloqueavel e recuperavel.
-      // `latch: false` = leitura do AGORA; `displayMode: 'final-status'` diz ao
-      // painel que isto e um STATUS, nao uma conquista: comeca neutro, fica
-      // estavel enquanto nao houver critico, vermelho quando houver, e so pode
-      // aparecer verde quando a fase termina.
+      // Os dois status sao leituras do AGORA. Nao podem ficar cumpridos para
+      // sempre porque valiam zero antes de a doenca comecar. O painel distingue
+      // situacao estavel durante a fase de conclusao confirmada na raiz final.
       { type: 'worldState', key: 'activeCriticalRalstoniaCount', operator: '===', value: 0,
         latch: false, displayMode: 'final-status' },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
@@ -6885,6 +7265,299 @@ function validateCampaignManifest({
   return errors;
 }
 Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, RALSTONIA_DEFAULTS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, NITROGEN_AVAILABILITY_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, MELOIDOGYNE_DEFAULTS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, hasPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
+},
+"src/procgen/phase-director.js": (__exports, __require) => {
+// Diretor de salas (fase 10 em diante)
+// ====================================
+//
+// A fase deixa de ser "rota primeiro, desafios encaixados depois". O diretor
+// decide ANTES da geometria uma receita: em que chunk entra cada sala, e entre
+// elas trechos curtos de ligacao. O gerador constroi cada sala como geometria
+// autoral (como os portoes) e o resto do chunk segue o pipeline de sempre.
+//
+// Por que: no plano vertical antigo a altura vinha do COMPRIMENTO das zonas
+// (subidas e descidas lentas por 8-15 blocos), e a fase ficava repetitiva.
+// Aqui o desnivel fica concentrado dentro das salas (subida de escada, queda
+// forte) e as ligacoes sao curtas e quase planas, com relevo local.
+//
+// Salas da Etapa 1:
+//   ascent          degrau de 240-330 px aberto pela escada de Azospirillum
+//   drop            queda forte num passo so (170-260 px)
+//   nitrogenGate    trio da FBN (raiz que so o nodulo completa) - 2 chunks
+//   dashTunnel      tunel baixo com vao: anda -> Dash/propulsor -> anda - 2 chunks
+//   phosphateTunnel tunel bloqueado por cristal (com ou sem vao) - 2 chunks
+//   bridge          vao largo da ponte de micorriza (ja existia na fase 10)
+const { createRandom } = __require("src/procgen/random.js");
+const { PHASE_VERTICAL_ENVELOPE } = __require("src/procgen/phase-vertical-plan.js");
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+const DIRECTOR_ROOMS = Object.freeze({
+  ascent: Object.freeze({ chunks: 1, gateKind: 'azospirillumAscent', max: 3, weight: 1.2 }),
+  drop: Object.freeze({ chunks: 1, gateKind: null, max: 3, weight: 1.0 }),
+  nitrogenGate: Object.freeze({ chunks: 2, gateKind: 'nitrogenRootGate', max: 2, weight: 1.0 }),
+  dashTunnel: Object.freeze({ chunks: 2, gateKind: null, ability: 'dash', max: 2, weight: 1.0 }),
+  phosphateTunnel: Object.freeze({ chunks: 2, gateKind: null, ability: 'phosphateSolubilization', max: 2, weight: 1.1 }),
+  bridge: Object.freeze({ chunks: 1, gateKind: 'mycorrhizaBridge', max: 1, weight: .7 }),
+});
+
+// Alturas medias usadas so para o diretor decidir se ha espaco (a altura real
+// sai do gerador, que confere de novo).
+const ASCENT_AVG = 285;
+const ASCENT_MAX = 330;
+const DROP_MAX = 260;
+const LIGHT_MARGIN = 60;
+const FIRST_ROOM_CHUNK = 6;
+const CONNECTOR_RANGE = Object.freeze([2, 3]);
+// Relevo das ligacoes, relativo a saida da ultima sala (negativo sobe)
+const CONNECTOR_OFFSET = Object.freeze([-80, 50]);
+
+// COMBOS: salas encadeadas com 1 bloco de ligacao entre elas. O segundo
+// desafio depende do primeiro (subiu a torre, nodulou e ja sobe; caiu e ja
+// entra no tunel...). No maximo 2 por fase.
+const DIRECTOR_COMBOS = Object.freeze([
+  Object.freeze({ id: 'torre', rooms: Object.freeze(['ascent', 'ascent']) }),
+  Object.freeze({ id: 'nodula-e-sobe', rooms: Object.freeze(['nitrogenGate', 'ascent']) }),
+  Object.freeze({ id: 'cai-no-tunel', rooms: Object.freeze(['drop', 'dashTunnel']) }),
+  Object.freeze({ id: 'dissolve-e-cai', rooms: Object.freeze(['phosphateTunnel', 'drop']) }),
+  Object.freeze({ id: 'ponte-e-fosfato', rooms: Object.freeze(['bridge', 'phosphateTunnel']) }),
+]);
+const MAX_COMBOS = 2;
+const COMBO_CHANCE = .45;
+
+// DESVIO OPCIONAL com lugar reservado: o diretor guarda uma janela sem tunel
+// nem subida (o desvio passa POR CIMA da rota e o teto do tunel sobe ate a
+// superficie). Dentro dela so salas planas ou de descida.
+const DETOUR_WINDOW_CHUNKS = 17;
+
+const DETOUR_FIRST_CHUNK = 6;
+const DETOUR_MIN_OUTSIDE = 12;
+const DETOUR_ROOMS = new Set(['nitrogenGate', 'bridge', 'drop']);
+
+function blocked(chunk) {
+  return !chunk || chunk.isSkillIntro || chunk.allyId || chunk.isCheckpoint;
+}
+
+/**
+ * Receita da fase: lista de salas por chunk e o relevo das ligacoes.
+ * `logic` e o grafo logico ja gerado (o diretor evita checkpoints/estreias).
+ */
+function createPhaseRecipe({
+  seedValue = '',
+  phase = 10,
+  logic = [],
+  gateKinds = [],
+  abilities = {},
+  lastChunk = null,
+  reservedChunks = [],
+  baseY = 500,
+  envelope = PHASE_VERTICAL_ENVELOPE,
+} = {}) {
+  const total = logic.length;
+  if (total < 12) return null;
+  const rnd = createRandom(`${seedValue}:diretor:p${phase}`);
+  rnd(); rnd();
+  const gates = new Set(gateKinds);
+  const available = Object.entries(DIRECTOR_ROOMS)
+    .filter(([, room]) => (room.gateKind ? gates.has(room.gateKind) : true))
+    .filter(([, room]) => !room.ability || abilities[room.ability] !== false)
+    .map(([kind]) => kind);
+  // encontros de travessia ja ocupam o chunk (e a saida deles o seguinte)
+  const reserved = new Set(reservedChunks.flatMap(at => [at, at + 1]));
+  const end = Math.min(total - 3, Number.isFinite(lastChunk) ? lastChunk : total - 3);
+
+  // janela do desvio: escolhida antes das salas
+  let detour = null;
+  // So ha desvio se, fora da janela, sobra trecho para as outras salas (os
+  // tuneis nao entram na janela). Fase curta fica sem desvio e com mais salas.
+  if ((end - FIRST_ROOM_CHUNK + 1) - (DETOUR_WINDOW_CHUNKS + 1) >= DETOUR_MIN_OUTSIDE) {
+    const choices = [];
+    // perto do comeco ou do fim da fase: o resto fica num trecho continuo
+    // para as salas (e os tuneis) em vez de picotado dos dois lados
+    const last = end - DETOUR_WINDOW_CHUNKS;
+    for (let at = DETOUR_FIRST_CHUNK; at <= last; at++) {
+      const nearEdge = at <= DETOUR_FIRST_CHUNK + 2 || at >= last - 2;
+      if (nearEdge && !blocked(logic[at]) && !reserved.has(at)) choices.push(at);
+    }
+    if (choices.length) {
+      const startChunk = choices[Math.floor(rnd() * choices.length)];
+      detour = { startChunk, windowEnd: startChunk + DETOUR_WINDOW_CHUNKS };
+    }
+  }
+  const inDetour = at => detour && at >= detour.startChunk && at <= detour.windowEnd;
+
+  const rooms = [];
+  const combos = [];
+  const used = {};
+  const offsets = new Array(total).fill(0);
+  let level = baseY;
+  let last = null;
+  let cursor = FIRST_ROOM_CHUNK;
+
+  const fits = (kind, at) => {
+    const room = DIRECTOR_ROOMS[kind];
+    if ((used[kind] || 0) >= room.max) return false;
+    if (kind === last) return false;
+    if (at + room.chunks - 1 > end) return false;
+    if (detour) {
+      // o bloco de partida do desvio e comum; dentro da janela, so sala plana
+      // (nem o seguinte: o portao usa o bloco anterior como hospedeiro)
+      if (at <= detour.startChunk + 1 && at + room.chunks - 1 >= detour.startChunk) return false;
+
+      for (let k = 0; k < room.chunks; k++) if (inDetour(at + k) && !DETOUR_ROOMS.has(kind)) return false;
+    }
+    for (let k = 0; k < room.chunks; k++) if (blocked(logic[at + k]) || reserved.has(at + k)) return false;
+    // o chunk de depois tambem e autoral no portao da FBN e nos tuneis
+    if (kind === 'ascent' && level - ASCENT_MAX < envelope.top + LIGHT_MARGIN) return false;
+    if (kind === 'drop' && level + DROP_MAX > envelope.bottom - 40) return false;
+    return true;
+  };
+
+  const place = (kind, at) => {
+    const room = DIRECTOR_ROOMS[kind];
+    const entry = { kind, chunkIndex: at, chunks: room.chunks, gateKind: room.gateKind, id: `${kind}-${at}` };
+    rooms.push(entry);
+    used[kind] = (used[kind] || 0) + 1;
+    last = kind;
+    if (kind === 'ascent') level -= ASCENT_AVG;
+    if (kind === 'drop') level += 215;
+    return entry;
+  };
+  const connectorAfter = (at, length) => {
+    const offset = Math.round(CONNECTOR_OFFSET[0] + rnd() * (CONNECTOR_OFFSET[1] - CONNECTOR_OFFSET[0]));
+    for (let k = 0; k < length; k++) if (at + k < total) offsets[at + k] = offset;
+  };
+
+  // Tenta um combo a partir de `at`: cada sala cabe, com 1 bloco entre elas.
+  const tryCombo = at => {
+    const options = DIRECTOR_COMBOS.filter(combo => {
+      if (combos.some(c => c.id === combo.id)) return false;
+      if (combo.rooms.every(kind => !available.includes(kind)) || !combo.rooms.every(kind => available.includes(kind))) return false;
+      const savedLevel = level, savedLast = last, savedUsed = { ...used };
+      let cursorAt = at, ok = true;
+      for (const [index, kind] of combo.rooms.entries()) {
+        // a torre repete a sala de proposito
+        if (index && kind === last) last = null;
+        if (!fits(kind, cursorAt)) { ok = false; break; }
+        used[kind] = (used[kind] || 0) + 1;
+        last = kind;
+        if (kind === 'ascent') level -= ASCENT_AVG;
+        if (kind === 'drop') level += 215;
+        cursorAt += DIRECTOR_ROOMS[kind].chunks + 1;
+      }
+      level = savedLevel; last = savedLast;
+      for (const key of Object.keys(used)) delete used[key];
+      Object.assign(used, savedUsed);
+      return ok;
+    });
+    if (!options.length) return 0;
+    const combo = options[Math.floor(rnd() * options.length)];
+    let cursorAt = at;
+    const placed = [];
+    for (const [index, kind] of combo.rooms.entries()) {
+      if (index && kind === last) last = null;
+      placed.push(place(kind, cursorAt).id);
+      cursorAt += DIRECTOR_ROOMS[kind].chunks;
+      if (index < combo.rooms.length - 1) { connectorAfter(cursorAt, 1); cursorAt += 1; }
+    }
+    for (const id of placed) rooms.find(r => r.id === id).comboId = combo.id;
+    combos.push({ id: combo.id, rooms: placed });
+    return cursorAt - at;
+  };
+
+  while (cursor <= end) {
+    if (combos.length < MAX_COMBOS && !inDetour(cursor) && rnd() < COMBO_CHANCE) {
+      const span = tryCombo(cursor);
+      if (span) {
+        const connector = CONNECTOR_RANGE[0] + Math.floor(rnd() * (CONNECTOR_RANGE[1] - CONNECTOR_RANGE[0] + 1));
+        connectorAfter(cursor + span, connector);
+        cursor += span + connector;
+        continue;
+      }
+    }
+    const options = available.filter(kind => fits(kind, cursor));
+    if (!options.length) { cursor++; continue; }
+    const weights = options.map(kind => {
+      let w = DIRECTOR_ROOMS[kind].weight;
+      if (!used[kind]) w *= /Tunnel$/.test(kind) ? 10 : 4; // cada sala aparece ao menos uma vez
+      if (kind === 'drop' && level < 260) w *= 3;      // alto demais: desce
+      if (kind === 'ascent' && level > 420) w *= 3;    // baixo demais: sobe
+      return w;
+    });
+    let pick = rnd() * weights.reduce((s, w) => s + w, 0);
+    let kind = options[0];
+    for (let k = 0; k < options.length; k++) { pick -= weights[k]; if (pick <= 0) { kind = options[k]; break; } }
+    const room = DIRECTOR_ROOMS[kind];
+    place(kind, cursor);
+    // ligacao curta: relevo proprio, sem rampa longa
+    const connector = CONNECTOR_RANGE[0] + Math.floor(rnd() * (CONNECTOR_RANGE[1] - CONNECTOR_RANGE[0] + 1));
+    connectorAfter(cursor + room.chunks, connector);
+    cursor += room.chunks + connector;
+  }
+
+  // Os dois tuneis sao o desafio central das fases 8-10: se o sorteio nao os
+  // trouxe (a janela do desvio ocupa boa parte da fase), troca uma sala plana
+  // fora da janela pelo tunel que faltou.
+  const startsAt = new Set(rooms.map(r => r.chunkIndex));
+  for (const kind of ['phosphateTunnel', 'dashTunnel']) {
+    if (!available.includes(kind) || rooms.some(r => r.kind === kind)) continue;
+    const other = kind === 'dashTunnel' ? 'phosphateTunnel' : 'dashTunnel';
+    // subida e queda nao entram: mudariam a altura que o resto da receita supos
+    const order = ['nitrogenGate', 'bridge', other];
+    const swap = rooms
+      .filter(r => !r.comboId && order.includes(r.kind))
+      // o outro tunel so cede se ele aparece duas vezes
+      .filter(r => r.kind !== other || (used[other] || 0) > 1)
+      .filter(r => !inDetour(r.chunkIndex) && !inDetour(r.chunkIndex + 1))
+      .filter(r => r.chunks === 2 || (
+        !inDetour(r.chunkIndex) && !inDetour(r.chunkIndex + 1) && r.chunkIndex + 1 <= end
+        && !blocked(logic[r.chunkIndex + 1]) && !reserved.has(r.chunkIndex + 1)
+        && !startsAt.has(r.chunkIndex + 1) && !startsAt.has(r.chunkIndex + 2)
+        && ((used[r.kind] || 0) > 1 || r.kind === 'nitrogenGate' || r.kind === 'bridge')))
+      .filter(r => {
+        const k = rooms.indexOf(r);
+        return rooms[k - 1]?.kind !== kind && rooms[k + 1]?.kind !== kind;
+      })
+      .sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind))[0];
+    if (!swap) continue;
+    used[swap.kind] -= 1;
+    used[kind] = (used[kind] || 0) + 1;
+    swap.swappedFrom = swap.kind;
+    swap.kind = kind;
+    swap.chunks = DIRECTOR_ROOMS[kind].chunks;
+    swap.gateKind = null;
+    swap.id = `${kind}-${swap.chunkIndex}`;
+  }
+
+  const byChunk = new Map();
+  for (const room of rooms) byChunk.set(room.chunkIndex, room);
+  return {
+    phase,
+    rooms,
+    byChunk,
+    offsets,
+    envelope,
+    baseY,
+    combos,
+    detour,
+    signature: rooms.map(room => (room.comboId ? `[${room.kind}]` : room.kind)).join('>'),
+  };
+}
+
+/** Faixa que o chunk comum mira: a saida da ultima sala + o relevo da ligacao. */
+function directorBand(recipe, index, level) {
+  const target = Math.round(clamp(level + (recipe.offsets[index] || 0), recipe.envelope.top + 40, recipe.envelope.bottom - 40));
+  return {
+    zoneId: `diretor:${index}`,
+    role: 'connector',
+    verticalIntent: 'hold',
+    target,
+    floorLimit: recipe.envelope.top,
+    ceilingLimit: recipe.envelope.bottom,
+    top: target - 50,
+    bottom: target + 50,
+  };
+}
+Object.assign(__exports, { DIRECTOR_ROOMS, DIRECTOR_COMBOS, createPhaseRecipe, directorBand });
 },
 "src/procgen/primitives.js": (__exports, __require) => {
 const { createSimulator } = __require("src/procgen/simulator.js");
@@ -7538,6 +8211,14 @@ const { microbeEncounters } = __require("src/data/microbes.js");
 const { recordPhaseObjectiveAction } = __require("src/procgen/campaign-objective-progress.js");
 const { unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");
 const { cancelJetpack } = __require("src/player.js");
+// Sob o teto de um tunel baixo (low-tunnels.js) o salto duplo nao funciona: nao
+// ha onde subir. O tunel e anda -> Dash -> anda (ou propulsor).
+function underLowTunnel(level, player) {
+  for (const d of level.ceilingDrops || []) {
+    if (player.x + player.w > d.x && player.x < d.x + d.w && player.y < d.y + d.h + 140) return true;
+  }
+  return false;
+}
 const { HOVER_HOLD_SECONDS, JETPACK_CONFIG, applyJetpackThrust, canActivateJetpack, isJetpackRechargeRoot, jetpackChargeCapFromRootHealth, jetpackConsumptionStep, jetpackRechargeMultiplierForRoot, jetpackRechargeStep, rootHealthForJetpack } = __require("src/player-jetpack.js");
 function createPhysicsSystem({ state, input, entities, hud, audio }) {
   // Rotação das três variações de coleta de exsudato (Pacote 03). Contador, não
@@ -7846,7 +8527,7 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
         if (audio.canPlayJump?.() !== false) {
           audio.playFx?.('playerJump', { gain: 1, rate: 1 });
         }
-      } else if (player.jumpBuffer > 0 && player.canDoubleJump && player.airJumpAvailable) {
+      } else if (player.jumpBuffer > 0 && player.canDoubleJump && player.airJumpAvailable && !underLowTunnel(level, player)) {
         player.vy = -445 * jumpMultiplier;
         player.jumpBuffer = 0;
         player.airJumpAvailable = false;
@@ -7932,6 +8613,45 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
           player.x = p.x + p.w;
           player.vx = 0;
         }
+      }
+    }
+    // Chao criado pelo tunel baixo (beirada que completa o chao ate o vao):
+    // solido como um bloco comum.
+    for (const p of level.tunnelFloors || []) {
+      if (!rects(player, p)) continue;
+      if (prevY + player.h <= p.y + 10 && player.vy >= 0) {
+        player.y = p.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+      } else if (prevY >= p.y + p.h - 8 && player.vy < 0) {
+        player.y = p.y + p.h;
+        player.vy = 0;
+      } else if (player.vx > 0) {
+        player.x = p.x - player.w;
+        player.vx = 0;
+      } else if (player.vx < 0) {
+        player.x = p.x + p.w;
+        player.vx = 0;
+      }
+    }
+    // Tunel baixo: bloco de solo pendurado no teto sobre um vao (ver
+    // low-tunnels.js). Solido como um bloco comum, mas fora de
+    // `level.platforms`: nao e chao, raiz nem suporte de nada.
+    for (const d of level.ceilingDrops || []) {
+      if (!rects(player, d)) continue;
+      if (prevY >= d.y + d.h - 8 && player.vy < 0) {
+        player.y = d.y + d.h;
+        player.vy = 0;
+      } else if (prevY >= d.y + d.h - 12) {
+        // encostado por baixo (propulsor/dash rente ao teto): so empurra para baixo
+        player.y = d.y + d.h;
+        if (player.vy < 0) player.vy = 0;
+      } else if (player.vx > 0) {
+        player.x = d.x - player.w;
+        player.vx = 0;
+      } else if (player.vx < 0) {
+        player.x = d.x + d.w;
+        player.vx = 0;
       }
     }
     for (const c of level.crystals) {
@@ -8264,7 +8984,7 @@ function objectiveProgressSnapshot(state) {
 Object.assign(__exports, { createEmptyObjectiveProgress, resetPhaseObjectiveProgress, ensurePhaseObjectiveProgress, objectiveConditionId, recordPhaseObjectiveAction, objectiveProgressSnapshot });
 },
 "src/procgen/campaign-progression.js": (__exports, __require) => {
-const { CAMPAIGN_UNLOCKS, ECOLOGY_ROAMING_TYPES, campaignManifest, getPathogenStartChunk, getPhaseManifest, hasPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");
+const { CAMPAIGN_UNLOCKS, ECOLOGY_ROAMING_TYPES, campaignManifest, getPathogenStartChunk, getPhaseManifest, getPersistentUnlocksBeforePhase, hasPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");
 const { createRandom } = __require("src/procgen/random.js");
 const { setLogicCampaignProfile } = __require("src/procgen/logic.js");
 const { getChunkAnchorPlatform } = __require("src/procgen/traversal-route.js");
@@ -8516,6 +9236,15 @@ function getPhaseProfile(campaign) {
 }
 
 function prepareCampaignGeneration(campaign) {
+  // As habilidades ganhas nas fases anteriores valem sempre (manifesto). Um save
+  // sem alguma delas (fase iniciada direto, coleta perdida) deixava a fase
+  // montada sem a habilidade que ela pressupoe — p.ex. a solubilizacao a partir
+  // da fase 8, sem a qual o tunel de fosfato nao pode existir.
+  const earned = getPersistentUnlocksBeforePhase(campaign.phase);
+  campaign.unlocks = campaign.unlocks || {};
+  for (const [feature, on] of Object.entries(earned)) {
+    if (on && !campaign.unlocks[feature]) campaign.unlocks[feature] = true;
+  }
   const profile = getPhaseProfile(campaign);
   setLogicCampaignProfile(profile);
   return profile;
@@ -14440,6 +15169,13 @@ const NARRATION = Object.freeze({
     text: 'Sem exsudatos: colete as gotas verdes' },
   'exudate.gradient': { kind: 'science', cardId: 'action-exudate',
     text: 'Exsudatos atraem micróbios móveis' },
+  // Tunel baixo (low-tunnels.js): uma vez por campanha, ao chegar no primeiro.
+  'tunnel.dash': { kind: 'hint', scope: 'campaign',
+    text: 'Túnel baixo: ande e use o Dash no vão' },
+  'tunnel.dash-jetpack': { kind: 'hint', scope: 'campaign',
+    text: 'Túnel baixo: Dash ou propulsor para cruzar o vão' },
+  'tunnel.phosphate': { kind: 'hint', scope: 'campaign',
+    text: 'Fosfato no túnel: carregue no Bacillus e dissolva (E)' },
   'route.high': { kind: 'hint', scope: 'campaign',
     text: 'Rotas altas escondem recursos extras' },
   ...unlockEntries,
@@ -19108,6 +19844,34 @@ function createRhizosphereGeometry({ state, painters }) {
 
   // Linha de baixo do teto em x. Depende só das plataformas (nunca da câmera),
   // então não "nada" quando a câmera anda.
+  // Tunel baixo (low-tunnels.js): o teto desce ate a base do bloco pendurado.
+  // Dentro do bloco a linha e exatamente a base (o que se ve e o que colide);
+  // nas pontas sobe suave em TUNNEL_RAMP px.
+  const TUNNEL_RAMP = 54;
+  function ceilingDrops() {
+    return state.level?.ceilingDrops || [];
+  }
+  function tunnelDepthAt(x, y) {
+    let out = y;
+    for (const d of ceilingDrops()) {
+      const left = d.x;
+      const right = d.x + d.w;
+      if (x < left - TUNNEL_RAMP || x > right + TUNNEL_RAMP) continue;
+      const bottom = d.y + d.h + Math.sin(x * .05) * 2;
+      const edge = x < left ? (x - (left - TUNNEL_RAMP)) / TUNNEL_RAMP
+        : x > right ? ((right + TUNNEL_RAMP) - x) / TUNNEL_RAMP : 1;
+      const k = edge * edge * (3 - 2 * edge);
+      out = Math.max(out, out + (bottom - out) * k);
+    }
+    return out;
+  }
+  function dropsKey(x0, x1) {
+    return ceilingDrops()
+      .filter(d => d.x + d.w + TUNNEL_RAMP > x0 && d.x - TUNNEL_RAMP < x1)
+      .map(d => `${Math.round(d.x)}x${Math.round(d.y + d.h)}`)
+      .join(',');
+  }
+
   function ceilingLineAt(x, platforms, clearance, topLimit) {
     let best = Infinity;
     let nearest = null;
@@ -19128,7 +19892,7 @@ function createRhizosphereGeometry({ state, painters }) {
     if (!Number.isFinite(best) && nearest) best = nearest.y - clearance - 66;
     if (!Number.isFinite(best)) return null;
     const bump = (pseudo(hash2(Math.floor(x / CEILING_STEP), 7), 3) - .5) * 14 + Math.sin(x * .013) * 9;
-    return Math.max(topLimit, best + bump);
+    return tunnelDepthAt(x, Math.max(topLimit, best + bump));
   }
 
   // A faixa vai da superfície (linha do colo) até a linha do teto. Acima da
@@ -19141,6 +19905,20 @@ function createRhizosphereGeometry({ state, painters }) {
       const x = i * CEILING_STEP;
       const y = ceilingLineAt(x, platforms, clearance, topLimit);
       if (y !== null) line.push([x, y]);
+    }
+    // quinas do tunel: pontos exatos nas bordas do bloco, para a face de baixo
+    // nao arredondar para dentro do vao
+    const extra = [];
+    for (const d of ceilingDrops()) {
+      for (const x of [d.x - TUNNEL_RAMP, d.x - TUNNEL_RAMP / 2, d.x, d.x + 8, d.x + d.w - 8, d.x + d.w, d.x + d.w + TUNNEL_RAMP / 2, d.x + d.w + TUNNEL_RAMP]) {
+        if (x < first * CEILING_STEP || x > last * CEILING_STEP) continue;
+        const y = ceilingLineAt(x, platforms, clearance, topLimit);
+        if (y !== null) extra.push([x, y]);
+      }
+    }
+    if (extra.length) {
+      line.push(...extra);
+      line.sort((a, b) => a[0] - b[0]);
     }
     return line;
   }
@@ -19256,12 +20034,81 @@ function createRhizosphereGeometry({ state, painters }) {
 
   const CEILING_CHUNK = 512;
 
+  // Beirada de solo do tunel baixo (low-tunnels.js): continua o chao do bloco
+  // de entrada ate a borda do vao. Mesma textura do solo; a ponta afina.
+  function drawTunnelFloors(ctx, view) {
+    for (const f of state.level?.tunnelFloors || []) {
+      if (f.x + f.w < view.left - 40 || f.x > view.right + 40) continue;
+      if (f.y > view.bottom + 20 || f.y + f.h < view.top - 20) continue;
+      const box = { x: f.x - 6, y: f.y - 6, w: f.w + 12, h: f.h + 16 };
+      cached(ctx, `tunnelfloor:${Math.round(f.x)}:${Math.round(f.y)}:${Math.round(f.w)}`, box, g => {
+        const { x, y, w, h } = f;
+        g.save();
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + w, y);
+        g.quadraticCurveTo(x + w + 3, y + h * .35, x + w - 6, y + h * .62);
+        g.quadraticCurveTo(x + w * .55, y + h * 1.05, x, y + h);
+        g.closePath();
+        g.fillStyle = soilPalette.base;
+        g.fill();
+        g.clip();
+        paintSoilTexture(g, hash2(Math.round(x), 41), x, y, w, h, h, false);
+        const shade = g.createLinearGradient(0, y + 8, 0, y + h);
+        shade.addColorStop(0, 'rgba(12,6,4,0)');
+        shade.addColorStop(1, 'rgba(12,6,4,.45)');
+        g.fillStyle = shade;
+        g.fillRect(x - 4, y, w + 8, h + 4);
+        g.restore();
+        g.save();
+        g.strokeStyle = soilPalette.outline;
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(x + w, y);
+        g.quadraticCurveTo(x + w + 3, y + h * .35, x + w - 6, y + h * .62);
+        g.quadraticCurveTo(x + w * .55, y + h * 1.05, x, y + h);
+        g.stroke();
+        g.restore();
+      });
+    }
+  }
+
+  function drawTunnelColumns(ctx, view, surface) {
+    for (const d of ceilingDrops()) {
+      const left = d.x - TUNNEL_RAMP;
+      const right = d.x + d.w + TUNNEL_RAMP;
+      if (right < view.left - 40 || left > view.right + 40) continue;
+      const bottom = d.y + d.h;
+      const line = [];
+      for (let x = left; x <= right + .1; x += 12) {
+        const edge = x < d.x ? (x - left) / TUNNEL_RAMP : x > d.x + d.w ? (right - x) / TUNNEL_RAMP : 1;
+        const k = Math.max(0, Math.min(1, edge));
+        const y = surface + (bottom + Math.sin(x * .05) * 2 - surface) * (k * k * (3 - 2 * k));
+        line.push([x, y]);
+      }
+      const box = { x: left - 4, y: surface - 4, w: right - left + 8, h: bottom - surface + 30 };
+      cached(ctx, `tunnelcol:${Math.round(d.x)}:${Math.round(bottom)}:${Math.round(surface)}`, box, g => {
+        g.save();
+        g.beginPath();
+        g.rect(box.x, box.y, box.w, box.h);
+        g.clip();
+        paintCeilingBand(g, line, surface);
+        g.restore();
+      });
+    }
+  }
+
   // A faixa vai da superfície (linha do colo) até a linha do teto. Acima da
   // superfície fica o céu da cinemática final, que ela nunca cobre.
   function drawCeiling(ctx, view, platforms, surface) {
     if (!platforms.length) return false;
     // Com propulsão o jogador voa até o limite do mundo: não há onde pôr teto.
-    if (state.campaign?.unlocks?.jetpack) return false;
+    // O tunel baixo continua existindo: vira uma coluna de solo pendurada da
+    // superficie ate a base do bloco.
+    if (state.campaign?.unlocks?.jetpack) {
+      drawTunnelColumns(ctx, view, surface);
+      return false;
+    }
     const clearance = ceilingClearance();
     const topLimit = surface + 40;
     const line = ceilingLine(view.left, view.right, platforms, clearance, topLimit);
@@ -19282,7 +20129,7 @@ function createRhizosphereGeometry({ state, painters }) {
       let chunkDeep = -Infinity;
       for (const point of chunkLine) chunkDeep = Math.max(chunkDeep, point[1]);
       const box = { x: x0, y: surface - 4, w: x1 - x0, h: chunkDeep - surface + 30 };
-      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}:${Math.round(burrowX() ?? -1)}`, box, g => {
+      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}:${Math.round(burrowX() ?? -1)}:${dropsKey(x0, x1)}`, box, g => {
         g.save();
         g.beginPath();
         g.rect(x0, surface - 4, x1 - x0, box.h);
@@ -20032,6 +20879,7 @@ function createRhizosphereGeometry({ state, painters }) {
       }
     }
     R('  terreno/teto', () => drawCeiling(ctx, view, platforms, surface));
+    R('  terreno/tunel', () => drawTunnelFloors(ctx, view));
     R('  terreno/chao', () => drawGround(ctx, view, surface));
     R('  terreno/plantas', () => { for (const plant of plants) {
       if (inX(plant.x - 120, plant.x + 120, 60)) drawPlant(ctx, plant, surface, view);
@@ -21682,6 +22530,15 @@ Object.assign(__exports, { createBacillusBioprotectionSafety });
 const { W } = __require("src/core/constants.js");
 const { narrate } = __require("src/procgen/narrator.js");
 const { visibleRootRect } = __require("src/render/rhizosphere-geometry.js");
+const { persistCampaign } = __require("src/procgen/campaign-progression.js");
+// Primeiro nodulo da campanha: a camera se aproxima e acompanha as cinco
+// etapas no tempo normal (app.js, updateNodulationShowcase). Os seguintes
+// formam sem zoom e com as etapas NODULATION_REPEAT_SPEED vezes mais rapidas.
+// Fica registrado junto com as narracoes de campanha: recarregar a pagina nao
+// repete; campanha nova mostra de novo.
+const SHOWCASE_ID = 'rhizobium.showcase';
+const NODULATION_REPEAT_SPEED = 2;
+
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -21731,6 +22588,23 @@ function stageLabel(site, activity = 0) {
 function createRhizobiumNodulation({ state, entities, inoculants }) {
   const sites = new Map();
   let totalFixation = 0;
+  let localShowcaseSeen = false;
+
+  function showcaseSeen() {
+    const list = state?.campaign?.narrationSeen;
+    return Array.isArray(list) ? list.includes(SHOWCASE_ID) : localShowcaseSeen;
+  }
+
+  function markShowcaseSeen() {
+    localShowcaseSeen = true;
+    const campaign = state?.campaign;
+    if (!campaign) return;
+    if (!Array.isArray(campaign.narrationSeen)) campaign.narrationSeen = [];
+    if (!campaign.narrationSeen.includes(SHOWCASE_ID)) {
+      campaign.narrationSeen.push(SHOWCASE_ID);
+      persistCampaign(campaign);
+    }
+  }
 
   function clear() {
     // Os fios de infecção e a FBN pertencem a esta fase: nenhum atravessa.
@@ -21766,6 +22640,13 @@ function createRhizobiumNodulation({ state, entities, inoculants }) {
       lobes: clamp(colony.sourceCount || 1, 1, 3),
       announced: new Set(),
     };
+    // So a colonia inoculada pelo jogador (nao a que ja vem com a fase).
+    if (compatible && !colony.authored && !showcaseSeen()) {
+      site.showcase = true;
+      markShowcaseSeen();
+      if (state.level) state.level.nodulationShowcase = site;
+    }
+    site.speed = site.showcase ? 1 : NODULATION_REPEAT_SPEED;
     sites.set(colony.id, site);
     // Reconhecimento hospedeiro–Rhizobium: o sítio nasce JÁ nesse estágio, então
     // a criação é a transição. Uma vez por sítio, nunca por quadro.
@@ -21855,7 +22736,7 @@ function createRhizobiumNodulation({ state, entities, inoculants }) {
     }
 
     const duration = STAGE_DURATION[site.stage] || 1;
-    site.progress = clamp(site.progress + dt * carbon * sourceBoost / duration, 0, 1);
+    site.progress = clamp(site.progress + dt * carbon * sourceBoost * (site.speed || 1) / duration, 0, 1);
     colony.stage = stageLabel(site);
 
     // Sustenta o loop do fio: posição acompanha a profundidade atual, ganho e
@@ -22141,7 +23022,7 @@ function createRhizobiumNodulation({ state, entities, inoculants }) {
     render,
   };
 }
-Object.assign(__exports, { createRhizobiumNodulation });
+Object.assign(__exports, { NODULATION_REPEAT_SPEED, createRhizobiumNodulation });
 },
 "src/procgen/nitrogen-root.js": (__exports, __require) => {
 const { canTakeRole } = __require("src/procgen/platform-occupancy.js");
@@ -22269,6 +23150,8 @@ function routeGapCandidates(level, encounters, route, firstExudate, allowPromoti
     // immediately before the missing route platform is always its host.
     const hostPlatform = leftPlatform;
     if (!colonizableRoot(hostPlatform, allowPromotion) || hostPlatform.logicIndex <= firstExudate) continue;
+    // sala de tunel do diretor (fase 10): o par e chao de tunel, nao portao
+    if ([leftPlatform, targetPlatform, rightPlatform].some(p => p?.tunnelRoomRole)) continue;
 
     const blockedGapWidth = rightPlatform.x - (leftPlatform.x + leftPlatform.w);
     const leftLandingGap = targetPlatform.x - (leftPlatform.x + leftPlatform.w);
@@ -26774,6 +27657,14 @@ function createRootHealthGameplay({ state, entities }) {
     root.supportIntegrity += (targetSupport - root.supportIntegrity) * clamp(dt * 1.2, 0, 1);
 
     let targetOffset = 0;
+    // Chao de tunel baixo (low-tunnels.js) nao cede: a altura do vao sob o
+    // teto e o que torna o Dash necessario. A saude continua valendo.
+    if (root.lowTunnelAnchor) {
+      root.supportOffset = 0;
+      root.y = root.rootBaseY;
+      root.unstable = false;
+      return;
+    }
     if (root.rootState === 'stressed') targetOffset = 1.5 + (1 - root.supportIntegrity) * 3;
     else if (root.rootState === 'compromised') targetOffset = 6 + (1 - root.supportIntegrity) * 12;
     else if (root.rootState === 'collapse') {
@@ -32319,9 +33210,12 @@ function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'containedVascularRalstoniaCount') return systems.ralstonia?.containedCount || 0;
     if (key === 'activeCriticalRalstoniaCount') return systems.ralstonia?.criticalCount || 0;
     if (key === 'blockedRalstoniaSpreadCount') return systems.ralstonia?.blockedSpreadCount || 0;
-    // Quantas disseminacoes CHEGARAM a outra raiz. Zero e o estado que a fase 9
-    // pede no fim: a doenca nao saiu de onde comecou.
+    // Historico de chegadas preservado para telemetria e avaliacao da partida.
+    // O bloqueio da raiz final usa a situacao recuperavel abaixo, sem apaga-lo.
     if (key === 'succeededRalstoniaSpreadCount') return systems.ralstonia?.successfulSpreadCount || 0;
+    // Eventos em aviso/transito + focos secundarios ainda sem controle. O
+    // controlador inclui recaidas e murcha critica nesta leitura instantanea.
+    if (key === 'unresolvedRalstoniaSpreadCount') return systems.ralstonia?.unresolvedSpreadCount || 0;
     if (key === 'averageVascularTransport') return systems.ralstonia?.averageTransport ?? 1;
     if (key === 'preservedVascularRootCount') return systems.ralstonia?.preservedVascularRootCount || 0;
     if (key === 'ecologicalScore') return Number(state.level.ecologicalScore || 0);
@@ -36487,7 +37381,9 @@ function primaryRouteGeometryHash(level) {
 
 function authoredConflict(route, startIndex, rejoinIndex) {
   return route.slice(startIndex + 1, rejoinIndex).some(platform => (
-    platform.authored
+    // sala de tunel do diretor: o teto sobe ate a superficie
+    platform.tunnelRoomRole
+    || platform.authored
     && (
       platform.signatureChallenge
       || platform.mandatoryAzospirillumTarget
@@ -36652,6 +37548,9 @@ function collectOptionalDetourCandidates({
         requestedScreenCount: 6,
       });
       if (!candidate) continue;
+      // lugar reservado pelo diretor de salas: tentado primeiro
+      candidate.directorSocket = startPlatform.detourSocket === 'start'
+        && rejoinPlatform.detourSocket === 'rejoin';
       for (const failure of candidate.hardFailures) {
         diagnostics.hardFailureCounts[failure] =
           (diagnostics.hardFailureCounts[failure] || 0) + 1;
@@ -36663,6 +37562,7 @@ function collectOptionalDetourCandidates({
   }
   candidates.sort((left, right) => (
     left.hardFailures.length - right.hardFailures.length
+    || Number(right.directorSocket) - Number(left.directorSocket)
     || right.softScore - left.softScore
     || left.startLogicIndex - right.startLogicIndex
     || left.endLogicIndex - right.endLogicIndex
@@ -41680,6 +42580,10 @@ function createPathogenArrival({ state, systems = {}, settings = null } = {}) {
     const foci = control.foci || level().ralstoniaFoci || [];
     const alive = foci.filter(focus => (
       focus && focus.state !== 'neutralized' && focus.neutralized !== true
+      // Only the independently reserved, distant lesson can wait outside the
+      // ambient cap. A normal inoculum already assigned to a root still counts.
+      && !(focus.teachingEncounter && focus.activationState === 'pending')
+      && !(focus.contained && (focus.vascularLoad || 0) < (control.config?.criticalThreshold ?? .82))
     )).length;
     return alive > 0 ? 1 : 0;
   }
@@ -42093,6 +42997,8 @@ function createPathogenArrival({ state, systems = {}, settings = null } = {}) {
     if (!pathogen || !arrivalApi(pathogen)) return false;
     const gate = preventionAvailableFromChunk(pathogen);
     if (!Number.isInteger(gate)) return false;
+    const lesson = pathogen === 'ralstonia' && level().ralstoniaTeachingEncounters?.prevention;
+    if (lesson?.root && playerLogicIndex() < lesson.root.logicIndex - 1) return false;
     // "Ultrapassar a região" é passar do chunk em que a prevenção ficou
     // acessível, não apenas alcançá-lo.
     return playerLogicIndex() > gate;
@@ -42131,7 +43037,10 @@ function createPathogenArrival({ state, systems = {}, settings = null } = {}) {
    *   inóculo CHEGA. Criar o foco na origem seria colonizar a raiz de longe.
    */
   function beginWarning(pathogen, { tutorial = false, source = 'pressure', targetRoot = null } = {}) {
-    const root = targetRoot || selectTargetRoot(pathogen);
+    const lessonRoot = tutorial && pathogen === 'ralstonia'
+      ? level().ralstoniaTeachingEncounters?.prevention?.root : null;
+    const root = targetRoot || (lessonRoot && (level().platforms || []).includes(lessonRoot) ? lessonRoot : null)
+      || selectTargetRoot(pathogen);
     if (!root) return null;
     const origin = selectOrigin(pathogen, root);
     const random = createRandom(
@@ -43832,6 +44741,7 @@ function ralstoniaContextMarkup(sim, nearbyRoot) {
     `;
 
   if (snapshot.hasFocus) {
+    if (snapshot.supportHint) html += `<div class="context-item" style="font-size: 10px; color: #b8e5dc;">${snapshot.supportHint}</div>`;
     html += ralstoniaBar('Carga superficial', snapshot.surfaceLoad, '#e8c27e');
     html += ralstoniaBar('Carga vascular', snapshot.vascularLoad, critico ? '#ff6f91' : '#e8905e');
     html += ralstoniaBar('Transporte vascular', snapshot.transport, '#7ed6cd');
@@ -47866,6 +48776,8 @@ const { zoomProfileFor } = __require("src/procgen/touch-profile.js");
 // escolher: nem 1x nem o minimo de perfil nenhum mostram a raiz inteira mais o
 // feijoeiro. Este piso vale SO para a cinematica e nao muda com o aparelho.
 const CINEMATIC_MIN_ZOOM = .22;
+// Cinematicas podem chegar mais perto que o zoom manual (nodulacao).
+const CINEMATIC_MAX_ZOOM = 4.5;
 
 function roundedZoom(value) {
   return Math.round(value * 20) / 20;
@@ -47981,7 +48893,7 @@ function createCameraView({ canvas, state }) {
   function setCinematic({ x, y, zoom: value } = {}) {
     if (!cinematic) return false;
     if (Number.isFinite(value)) {
-      zoom = clamp(value, CINEMATIC_MIN_ZOOM, profile.max);
+      zoom = clamp(value, CINEMATIC_MIN_ZOOM, Math.max(profile.max, CINEMATIC_MAX_ZOOM));
       state.cameraZoom = zoom;
     }
     if (Number.isFinite(x)) state.cameraX = x;
@@ -50619,6 +51531,10 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
   function introduceEnvironmentalInoculum({ targetRoot = null, x = null, source = 'arrival' } = {}) {
     const root = targetRoot || eligibleRoots()[0];
     if (!root) return null;
+    // Repeated environmental exposures share the infection already on a host.
+    // They must not overwrite the independently reserved vascular lesson.
+    const existing = foci.find(focus => focus.root === root && !focus.neutralized);
+    if (existing) return existing;
     if (!initialized) {
       // Sem `seedFoci` a lista nem existe: a chegada monta o minimo e segue.
       foci.length = 0;
@@ -50632,7 +51548,8 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     }
     const focus = createFocus({
       root,
-      role: 'environmental',
+      role: root === state.level.ralstoniaTeachingEncounters?.prevention?.root
+        ? 'prevention' : 'environmental',
       surfaceLoad: CONFIG.introductoryFocusSurfaceLoad,
       // Zero, e este zero e o ponto todo desta etapa.
       vascularLoad: 0,
@@ -50657,6 +51574,21 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
         `${state.campaign?.seed || state.level?.seed || 'ralstonia'}:ralstonia-foci`,
       );
       initialized = true;
+      // A separate host was infected BEFORE this lesson. Environmental arrivals
+      // still begin at V=0 and remain visible; protecting their target never
+      // removes this independent opportunity to practice containment.
+      const lesson = state.level.ralstoniaTeachingEncounters?.containment;
+      if (phaseNumber() === 9 && lesson?.root && desiredFocusCount() > 0) {
+        const focus = createFocus({
+          root: lesson.root, role: 'containment',
+          surfaceLoad: CONFIG.containmentFocusSurfaceLoad,
+          vascularLoad: CONFIG.containmentFocusVascularLoad,
+          woundOpening: CONFIG.containmentFocusWoundOpening,
+          source: 'preexisting-teaching-infection',
+        });
+        focus.teachingEncounter = true;
+        focus.activationDistance = 150;
+      }
       return;
     }
     seedFoci();
@@ -50692,8 +51624,11 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     if (focus.activationState === 'active' || focus.activationState === 'neutralized') return;
 
     if (focus.activationState === 'pending') {
-      const near = distanceToRoot(focus.root) <= focus.activationDistance
-        || playerChunkIndex() >= (focus.rootLogicIndex ?? Infinity) - 1;
+      const distance = focus.teachingEncounter
+        ? Math.hypot(distanceToRoot(focus.root), state.player.y + state.player.h - focus.root.y)
+        : distanceToRoot(focus.root);
+      const near = distance <= focus.activationDistance
+        || (!focus.teachingEncounter && playerChunkIndex() >= (focus.rootLogicIndex ?? Infinity) - 1);
       if (!near) return;
       focus.activationState = 'warning';
       focus.activatedAt = state.time;
@@ -51166,7 +52101,9 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
   function findSpreadCandidate() {
     return foci.find(focus => (
       !focus.neutralized
+      && !focus.contained
       && focus.everEnteredVascular
+      && focus.vascularLoad >= CONFIG.spreadTriggerThreshold
       && focus.activationState === 'active'
       && focus.spreadGeneration < CONFIG.maximumSpreadGeneration
       && !hasActiveEvent(focus)
@@ -51925,6 +52862,54 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     return 'Ainda é possível impedir a entrada';
   }
 
+  function supportHintFor(focus) {
+    if (!focus || focus.neutralized || focus.activationState === 'pending') return '';
+    const colonies = (inoculants?.colonies || []).filter(colony => (
+      colony.platform === focus.root && (colony.type === 'bacillus' || colony.type === 'pseudomonas')
+    ));
+    if (!colonies.length) return focus.everEnteredVascular
+      ? 'Inocule Pseudomonas nesta raiz; mantenha exsudato e ferro disponíveis.'
+      : 'Proteja a entrada com Bacillus e exsudato antes da colonização vascular.';
+    if (colonies.some(colony => colony.dormant || colony.vigor < .3)) {
+      return 'Colônia sem vigor: forneça exsudato para sustentar o controle.';
+    }
+    const entries = [...(pseudomonas?.colonyStates?.values() || [])]
+      .filter(entry => entry.colony?.platform === focus.root && !entry.colony.dormant);
+    if (focus.everEnteredVascular && entries.some(entry => (entry.ironReserve || 0) < .08)) {
+      return 'Reserva de ferro baixa: mantenha a Pseudomonas ao alcance de Fe³⁺.';
+    }
+    return focus.contained
+      ? 'Contida, com carga residual. Mantenha exsudato e vigor para evitar recaída.'
+      : 'Mantenha o controle nesta raiz até completar a prevenção ou contenção.';
+  }
+
+  function unresolvedSpreadCount() {
+    const secondary = foci.filter(focus => (
+      (focus.role === 'spread' || focus.spreadGeneration > 0)
+      && !focus.neutralized
+      && (!focus.contained || focus.vascularLoad >= CONFIG.criticalThreshold)
+    )).length;
+    const traveling = spreadEvents.filter(event => (
+      event.state === 'warning' || event.state === 'traveling'
+    )).length;
+    return secondary + traveling + (state.level.ralstoniaTravelInoculum || []).length;
+  }
+
+  function completionHint() {
+    const plan = state.level.ralstoniaTeachingEncounters;
+    if (preventedCount < 1) {
+      const root = plan?.prevention?.root;
+      return `Proteja o foco superficial${root ? ` na raiz ${root.logicIndex}` : ''} com benéficos e exsudato.`;
+    }
+    if (containedCount < 1) {
+      const root = plan?.containment?.root;
+      return `Contenha a infecção vascular${root ? ` na raiz ${root.logicIndex}` : ''}: Pseudomonas, ferro e exsudato.`;
+    }
+    if (criticalCount > 0) return `Ainda há ${criticalCount} foco(s) com murcha crítica. Reforce o controle e o vigor.`;
+    if (unresolvedSpreadCount() > 0) return 'Controle os focos secundários e aguarde a resolução das propagações em trânsito.';
+    return 'Controle da Ralstonia concluído. Siga até a raiz final.';
+  }
+
   function rootSnapshot(root) {
     const focus = focusForRoot(root);
     const incoming = incomingEventForRoot(root);
@@ -51935,6 +52920,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
       roleLabel: focus ? focus.roleLabel : null,
       shortRoleLabel: focus ? focus.shortRoleLabel : null,
       reading: focus ? readingFor(focus) : 'Raiz visada pela disseminação',
+      supportHint: supportHintFor(focus),
       stage: focus ? focusState(focus) : null,
       stageLabel: focus ? stageLabel(focus) : null,
       doorLabel: focus ? ralstoniaDoorLabel(focus.woundOpening, CONFIG) : null,
@@ -52146,6 +53132,8 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     get criticalCount() { return criticalCount; },
     get blockedSpreadCount() { return blockedSpreadCount; },
     get successfulSpreadCount() { return successfulSpreadCount; },
+    get unresolvedSpreadCount() { return unresolvedSpreadCount(); },
+    get completionHint() { return completionHint(); },
     get spreadEventCount() { return spreadEventCount; },
     get activeSpreadEvents() {
       return spreadEvents.filter(event => event.state === 'warning' || event.state === 'traveling');
@@ -52214,7 +53202,8 @@ const RALSTONIA_SPREAD_STATES = Object.freeze([
 //
 // `pedagogicalSpread` é a exceção controlada da estreia: quando o jogador
 // alcança a região da terceira lição, o runtime marca UM foco vascular para
-// abrir o evento didático mesmo que ele esteja abaixo do limiar ou já contido.
+// antecipar o aviso de uma fonte ainda descontrolada. A lição nunca invalida
+// uma contenção efetiva nem faz uma carga residual baixa disseminar.
 function canRalstoniaFocusSpread(focus, {
   config = RALSTONIA_DEFAULTS,
   activeEventForFocus = false,
@@ -52223,6 +53212,7 @@ function canRalstoniaFocusSpread(focus, {
   if (!focus) return false;
   if (focus.activationState !== 'active') return false;
   if (focus.neutralized) return false;
+  if (focus.contained) return false;
   if (activeEventForFocus) return false;
 
   const generationCap = Number.isFinite(maximumGeneration)
@@ -52233,13 +53223,7 @@ function canRalstoniaFocusSpread(focus, {
   const budget = config.maximumSpreadEventsPerFocus + (focus.spreadBudgetBonus || 0);
   if (finite(focus.spreadEventsUsed) >= budget) return false;
 
-  if (focus.pedagogicalSpread === true) {
-    // Ainda exige que a bactéria esteja DENTRO do vaso: sem xilema colonizado
-    // não existe exsudato bacteriano para disseminar.
-    return Boolean(focus.everEnteredVascular);
-  }
-
-  if (focus.contained) return false;
+  if (focus.pedagogicalSpread === true && !focus.everEnteredVascular) return false;
   return clamp(finite(focus.vascularLoad), 0, 1) >= config.spreadTriggerThreshold;
 }
 
@@ -52348,6 +53332,202 @@ function ralstoniaArrivalProtection({
   };
 }
 Object.assign(__exports, { RALSTONIA_SPREAD_STATES, canRalstoniaFocusSpread, isRalstoniaSpreadTargetEligible, ralstoniaSpreadOpening, chooseRalstoniaSpreadTarget, ralstoniaArrivalProtection });
+},
+"src/procgen/ralstonia-teaching.js": (__exports, __require) => {
+const { createRandom } = __require("src/procgen/random.js");
+const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");
+const { resolveEntityPlatform } = __require("src/procgen/route-geometry.js");
+const SOURCE = 'ralstonia-teaching';
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function structuralPlatform(platform, minimumWidth = 120) {
+  return platform && !platform.final && !platform.recovery && !platform.safetyStep
+    && !platform.temporary && !platform.mycorrhizaStructure
+    && !platform.azospirillumStructure && !platform.azospirillumLadderStep
+    && !platform.nitrogenRootCollider && !platform.nitrogenRootStructure
+    && !platform.signatureChallenge
+    && platform.routeScope !== 'optional'
+    && Number.isInteger(platform.logicIndex)
+    && Number.isFinite(platform.x) && Number.isFinite(platform.y)
+    && platform.w >= minimumWidth;
+}
+
+function center(platform) {
+  return { x: platform.x + platform.w / 2, y: platform.y - 7 };
+}
+
+function distance(left, right) {
+  const a = center(left), b = center(right);
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function precedingHosts(route, root) {
+  return route.filter(platform => structuralPlatform(platform, 90)
+    && platform.logicIndex < root.logicIndex)
+    .sort((a, b) => b.logicIndex - a.logicIndex || distance(a, root) - distance(b, root));
+}
+
+function selectRoot(route, segment, random, reserved, previous) {
+  if (!segment) return null;
+  const candidates = route.filter(platform => structuralPlatform(platform)
+    && !reserved.has(platform)
+    && platform.logicIndex >= segment.from && platform.logicIndex <= segment.to
+    && precedingHosts(route, platform).length > 0);
+  if (candidates.includes(previous)) return previous;
+  const roots = candidates.filter(platform => platform.type === 'root');
+  const pool = roots.length ? roots : candidates.filter(platform => platform.type === 'soil');
+  if (!pool.length) return null;
+  const root = pool[Math.floor(random() * pool.length)];
+  if (root.type === 'soil') {
+    root.type = 'root';
+    root.ralstoniaPromotedRoot = true;
+  }
+  return root;
+}
+
+function resourceHost(route, root) {
+  const hosts = precedingHosts(route, root);
+  return hosts.find(platform => distance(platform, root) <= 900) || hosts[0] || null;
+}
+
+function usableEncounter(level, routeSet, root, organism) {
+  return (level.microbeEncounters || []).find(encounter => {
+    if ((encounter.id || encounter.type) !== organism) return false;
+    const host = resolveEntityPlatform(level, encounter);
+    return routeSet.has(host) && structuralPlatform(host, 90)
+      && host.logicIndex < root.logicIndex
+      && distance(host, root) <= 900
+      && encounter.x >= host.x + 12 && encounter.x <= host.x + host.w - 12
+      && encounter.y >= host.y - 170 && encounter.y <= host.y - 20;
+  }) || null;
+}
+
+function ensureEncounter(level, route, root, role, organism, host) {
+  const existing = usableEncounter(level, new Set(route), root, organism);
+  if (existing) return existing;
+  if (!host) return null;
+  const encounter = {
+    id: organism,
+    platform: host,
+    platformId: host.id ?? host.platformId ?? null,
+    logicIndex: host.logicIndex,
+    x: host.x + host.w * (organism === 'pseudomonas' ? .6 : .4),
+    y: host.y - 78,
+    r: 155,
+    territory: 360,
+    collect: false,
+    source: SOURCE,
+    teachingRole: role,
+    requiresSeenCardId: null,
+  };
+  level.microbeEncounters.push(encounter);
+  return encounter;
+}
+
+function accessibleExudates(level, routeSet, root, hosts) {
+  return (level.exudates || []).filter(item => {
+    const host = resolveEntityPlatform(level, item);
+    return routeSet.has(host) && hosts.has(host)
+      && host.logicIndex < root.logicIndex
+      && item.x >= host.x + 18 && item.x <= host.x + host.w - 18
+      && item.y >= host.y - 55 && item.y <= host.y - 20;
+  });
+}
+
+function ensureExudates(level, route, root, role, encounters, minimum, fallbackHost) {
+  const hosts = new Set(encounters.filter(Boolean)
+    .map(encounter => resolveEntityPlatform(level, encounter)).filter(Boolean));
+  if (fallbackHost) hosts.add(fallbackHost);
+  const items = accessibleExudates(level, new Set(route), root, hosts);
+  if (!fallbackHost) return items;
+  for (let index = items.length; index < minimum; index++) {
+    const lateral = minimum === 1 ? .5 : .25 + index * .25;
+    const offsetX = clamp(fallbackHost.w * lateral, 24, fallbackHost.w - 24);
+    const item = {
+      id: `p9-${role}-exudate-${index}`,
+      platform: fallbackHost,
+      platformId: fallbackHost.id ?? fallbackHost.platformId ?? null,
+      logicIndex: fallbackHost.logicIndex,
+      x: fallbackHost.x + offsetX,
+      y: fallbackHost.y - 34,
+      taken: false,
+      authored: true,
+      source: SOURCE,
+      teachingRole: role,
+    };
+    level.exudates.push(item);
+    items.push(item);
+  }
+  return items;
+}
+
+function ensureIron(level, route, root, random) {
+  const own = (level.ironDeposits || []).find(item => item.id === 'p9-containment-iron');
+  if (own) return own;
+  const point = center(root), routeSet = new Set(route);
+  const existing = (level.ironDeposits || []).find(item => {
+    const host = resolveEntityPlatform(level, item);
+    return routeSet.has(host) && (item.stock || 0) > .08
+      && Math.hypot(item.x - point.x, item.y - point.y) <= 350
+      && Math.max(
+        Math.hypot(item.x - root.x - 18, item.y - point.y),
+        Math.hypot(item.x - root.x - root.w + 18, item.y - point.y),
+      ) <= 400;
+  });
+  if (existing) {
+    // resetBiology conserva somente depósitos autorais. Reutilizar um depósito
+    // procedural sem esta marca faria o recurso desaparecer antes do jogo.
+    existing.authored = true;
+    return existing;
+  }
+  const deposit = {
+    id: 'p9-containment-iron',
+    platform: root,
+    platformId: root.id ?? root.platformId ?? null,
+    logicIndex: root.logicIndex,
+    x: root.x + root.w * .5,
+    y: root.y + Math.min(24, Math.max(12, root.h * .45)),
+    stock: 7,
+    maxStock: 7,
+    radius: 13,
+    phase: random() * Math.PI * 2,
+    exposed: true,
+    authored: true,
+    source: SOURCE,
+  };
+  level.ironDeposits.push(deposit);
+  return deposit;
+}
+
+// Reserva os dois encontros na geometria já pronta. Não cria infecção, não
+// move colisores e não consome o RNG do gerador. O runtime decide ativação e
+// progressão; este módulo garante a rota e os recursos antes de resetEcology.
+function prepareRalstoniaTeachingEncounters(level, { phaseManifest, seed } = {}) {
+  if (!level || phaseManifest?.phase !== 9 || phaseManifest?.ralstonia?.enabled !== true) return level;
+  const random = createRandom(`${seed ?? level.seed ?? 'phase-9'}:ralstonia-teaching`);
+  const route = getPrimaryTraversalPlatforms(level);
+  const previous = level.ralstoniaTeachingEncounters;
+  const reserved = new Set();
+  const plan = {};
+  level.microbeEncounters ||= [];
+  level.exudates ||= [];
+  level.ironDeposits ||= [];
+  for (const [role, segmentId] of [['prevention', 'p9-surface-intro'], ['containment', 'p9-vascular-intro']]) {
+    const segment = (phaseManifest.segments || []).find(entry => entry.id === segmentId);
+    const root = selectRoot(route, segment, random, reserved, previous?.[role]?.root);
+    if (!root) continue;
+    reserved.add(root);
+    const host = resourceHost(route, root);
+    const organisms = role === 'prevention' ? ['bacillus'] : ['bacillus', 'pseudomonas'];
+    const encounters = organisms.map(organism => ensureEncounter(level, route, root, role, organism, host));
+    const exudates = ensureExudates(level, route, root, role, encounters, role === 'prevention' ? 1 : 3, host);
+    const iron = role === 'containment' ? ensureIron(level, route, root, random) : null;
+    plan[role] = { root, role, segmentId, resources: { encounters, exudates, iron } };
+  }
+  level.ralstoniaTeachingEncounters = plan;
+  return level;
+}
+Object.assign(__exports, { prepareRalstoniaTeachingEncounters });
 },
 "src/procgen/pause-menu.js": (__exports, __require) => {
 // Menu de pausa: os ajustes (som, luz, paralaxe, plataformas de segurança,
@@ -52827,6 +54007,686 @@ function createPhaseFinale({ state, cameraView, getViewport } = {}) {
   };
 }
 Object.assign(__exports, { BEAN_PLANT_SCALE, phaseFinaleSeconds, createPhaseFinale });
+},
+"src/render/threat-radar.js": (__exports, __require) => {
+// Radar de patogenos: sinal na borda da tela para cada ameaca fora do quadro.
+//
+// Ralstonia: chegada (raiz-alvo da chegada em curso) e focos ainda nao
+// contidos. Nematoide: J2 a caminho/entrando na raiz (agrupados quando estao
+// juntos) e massas de ovos ativas.
+//
+// Leitura do sinal:
+//   - lado e seta: a direcao do alvo;
+//   - tamanho: a distancia (quanto maior, mais perto);
+//   - estado: chegando = contorno claro pulsando; instalado = ambar;
+//     infeccao vascular = vermelho com "!" piscando.
+// Alvo dentro da tela nao tem sinal: ali o proprio organismo e o aviso.
+//
+// So le o estado do jogo; nao muda nada. Desenhado em coordenadas de tela,
+// depois do mundo.
+
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+const STATE_COLOR = {
+  arriving: '#dff7ff',
+  installed: '#ffc24a',
+  critical: '#ff4d5e',
+};
+const STATE_RANK = { critical: 3, installed: 2, arriving: 1 };
+
+function collectTargets(state) {
+  const level = state.level || {};
+  const out = [];
+
+  // Ralstonia chegando: aponta para a raiz onde ela vai se instalar
+  const warning = level.pathogenArrival?.warning;
+  if (warning && Number.isFinite(warning.targetX)) {
+    if (warning.pathogen === 'ralstonia') {
+      out.push({ kind: 'ralstonia', status: 'arriving', x: warning.targetX, y: warning.targetY });
+    }
+  }
+  for (const focus of level.ralstoniaFoci || []) {
+    if (!focus || focus.neutralized || focus.contained) continue;
+    const y = focus.root?.y ?? focus.y;
+    if (!Number.isFinite(focus.x) || !Number.isFinite(y)) continue;
+    out.push({ kind: 'ralstonia', status: focus.everEnteredVascular ? 'critical' : 'installed', x: focus.x, y });
+  }
+
+  // Nematoide: J2 a caminho (agrupados) e massas de ovos ativas
+  const clusters = [];
+  for (const j of level.nematodeJuveniles || []) {
+    if (!j || j.alive === false || j.trichodermaCaught) continue;
+    if (j.state !== 'seeking' && j.state !== 'penetrating' && j.state !== 'migrating') continue;
+    const status = j.state === 'seeking' ? 'arriving' : 'installed';
+    let c = clusters.find(k => Math.hypot(k.x - j.x, k.y - j.y) < 150);
+    if (!c) { c = { kind: 'nematode', status, x: j.x, y: j.y, n: 0, sx: 0, sy: 0 }; clusters.push(c); }
+    c.n += 1; c.sx += j.x; c.sy += j.y;
+    c.x = c.sx / c.n; c.y = c.sy / c.n;
+    if (STATE_RANK[status] > STATE_RANK[c.status]) c.status = status;
+  }
+  out.push(...clusters);
+  for (const mass of level.nematodeEggMasses || []) {
+    if (!mass || mass.neutralized || !(mass.eggs > 0)) continue;
+    out.push({ kind: 'eggs', status: 'installed', x: mass.x, y: mass.y });
+  }
+  return out;
+}
+
+function drawGlyph(ctx, kind, r, color) {
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineCap = 'round';
+  if (kind === 'ralstonia') {
+    // bastonete com flagelo
+    ctx.save();
+    ctx.rotate(-.5);
+    ctx.lineWidth = r * .42;
+    ctx.beginPath(); ctx.moveTo(-r * .38, 0); ctx.lineTo(r * .3, 0); ctx.stroke();
+    ctx.lineWidth = r * .1;
+    ctx.beginPath();
+    ctx.moveTo(r * .48, 0);
+    ctx.quadraticCurveTo(r * .62, -r * .22, r * .74, 0);
+    ctx.stroke();
+    ctx.restore();
+  } else if (kind === 'nematode') {
+    // corpo sinuoso
+    ctx.lineWidth = r * .2;
+    ctx.beginPath();
+    for (let i = 0; i <= 16; i++) {
+      const u = i / 16;
+      const x = -r * .6 + u * r * 1.2;
+      const y = Math.sin(u * TAU * 1.1) * r * .24;
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+  } else {
+    // massa de ovos
+    const pts = [[0, 0], [-.32, -.18], [.32, -.18], [-.32, .2], [.32, .2], [0, -.38], [0, .38]];
+    for (const [px, py] of pts) {
+      ctx.beginPath(); ctx.arc(px * r, py * r, r * .15, 0, TAU); ctx.fill();
+    }
+  }
+}
+
+/**
+ * @param ctx contexto 2D do canvas principal (sem transformacao de camera)
+ * @param state estado do jogo
+ * @param canvas canvas principal (tamanho em pixels de desenho)
+ * @param time segundos (animacao)
+ * @param coarse true em tela de toque (reserva a faixa dos controles)
+ */
+function drawThreatRadar(ctx, state, canvas, time = 0, coarse = false) {
+  if (!state?.level || state.gameState !== 'play') return 0;
+  const targets = collectTargets(state);
+  if (!targets.length) return 0;
+
+  const W = canvas.width || 1280;
+  const H = canvas.height || 720;
+  const css = canvas.clientWidth ? W / canvas.clientWidth : 1;
+  const zoom = state.cameraZoom || 1;
+  const camX = state.cameraX || 0;
+  const camY = state.cameraY || 0;
+  const visW = W / zoom;
+
+  const inset = {
+    left: 30 * css,
+    right: W - 30 * css,
+    top: 78 * css,
+    bottom: H - (coarse ? 120 : 30) * css,
+  };
+  const cx = W / 2;
+  const cy = (inset.top + inset.bottom) / 2;
+  const maxR = 23 * css;
+  const minR = 12 * css;
+
+  const placed = [];
+  for (const t of targets) {
+    const sx = (t.x - camX) * zoom;
+    const sy = (t.y - camY) * zoom;
+    if (sx >= 0 && sx <= W && sy >= 0 && sy <= H) continue;
+    const dx = sx - cx;
+    const dy = sy - cy;
+    // ponto da borda (retangulo interno) na direcao do alvo
+    const kx = dx > 0 ? (inset.right - cx) / dx : dx < 0 ? (inset.left - cx) / dx : Infinity;
+    const ky = dy > 0 ? (inset.bottom - cy) / dy : dy < 0 ? (inset.top - cy) / dy : Infinity;
+    const k = Math.min(kx, ky);
+    const ex = cx + dx * k;
+    const ey = cy + dy * k;
+    // distancia em tela inteira de mundo alem da borda -> tamanho
+    const worldDist = Math.hypot(t.x - (camX + visW / 2), t.y - (camY + H / zoom / 2));
+    const far = clamp((worldDist - visW * .5) / (visW * 2.5), 0, 1);
+    const r = maxR + (minR - maxR) * far;
+    placed.push({ ...t, ex, ey, r, angle: Math.atan2(dy, dx), side: kx < ky ? 'v' : 'h' });
+  }
+  if (!placed.length) return 0;
+
+  // afasta sinais sobrepostos ao longo da borda
+  placed.sort((a, b) => STATE_RANK[b.status] - STATE_RANK[a.status] || b.r - a.r);
+  for (let i = 1; i < placed.length; i++) {
+    for (let j = 0; j < i; j++) {
+      const a = placed[i], b = placed[j];
+      const need = (a.r + b.r) * 1.15;
+      if (Math.hypot(a.ex - b.ex, a.ey - b.ey) >= need) continue;
+      if (a.side === 'v') a.ey = clamp(b.ey + (a.ey >= b.ey ? need : -need), inset.top, inset.bottom);
+      else a.ex = clamp(b.ex + (a.ex >= b.ex ? need : -need), inset.left, inset.right);
+    }
+  }
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.shadowBlur = 0;
+  for (const p of placed) {
+    const color = STATE_COLOR[p.status];
+    const pulse = p.status === 'arriving' ? 1 + Math.sin(time * 6) * .1 : 1;
+    const r = p.r * pulse;
+    ctx.save();
+    ctx.translate(p.ex, p.ey);
+    // seta apontando para o alvo
+    ctx.save();
+    ctx.rotate(p.angle);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = .95;
+    ctx.beginPath();
+    ctx.moveTo(r + r * .62, 0);
+    ctx.lineTo(r * .78, -r * .46);
+    ctx.lineTo(r * .78, r * .46);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // disco
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = p.status === 'arriving' ? 'rgba(6,18,24,.78)' : p.status === 'critical' ? 'rgba(70,6,14,.88)' : 'rgba(52,32,4,.88)';
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+    ctx.lineWidth = Math.max(2, r * .16);
+    ctx.strokeStyle = color;
+    if (p.status === 'arriving') {
+      ctx.globalAlpha = .65 + Math.sin(time * 6) * .35;
+      ctx.setLineDash([r * .5, r * .32]);
+    }
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    drawGlyph(ctx, p.kind, r, p.status === 'arriving' ? '#ffffff' : color);
+    // contagem de J2 agrupados
+    if (p.kind === 'nematode' && p.n > 1) {
+      ctx.font = `800 ${Math.round(r * .62)}px Inter,system-ui`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(String(p.n), r * .72, r * .72);
+    }
+    // infeccao vascular: "!" piscando
+    if (p.status === 'critical' && Math.sin(time * 8) > -.3) {
+      ctx.fillStyle = '#ff4d5e';
+      ctx.beginPath(); ctx.arc(-r * .72, -r * .72, r * .38, 0, TAU); ctx.fill();
+      ctx.font = `900 ${Math.round(r * .58)}px Inter,system-ui`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('!', -r * .72, -r * .7);
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+  return placed.length;
+}
+Object.assign(__exports, { drawThreatRadar });
+},
+"src/procgen/low-tunnels.js": (__exports, __require) => {
+// TUNEL BAIXO — obstaculo procedural de Dash (fase 4 em diante).
+//
+// Um tunel de verdade: chao e teto baixo dos dois lados, e no meio dele um vao
+// de zona hostil. A mecanica e ANDA -> DASH -> ANDA (ou anda -> propulsor ->
+// anda): o teto fica 12 px acima da cabeca e, sob ele, o salto duplo nao
+// funciona (physics.js, underLowTunnel); o Dash, horizontal, cruza o vao; o
+// propulsor encosta no teto e desliza de lado.
+//
+// Calibrado na fisica do jogo (mesmo simulador), chao dos dois lados na mesma
+// altura ou a chegada ate 8 px mais baixa, teto 52 px acima do chao:
+//   - nenhum pulo atravessa vaos de 130-150 px (0 de 672 combinacoes de
+//     tempo de pulo e salto duplo);
+//   - o Dash disparado ANDANDO atravessa se apertado em qualquer ponto entre
+//     ~40-50 px antes da borda e 16 px depois dela (vao 136-140);
+//   - o propulsor atravessa (12 de 12).
+//
+// So blocos de terra (nunca raiz), como no prototipo. Vao conforme a altura da
+// chegada (tunnelGapFor). Se o par da rota tem um vao maior, os dois blocos
+// crescem em direcao ao vao (mesma altura; o lado de fora fica onde estava). O teto vive em
+// `level.ceilingDrops`; nenhum dos dois entra em `level.platforms` (nao sao
+// raiz, suporte de colonia nem alvo de patogeno).
+const { createRandom } = __require("src/procgen/random.js");
+const { getPhaseManifest, getSegmentAt } = __require("src/procgen/campaign-manifest.js");
+const { isIntentionalDynamicCrossing } = __require("src/procgen/generator.js");
+const LOW_TUNNEL = Object.freeze({
+  clearance: 60,          // da base do teto ao chao (Miguelito: 48; 12 px de folga)
+  gap: 136,               // vao dentro do tunel
+  minPairGap: 124,        // vao original minimo do par da rota
+  maxLedge: 200,          // maior beirada que o tunel pode criar
+  entryCover: 170,        // chao coberto antes do vao
+  minEntryCover: 100,
+  exitCover: 150,         // chao coberto depois do vao
+  minExitCover: 80,
+  landingZone: 60,        // chao livre no comeco do bloco de entrada (pouso)
+  exitRunway: 40,         // chao livre no fim do bloco de saida
+  maxRise: 6,             // chegada mais alta que a entrada (px)
+  maxDrop: 40,            // chegada mais baixa que a entrada (px)
+  ledgeDepth: 46,         // espessura desenhada/solida da beirada
+  blockHeight: 2400,      // sobe ate a superficie: nem o propulsor passa por cima
+  minChunkSpacing: 4,
+  maxPerPhase: 2,
+  firstPhase: 4,
+  // tunel de fosfato (fases 8-10): cristal baixo, do chao ao teto
+  phosphatePhases: Object.freeze([8, 9, 10]),
+  crystalWidth: 66,
+  crystalBeforeEdge: 56,  // folga entre o cristal e a borda do vao (corrida do Dash)
+  mergedCover: 150,       // teto antes e depois do cristal no tunel sem vao
+  mergedMinLength: 360,   // bloco comprido minimo do tunel sem vao
+  mergedMaxGap: 300,      // vao original maximo que o bloco comprido fecha
+  chargerReach: 3,        // blocos antes do tunel onde vai a colonia de Bacillus
+});
+
+function routePlatforms(level) {
+  return (level.platforms || [])
+    .filter(p => Number.isInteger(p.logicIndex) && p.logicIndex >= 0
+      && !p.recovery && !p.mycorrhizaStructure && !p.azospirillumStructure
+      && !p.final && !p.oneWay && !p.safetyStep)
+    .sort((a, b) => a.x - b.x);
+}
+
+// Altura de projeto do chao: raiz doente afunda em jogo (root-health), entao
+// vale a base, nao a altura do instante.
+function floorOf(p) {
+  return Number.isFinite(p.rootBaseY) ? p.rootBaseY : p.y;
+}
+
+function overlaps(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function pointIn(rect, x, y, pad = 0) {
+  return x > rect.x - pad && x < rect.x + rect.w + pad && y > rect.y - pad && y < rect.y + rect.h + pad;
+}
+
+// Em que trecho da fase o tunel pode nascer.
+function chunkAllowed(phase, chunk) {
+  const manifest = getPhaseManifest(phase);
+  const segment = getSegmentAt(phase, chunk);
+  if (!segment || segment.kind !== 'procedural') return false;
+  if (phase === LOW_TUNNEL.firstPhase) {
+    const dash = (manifest?.unlockEvents || []).find(e => e.feature === 'dash');
+    if (dash && chunk <= dash.eventChunk) return false;
+  }
+  return true;
+}
+
+// Vao dentro do tunel conforme a altura da chegada (dy > 0: mais baixa).
+// Calibrado: em cada faixa, 0 pulo atravessa (176 combinacoes) e o Dash
+// andando passa em 10-19 de 19 pontos de disparo; propulsor 6 de 6.
+function tunnelGapFor(dy) {
+  if (dy < -LOW_TUNNEL.maxRise) return null;
+  if (dy <= 2) return 128;
+  if (dy <= 8) return 136;
+  if (dy <= 16) return 144;
+  if (dy <= 24) return 152;
+  if (dy <= 32) return 162;
+  if (dy <= LOW_TUNNEL.maxDrop) return 172;
+  return null;
+}
+
+// Raiz comum pode virar bloco de terra para ser chao de tunel; raiz com papel
+// (portao, ponte, escada, objetivo, colonia, organismo, checkpoint) nao.
+const ROLE_KEY = /gate|host|objective|bridge|ladder|challenge|signature|detour|authored|nitrogen|structure|final|recovery/i;
+function referencedPlatforms(level) {
+  const set = new Set();
+  const add = p => { if (p && typeof p === 'object') set.add(p); };
+  for (const e of level.microbeEncounters || []) { add(e.platform); add(e.hostPlatform); add(e.root); }
+  for (const c of level.beneficialColonies || []) add(c.platform);
+  for (const f of level.biofilms || []) add(f.platform);
+  for (const c of level.checkpoints || []) add(c.platform);
+  for (const n of level.nitrogenRoots || []) { add(n.hostPlatform); add(n.targetPlatform); add(n.leftPlatform); add(n.rightPlatform); }
+  for (const x of level.crystals || []) add(x.platform);
+  for (const x of level.allies || []) add(x.platform);
+  return set;
+}
+function convertibleToSoil(p, referenced) {
+  if (p.type !== 'root') return true;
+  if (referenced.has(p)) return false;
+  return !Object.keys(p).some(k => ROLE_KEY.test(k) && p[k]);
+}
+
+// Geometria do tunel para o par (a -> b), ou null se nao cabe.
+function planFor(a, b) {
+  const aRight = a.x + a.w;
+  const pairGap = b.x - aRight;
+  const floorY = floorOf(a);
+  const dy = floorOf(b) - floorY;
+  const targetGap = tunnelGapFor(dy);
+  if (!targetGap || pairGap < targetGap - 4) return null;
+  const ledge = Math.max(0, pairGap - targetGap);
+  if (ledge > LOW_TUNNEL.maxLedge) return null;
+  // o chao que falta e dividido entre os dois blocos: cada um cresce em
+  // direcao ao vao (massa unica, sem emenda)
+  const growA = Math.round(ledge / 2);
+  const growB = ledge - growA;
+  const edgeX = aRight + growA;           // borda do vao (entrada)
+  const exitX = b.x - growB;              // borda do vao (saida)
+  // teto cobre `entryCover` de chao antes da borda, sem tomar o pouso de a
+  const entryStart = Math.max(edgeX - LOW_TUNNEL.entryCover, a.x + LOW_TUNNEL.landingZone);
+  if (edgeX - entryStart < LOW_TUNNEL.minEntryCover) return null;
+  const exitEnd = Math.min(exitX + LOW_TUNNEL.exitCover, b.x + b.w - LOW_TUNNEL.exitRunway);
+  if (exitEnd - exitX < LOW_TUNNEL.minExitCover) return null;
+  const bottom = Math.min(floorY, floorOf(b)) - LOW_TUNNEL.clearance;
+  return {
+    pairGap,
+    tunnelGap: pairGap - ledge,
+    growA,
+    growB,
+    edgeX,
+    exitX,
+    floorY,
+    block: { x: entryStart, y: bottom - LOW_TUNNEL.blockHeight, w: exitEnd - entryStart, h: LOW_TUNNEL.blockHeight },
+  };
+}
+
+// Tunel SEM vao (so fosfato): o par vira um bloco comprido de terra, na altura
+// do primeiro; o cristal fica onde era o vao, com teto antes e depois.
+function planMerged(a, b) {
+  const floorY = floorOf(a);
+  if (Math.abs(floorOf(b) - floorY) > LOW_TUNNEL.maxRise) return null;
+  const pairGap = b.x - (a.x + a.w);
+  if (pairGap < 0 || pairGap > LOW_TUNNEL.mergedMaxGap) return null;
+  const right = b.x + b.w;
+  if (right - a.x < LOW_TUNNEL.mergedMinLength) return null;
+  const crystalX = a.x + a.w + pairGap / 2 - LOW_TUNNEL.crystalWidth / 2;
+  const start = Math.max(a.x + LOW_TUNNEL.landingZone, crystalX - LOW_TUNNEL.mergedCover);
+  const end = Math.min(right - LOW_TUNNEL.exitRunway, crystalX + LOW_TUNNEL.crystalWidth + LOW_TUNNEL.mergedCover);
+  if (crystalX - start < LOW_TUNNEL.minEntryCover || end - (crystalX + LOW_TUNNEL.crystalWidth) < LOW_TUNNEL.minExitCover) return null;
+  const bottom = floorY - LOW_TUNNEL.clearance;
+  return {
+    merged: true,
+    pairGap,
+    tunnelGap: 0,
+    floorY,
+    crystalX,
+    edgeX: crystalX,
+    exitX: crystalX + LOW_TUNNEL.crystalWidth,
+    block: { x: start, y: bottom - LOW_TUNNEL.blockHeight, w: end - start, h: LOW_TUNNEL.blockHeight },
+  };
+}
+
+// O par (a -> b) comporta o tunel? Devolve o candidato ou null.
+function candidateFor(level, a, b, { merged, all, referenced, segments, phase }) {
+  const plan = merged ? planMerged(a, b) : planFor(a, b);
+  if (!plan) return null;
+  if (!convertibleToSoil(a, referenced) || !convertibleToSoil(b, referenced)) return null;
+  if (segments && (!chunkAllowed(phase, a.logicIndex) || !chunkAllowed(phase, b.logicIndex))) return null;
+  if (isIntentionalDynamicCrossing(level, a, b)) return null;
+  if (a.nitrogenGate || b.nitrogenGate || a.underdevelopedNitrogenRoot || b.underdevelopedNitrogenRoot) return null;
+  // portao de nitrogenio: a raiz subdesenvolvida cresce justamente sobre um
+  // vao assim. Nem o par, nem nada que encoste no vao.
+  const reserved = (level.nitrogenRoots || []).some(n => [n.hostPlatform, n.targetPlatform, n.leftPlatform, n.rightPlatform]
+    .some(q => q === a || q === b));
+  if (reserved) return null;
+  const { block } = plan;
+  // teto, corredor e beirada livres de qualquer outra plataforma
+  const corridor = { x: block.x, y: block.y, w: block.w, h: block.h + LOW_TUNNEL.clearance + LOW_TUNNEL.ledgeDepth + 30 };
+  if (all.some(p => p !== a && p !== b && overlaps(corridor, p))) return null;
+  // nada que precise ser alcancado preso na parte baixa do teto (o bloco
+  // sobe ate a superficie; o que voa la em cima nao conta)
+  const lowBand = { x: block.x, y: block.y + block.h - 160, w: block.w, h: 160 };
+  const blocked = [
+    ...(level.allies || []),
+    ...(level.checkpoints || []),
+    ...(level.crystals || []),
+  ].some(o => Number.isFinite(o?.x) && Number.isFinite(o?.y) && pointIn(lowBand, o.x, o.y, 24));
+  if (blocked) return null;
+  return { a, b, gap: Math.round(plan.pairGap), chunk: a.logicIndex, converts: (a.type === 'root') + (b.type === 'root'), ...plan };
+}
+
+/** Pares candidatos, em ordem de rota. Exportado para testes e diagnostico. */
+function lowTunnelCandidates(level, phase, { merged = false } = {}) {
+  if (!(phase >= LOW_TUNNEL.firstPhase)) return [];
+  const route = routePlatforms(level);
+  const ctx = { merged, all: level.platforms || [], referenced: referencedPlatforms(level), segments: true, phase };
+  const out = [];
+  for (let i = 0; i + 1 < route.length; i++) {
+    const c = candidateFor(level, route[i], route[i + 1], ctx);
+    if (c) out.push(c);
+  }
+  return out;
+}
+
+// Diretor de salas (fase 10+): o gerador ja reservou o par de cada tunel.
+// Instala exatamente esses, sem sorteio de posicao.
+function installDirectorTunnels(level, phase, rnd, phosphateOn) {
+  const route = routePlatforms(level);
+  const all = level.platforms || [];
+  const referenced = referencedPlatforms(level);
+  const chosen = [];
+  const failures = [];
+  for (let i = 0; i + 1 < route.length; i++) {
+    const a = route[i];
+    if (a.tunnelRoomRole !== 'entry') continue;
+    const b = route[i + 1];
+    if (b.tunnelRoomRole !== 'exit' || b.tunnelRoomId !== a.tunnelRoomId) { failures.push({ id: a.tunnelRoomId, reason: 'par' }); continue; }
+    const phosphate = a.tunnelRoomKind === 'phosphateTunnel' && phosphateOn;
+    const options = [];
+    for (const merged of phosphate ? [true, false] : [false]) {
+      const c = candidateFor(level, a, b, { merged, all, referenced, segments: false, phase });
+      if (c) options.push({ ...c, phosphate, roomId: a.tunnelRoomId });
+    }
+    let pick = null;
+    while (options.length) {
+      const o = options.splice(Math.floor(rnd() * options.length), 1)[0];
+      if (o.phosphate && !chargerFor(level, o)) continue;
+      pick = o;
+      break;
+    }
+    if (pick) chosen.push(pick);
+    else failures.push({ id: a.tunnelRoomId, reason: 'geometria' });
+  }
+  level.tunnelRoomFailures = failures;
+  return chosen;
+}
+
+/**
+ * Escolhe e instala os tuneis da fase. Deterministico pela semente. Devolve a
+ * lista instalada (tambem em `level.ceilingDrops`).
+ */
+function installLowTunnels(level, { phase, seedValue = '' , abilities = {} } = {}) {
+  level.ceilingDrops = [];
+  level.tunnelFloors = [];
+  const rnd = createRandom(`${seedValue}:low-tunnel:${phase}`);
+  const phosphateOn = LOW_TUNNEL.phosphatePhases.includes(phase)
+    && abilities.phosphateSolubilization !== false;
+  const directorMode = (level.platforms || []).some(p => p.tunnelRoomRole === 'entry');
+  const chosen = directorMode ? installDirectorTunnels(level, phase, rnd, phosphateOn) : pickTunnels(level, phase, rnd, phosphateOn);
+  materializeTunnels(level, chosen);
+  return level.ceilingDrops;
+}
+
+function pickTunnels(level, phase, rnd, phosphateOn) {
+  const gapCandidates = lowTunnelCandidates(level, phase);
+  const mergedCandidates = phosphateOn ? lowTunnelCandidates(level, phase, { merged: true }) : [];
+  const chosen = [];
+  const spaced = c => !chosen.some(k => k.a === c.a || k.b === c.a || k.a === c.b
+    || Math.abs(k.chunk - c.chunk) < LOW_TUNNEL.minChunkSpacing);
+
+  if (phase === LOW_TUNNEL.firstPhase && gapCandidates.length) {
+    // o que ensina: o primeiro par depois do Dash (de preferencia ja de terra)
+    const teach = gapCandidates.find(c => !c.converts) || gapCandidates[0];
+    chosen.push({ ...teach, teaching: true });
+  }
+  if (phosphateOn) {
+    // um tunel de fosfato garantido: sem vao ou com vao, sorteado entre os que cabem
+    const options = [
+      ...mergedCandidates.map(c => ({ ...c, phosphate: true })),
+      ...gapCandidates.map(c => ({ ...c, phosphate: true })),
+    ];
+    while (options.length) {
+      const pick = options.splice(Math.floor(rnd() * options.length), 1)[0];
+      if (!spaced(pick)) continue;
+      if (!chargerFor(level, pick)) continue;
+      chosen.push(pick);
+      break;
+    }
+  }
+  const pool = gapCandidates.slice();
+  while (chosen.length < LOW_TUNNEL.maxPerPhase && pool.length) {
+    const pick = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
+    if (!spaced(pick)) continue;
+    chosen.push(pick);
+  }
+  return chosen;
+}
+
+function materializeTunnels(level, chosen) {
+  chosen.sort((m, n) => m.a.x - n.a.x);
+  for (const c of chosen) {
+    const drop = {
+      ...c.block,
+      id: `low-tunnel-${c.chunk}`,
+      lowTunnel: true,
+      teaching: Boolean(c.teaching),
+      phosphate: Boolean(c.phosphate),
+      merged: Boolean(c.merged),
+      gap: Math.round(c.tunnelGap),
+      pairGap: c.gap,
+      entryX: c.edgeX,
+      exitX: c.exitX,
+      floorY: c.floorY,
+      logicIndex: c.chunk,
+      entryPlatform: c.a,
+      exitPlatform: c.merged ? c.a : c.b,
+    };
+    // chao de tunel e bloco de terra (como no prototipo)
+    for (const p of [c.a, c.b]) {
+      if (p.type === 'root') { p.type = 'soil'; p.lowTunnelConvertedFromRoot = true; }
+    }
+    if (c.merged) {
+      // um bloco comprido: o primeiro cresce ate o fim do segundo, que sai da fase
+      const right = c.b.x + c.b.w;
+      c.a.w = right - c.a.x;
+      c.a.lowTunnelExtension = right - c.a.x;
+      level.platforms.splice(level.platforms.indexOf(c.b), 1);
+    } else {
+      // os dois blocos de terra crescem ate as bordas do vao (mesma altura;
+      // o lado de fora de cada um fica onde estava)
+      if (c.growA) { c.a.w += c.growA; c.a.lowTunnelExtension = c.growA; }
+      if (c.growB) { c.b.x -= c.growB; c.b.w += c.growB; c.b.lowTunnelExtension = c.growB; }
+    }
+    level.ceilingDrops.push(drop);
+    // os chaos do tunel nao cedem com a saude da raiz
+    for (const p of c.merged ? [c.a] : [c.a, c.b]) {
+      p.lowTunnelAnchor = true;
+      if (Number.isFinite(p.rootBaseY)) { p.y = p.rootBaseY; p.supportOffset = 0; }
+    }
+    if (c.phosphate) installTunnelCrystal(level, c, drop);
+    // exsudato que caiu dentro do bloco desce para baixo dele
+    for (const e of level.exudates || []) {
+      if (pointIn(drop, e.x, e.y, 6)) e.y = drop.y + drop.h + 22;
+    }
+  }
+}
+
+// Bloco de raiz ate `chargerReach` passos antes do tunel para a colonia de
+// Bacillus que carrega a solubilizacao (como o portao de fosfato da fase 10).
+function chargerFor(level, c) {
+  const route = routePlatforms(level);
+  const i = route.indexOf(c.a);
+  if (i <= 0) return null;
+  const referenced = referencedPlatforms(level);
+  for (let k = 1; k <= LOW_TUNNEL.chargerReach && i - k >= 0; k++) {
+    const p = route[i - k];
+    if (p.lowTunnelAnchor || p.w < 90) continue;
+    if (p.type === 'root' || convertibleToSoil(p, referenced)) return p;
+  }
+  return null;
+}
+
+function installTunnelCrystal(level, c, drop) {
+  const w = LOW_TUNNEL.crystalWidth;
+  const x = c.merged ? c.crystalX : c.edgeX - LOW_TUNNEL.crystalBeforeEdge - w;
+  const deposit = {
+    id: `low-tunnel-${c.chunk}:phosphate`,
+    phosphateDeposit: true,
+    lowTunnel: true,
+    logicIndex: c.chunk,
+    requiredFeature: 'phosphateSolubilization',
+    // do chao ao teto: nao ha como pular por cima
+    x,
+    y: c.floorY - LOW_TUNNEL.clearance,
+    w,
+    h: LOW_TUNNEL.clearance,
+    remainingPhosphate: 1,
+    initialPhosphate: 1,
+    hp: 1,
+    broken: false,
+    localAvailablePhosphate: 0,
+    hostPlatformId: c.a.platformId || c.a.id || null,
+    destinationPlatformId: null,
+    routeScope: 'primary',
+    routeOwned: false,
+    authored: true,
+    difficulty: c.merged ? 'low-tunnel' : 'low-tunnel-dash',
+    transportRoot: null,
+    transportRootLogicIndex: null,
+  };
+  level.crystals ||= [];
+  level.phosphateDeposits ||= [];
+  level.availablePhosphatePools ||= [];
+  level.phosphateTransportParticles ||= [];
+  level.crystals.push(deposit);
+  level.phosphateDeposits.push(deposit);
+  drop.crystal = deposit;
+
+  const charger = chargerFor(level, c);
+  if (charger) {
+    if (charger.type !== 'root') { charger.type = 'root'; charger.lowTunnelCharger = true; }
+    level.authoredBeneficialColonies = [
+      ...(level.authoredBeneficialColonies || []),
+      {
+        id: `low-tunnel-${c.chunk}-bacillus`,
+        type: 'bacillus',
+        platform: charger,
+        x: charger.x + charger.w * .55,
+        y: charger.y - 8,
+        sourceCount: 5,
+        vigor: 1,
+        growth: 1,
+        rechargeIntensity: .35,
+      },
+    ];
+    drop.chargerLogicIndex = charger.logicIndex;
+  }
+}
+
+/** Diagnostico: por que cada par da rota foi recusado. */
+function lowTunnelDiagnostics(level, phase) {
+  const route = routePlatforms(level);
+  const reasons = {};
+  const pairs = [];
+  const hit = r => { reasons[r] = (reasons[r] || 0) + 1; };
+  for (let i = 0; i + 1 < route.length; i++) {
+    const a = route[i], b = route[i + 1];
+    const gap = Math.round(b.x - (a.x + a.w));
+    const dy = Math.round(floorOf(b) - floorOf(a));
+    if (!chunkAllowed(phase, a.logicIndex) || !chunkAllowed(phase, b.logicIndex)) { hit('trecho'); continue; }
+    pairs.push(`${gap}/${dy}/${Math.round(a.w)}-${Math.round(b.w)}`);
+    if (isIntentionalDynamicCrossing(level, a, b)) { hit('intencional'); continue; }
+    const plan = planFor(a, b);
+    if (!plan) {
+      const dyy = floorOf(b) - floorOf(a);
+      hit(gap < 130 ? 'vao<130' : !tunnelGapFor(dyy) ? 'altura' : (dyy < -LOW_TUNNEL.maxRise || dyy > LOW_TUNNEL.maxDrop) ? 'altura' : gap - 136 > LOW_TUNNEL.maxLedge ? 'vao>336' : 'largura');
+      continue;
+    }
+    const corridor = { x: plan.block.x, y: plan.block.y, w: plan.block.w, h: plan.block.h + LOW_TUNNEL.clearance + LOW_TUNNEL.ledgeDepth + 30 };
+    if ((level.platforms || []).some(p => p !== a && p !== b && overlaps(corridor, p))) { hit('obstruido'); continue; }
+    hit('ok');
+  }
+  return { reasons, pairs };
+}
+Object.assign(__exports, { LOW_TUNNEL, tunnelGapFor, lowTunnelCandidates, installLowTunnels, lowTunnelDiagnostics });
 },
 "src/procgen/mobile-controls.js": (__exports, __require) => {
 const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");

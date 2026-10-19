@@ -252,6 +252,10 @@ export function createPathogenArrival({ state, systems = {}, settings = null } =
     const foci = control.foci || level().ralstoniaFoci || [];
     const alive = foci.filter(focus => (
       focus && focus.state !== 'neutralized' && focus.neutralized !== true
+      // Only the independently reserved, distant lesson can wait outside the
+      // ambient cap. A normal inoculum already assigned to a root still counts.
+      && !(focus.teachingEncounter && focus.activationState === 'pending')
+      && !(focus.contained && (focus.vascularLoad || 0) < (control.config?.criticalThreshold ?? .82))
     )).length;
     return alive > 0 ? 1 : 0;
   }
@@ -665,6 +669,8 @@ export function createPathogenArrival({ state, systems = {}, settings = null } =
     if (!pathogen || !arrivalApi(pathogen)) return false;
     const gate = preventionAvailableFromChunk(pathogen);
     if (!Number.isInteger(gate)) return false;
+    const lesson = pathogen === 'ralstonia' && level().ralstoniaTeachingEncounters?.prevention;
+    if (lesson?.root && playerLogicIndex() < lesson.root.logicIndex - 1) return false;
     // "Ultrapassar a região" é passar do chunk em que a prevenção ficou
     // acessível, não apenas alcançá-lo.
     return playerLogicIndex() > gate;
@@ -703,7 +709,10 @@ export function createPathogenArrival({ state, systems = {}, settings = null } =
    *   inóculo CHEGA. Criar o foco na origem seria colonizar a raiz de longe.
    */
   function beginWarning(pathogen, { tutorial = false, source = 'pressure', targetRoot = null } = {}) {
-    const root = targetRoot || selectTargetRoot(pathogen);
+    const lessonRoot = tutorial && pathogen === 'ralstonia'
+      ? level().ralstoniaTeachingEncounters?.prevention?.root : null;
+    const root = targetRoot || (lessonRoot && (level().platforms || []).includes(lessonRoot) ? lessonRoot : null)
+      || selectTargetRoot(pathogen);
     if (!root) return null;
     const origin = selectOrigin(pathogen, root);
     const random = createRandom(

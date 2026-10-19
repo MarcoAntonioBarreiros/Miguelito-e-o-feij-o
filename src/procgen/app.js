@@ -66,6 +66,7 @@ import { createRhizoctoniaControl } from './rhizoctonia-control.js';
 import { createTrichodermaMeloidogyneControl } from './trichoderma-meloidogyne-control.js';
 import { createTrichodermaRhizoctoniaControl } from './trichoderma-rhizoctonia-control.js';
 import { createRalstoniaVascularWilt } from './ralstonia-vascular-wilt.js';
+import { prepareRalstoniaTeachingEncounters } from './ralstonia-teaching.js';
 import { narrate } from './narrator.js';
 import { createPauseMenu } from './pause-menu.js';
 import { FEATURE_LABELS, NARRATION } from './narration-catalog.js';
@@ -297,6 +298,7 @@ const OBJECTIVE_LABELS = {
   activeCriticalRalstoniaCount: 'Chegue à raiz final sem murcha crítica ativa',
   blockedRalstoniaSpreadCount: 'Bloqueie uma disseminação para outra raiz',
   succeededRalstoniaSpreadCount: 'Impeça que a Ralstonia alcance uma segunda raiz',
+  unresolvedRalstoniaSpreadCount: 'Mantenha os focos secundários sob controle',
   averageVascularTransport: 'Preserve o transporte vascular',
   preservedVascularRootCount: 'Preserve raízes com transporte funcional',
   recoveredRootCount: 'Recupere uma raiz danificada',
@@ -564,8 +566,9 @@ function topologyDetourDebug(level) {
 function finalStatusClass(condition, result) {
   // Disseminacao contida e o mesmo tipo de leitura da murcha critica: um STATUS
   // do agora, nao uma conquista. Neutro antes de a doenca comecar, estavel
-  // enquanto nada passou, vermelho quando passou, verde so no fim.
-  if (condition.key === 'succeededRalstoniaSpreadCount') {
+  // enquanto não há ameaça pendente, vermelho quando o controle falta, verde
+  // só no fim. Um secundário recuperado devolve o status estável.
+  if (condition.key === 'unresolvedRalstoniaSpreadCount') {
     const passaram = Number(result?.actual) || 0;
     if (passaram > 0) return 'violated';
     if (levelData?.goal?.completed) return 'completed';
@@ -581,15 +584,16 @@ function finalStatusClass(condition, result) {
 }
 
 function finalStatusNote(condition, result) {
-  if (condition.key === 'succeededRalstoniaSpreadCount') {
+  if (condition.key === 'unresolvedRalstoniaSpreadCount') {
     const passaram = Number(result?.actual) || 0;
-    if (passaram > 0) return `A doença alcançou outra raiz: ${passaram}`;
-    if (levelData?.goal?.completed) return 'Concluído sem disseminação';
+    if (passaram > 0) return `Focos sem controle ou propagações em trânsito: ${passaram}`;
+    if (levelData?.goal?.completed) return 'Concluído com a propagação sob controle';
     if (!ralstoniaControl.challengeStarted) return '';
     const bloqueadas = ralstoniaControl.blockedSpreadCount || 0;
-    return bloqueadas
-      ? `Contida nesta raiz · ${bloqueadas} disseminação${bloqueadas > 1 ? 'ões' : ''} bloqueada${bloqueadas > 1 ? 's' : ''}`
-      : 'Contida nesta raiz';
+    const historico = ralstoniaControl.successfulSpreadCount || 0;
+    return historico
+      ? `Propagação controlada · histórico: ${historico}`
+      : bloqueadas ? `${bloqueadas} disseminação(ões) bloqueada(s)` : 'Nenhuma propagação sem controle';
   }
   if (condition.key !== 'activeCriticalRalstoniaCount') return '';
   const criticos = Number(result?.actual) || 0;
@@ -889,7 +893,7 @@ sim.goal.setCompletionGuard(() => {
   const result = objectiveEvaluator.evaluate(conditions);
   return {
     passed: result.passed,
-    message: campaign.phase === 5
+    message: campaign.phase === 9 ? ralstoniaControl.completionHint : campaign.phase === 5
       ? 'Falta ferro e controlar o fungo'
       : 'Faltam objetivos: veja a lista',
   };
@@ -1021,8 +1025,8 @@ function prepareLevel() {
   });
   levelData.optionalDetourPlaytestMode = optionalDetourPlaytestMode;
   // Marca lida por `meloidogyne-lifecycle` e `ralstonia-vascular-wilt` no
-  // reset: com ela ligada, nenhum dos dois povoa a fase por conta propria — a
-  // primeira geracao chega pelo controlador.
+  // reset: a contaminação ambiental chega pelo controlador. A fase 9 reserva
+  // separadamente uma raiz já infectada para a lição de contenção.
   levelData.dynamicPathogenArrival = true;
   const traceGeometry = stage => (
     campaign.phase === 3 ? recordRouteGeometryStage(levelData, stage) : null
@@ -1267,6 +1271,9 @@ function prepareLevel() {
   routeAnchors.synchronize();
   anchorPowerPickups(levelData);
   installFinalGoal(levelData);
+  // Resource encounters must exist before resetEcology spawns their agents.
+  // Only phase 9 reserves the independent prevention/containment lessons.
+  prepareRalstoniaTeachingEncounters(levelData, { phaseManifest: getPhaseManifest(campaign.phase), seed });
   applyInitialRootHealth(levelData, campaign.phase);
   synchronizeWorldBounds(levelData);
   // Tunel baixo (Dash/propulsor): so sobre pares que ja tem o vao certo, depois
