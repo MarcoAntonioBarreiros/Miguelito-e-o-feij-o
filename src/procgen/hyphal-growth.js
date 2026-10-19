@@ -40,13 +40,13 @@ export const HYPHAL_PROFILES = {
   },
 };
 
-export function createHyphalTip({ x, y, angle, depth = 0, seed = Math.random() * TAU, mode = 'search', parentId = null }) {
+export function createHyphalTip({ x, y, angle, depth = 0, seed = Math.random() * TAU, mode = 'search', parentId = null, random = Math.random }) {
   return {
-    id: `${Math.round(seed * 100000)}:${Math.random().toString(36).slice(2, 8)}`,
+    id: `${Math.round(seed * 100000)}:${random().toString(36).slice(2, 8)}`,
     points: [{ x, y }], x, y, angle, depth, seed, mode, parentId,
     active: true, age: 0, totalDistance: 0, distanceSincePoint: 0,
-    nextBranch: 42 + Math.random() * 65, contact: false, targetId: null,
-    orbitSide: Math.random() < .5 ? -1 : 1, coilTurns: 0,
+    nextBranch: 42 + random() * 65, contact: false, targetId: null,
+    orbitSide: random() < .5 ? -1 : 1, coilTurns: 0,
   };
 }
 

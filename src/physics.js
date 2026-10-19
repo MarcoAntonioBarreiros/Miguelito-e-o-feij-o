@@ -123,7 +123,12 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
     const verticalDistance = Math.abs((player.y + player.h) - host.y);
     const playerOnHostLevel = verticalDistance < 105;
 
-    enemy.colonization = clamp(enemy.colonization + dt * (enemy.stun > 0 ? -.025 : .018), .12, 1);
+    // Campaign Rhizoctonia has its own colonization/biocontrol lifecycle. Its
+    // permanent positioning stun is not an injury and cannot consume biomass.
+    // Standalone legacy enemies retain their existing stun/growth behaviour.
+    if (!enemy.rhizoctoniaManaged) {
+      enemy.colonization = clamp(enemy.colonization + dt * (enemy.stun > 0 ? -.025 : .018), .12, 1);
+    }
     host.rhizoctoniaPressure = Math.max(
       host.rhizoctoniaPressure || 0,
       clamp(.12 + enemy.colonization * .58 + (enemy.mode === 'charging' ? .12 : 0), 0, 1),
