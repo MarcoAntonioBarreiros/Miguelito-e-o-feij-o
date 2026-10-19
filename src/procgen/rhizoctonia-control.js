@@ -417,6 +417,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       alpha: enemy.contained ? .58 : 1,
       flipX: (enemy.rhizoAttackDirection || 1) < 0,
       calm: enemy.calm || 0,
+      calmKey: enemy,
     });
   }
 

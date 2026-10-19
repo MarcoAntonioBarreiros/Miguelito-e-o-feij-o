@@ -587,8 +587,10 @@ export function createOpportunisticFungus({ state, entities, ecology, mycoparasi
       height: 115 * (.9 + pulse * .1),
       time: state.time,
       phase: network.lesions[0].phase,
-      alpha: .5 + vigor * .5,
+      // calmo nao some: a versao zen aparece inteira
+      alpha: (.5 + vigor * .5) + (.5 - vigor * .5) * (network.calm || 0),
       calm: network.calm || 0,
+      calmKey: network,
       anchorY: .78,
       flipX: Math.sin(network.lesions[0].phase) < 0,
     })) return;

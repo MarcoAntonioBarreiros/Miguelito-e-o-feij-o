@@ -787,6 +787,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       alpha: caught ? .52 : 1,
       flipX: (j.vx || 1) < 0,
       calm: j.calm || 0,
+      calmKey: j,
     })) {
       ctx.save();
       ctx.font = '700 7px Inter,system-ui';

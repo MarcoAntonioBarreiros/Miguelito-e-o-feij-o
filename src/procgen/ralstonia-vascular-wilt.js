@@ -1517,10 +1517,10 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
 
   // Uma célula pequena de Ralstonia. Usa a sprite quando existe; senão desenha o
   // bacilo procedural. Nunca desenha "a sprite grande" repetida.
-  function drawCell(ctx, x, y, { height = 26, phase = 0, alpha = .8, scale = 1, flip = false }) {
+  function drawCell(ctx, x, y, { height = 26, phase = 0, alpha = .8, scale = 1, flip = false, calm = 0 }) {
     if (organismSprites.draw(ctx, 'ralstonia', {
       x, y, height: height * scale, time: state.time, phase,
-      alpha, anchorY: .5, flipX: flip,
+      alpha, anchorY: .5, flipX: flip, calm,
     })) return;
     const rod = 2.2 * scale;
     ctx.save();
@@ -1566,8 +1566,9 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       anchorY: .88,
       flipX: (focus.surfaceMotionDirection || 1) < 0,
       calm: focus.calm || 0,
+      calmKey: focus,
     }) || drawCell(ctx, focus.visualX ?? focus.x, root.y - 12, {
-      height: 44, phase: focus.phase, alpha: alphaBase, scale: 2.4,
+      height: 44, phase: focus.phase, alpha: alphaBase, scale: 2.4, calm: focus.calm || 0,
     });
 
     // População superficial: 2 a 5 células menores, fases e direções diferentes.
@@ -1590,6 +1591,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
           alpha: (focus.neutralized ? .3 : .62) + surface * .3,
           scale: .8 + (i % 3) * .12,
           flip: direcao < 0,
+          calm: focus.calm || 0,
         });
       }
     }

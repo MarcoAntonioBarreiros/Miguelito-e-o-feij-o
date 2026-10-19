@@ -1,3 +1,5 @@
+import { drawCalmMotes } from './calm-motes.js';
+
 const DEFAULT_FRAME_WIDTH = 320;
 const DEFAULT_FRAME_HEIGHT = 400;
 
@@ -64,7 +66,13 @@ export const ORGANISM_SPRITE_SHEETS = Object.freeze({
 //   oportunista: Object.freeze({ src: 'assets/organisms/calm/oportunista.png', frameCount: 12, fps: 5 }),
 // Enquanto nao houver arte, o organismo calmo usa a folha normal com um brilho
 // quente suave atras.
-export const CALM_SPRITE_SHEETS = Object.freeze({});
+export const CALM_SPRITE_SHEETS = Object.freeze({
+  oportunista: Object.freeze({ src: 'assets/organisms/oportunista_zen.png', frameCount: 12, fps: 5 }),
+  // a rizoctonia_zen (1) tem um halo branco em volta; a 2 e a escolhida
+  rhizoctonia: Object.freeze({ src: 'assets/organisms/rizoctonia_zen2.png', frameCount: 12, fps: 5 }),
+  nematoide: Object.freeze({ src: 'assets/organisms/nematoide_zen.png', frameCount: 12, fps: 5 }),
+  ralstonia: Object.freeze({ src: 'assets/organisms/ralstonia_zen.png', frameCount: 12, fps: 5 }),
+});
 
 const enabled = new Map(Object.keys(ORGANISM_SPRITE_SHEETS).map(type => [type, true]));
 
@@ -122,6 +130,7 @@ export function createOrganismSpriteRenderer({
     anchorX = .5,
     anchorY = .5,
     calm = 0,
+    calmKey = null,
   } = {}) {
     const sheet = ORGANISM_SPRITE_SHEETS[type];
     if (!sheet || !enabled.get(type)) return false;
@@ -174,6 +183,16 @@ export function createOrganismSpriteRenderer({
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+    }
+    // particulas da calmaria brotam por tras do organismo zen
+    if (calmKey) {
+      drawCalmMotes(ctx, calmKey, {
+        x: x + renderWidth * (.5 - anchorX) * (flipX ? -1 : 1),
+        y: y + renderHeight * (.5 - anchorY),
+        size: Math.max(renderWidth, renderHeight),
+        calm: k,
+        time,
+      });
     }
     blit(record.image, sheet, calmReady ? 1 - k : 1);
     if (calmReady) blit(calmRecord.image, calmSheet, k);

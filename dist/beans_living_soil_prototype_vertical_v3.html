@@ -1108,7 +1108,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"8dd2536","subject":"Add files via upload","builtAt":"2026-10-19 18:55"};
+window.__BEANS_BUILD__ = {"commit":"2c4e3a1","subject":"Merge remote-tracking branch 'origin/main' into experiment/calmaria","builtAt":"2026-10-19 19:55"};
 (() => {
 'use strict';
 const __modules = {
@@ -11671,6 +11671,7 @@ if (typeof window !== 'undefined') {
 Object.assign(__exports, { drawInoculatedBacillusSprite, drawRoamingBacillusSprite, isBacillusSpriteEnabled, setBacillusSpriteEnabled });
 },
 "src/render/organism-sprites.js": (__exports, __require) => {
+const { drawCalmMotes } = __require("src/render/calm-motes.js");
 const DEFAULT_FRAME_WIDTH = 320;
 const DEFAULT_FRAME_HEIGHT = 400;
 
@@ -11737,7 +11738,13 @@ const ORGANISM_SPRITE_SHEETS = Object.freeze({
 //   oportunista: Object.freeze({ src: 'assets/organisms/calm/oportunista.png', frameCount: 12, fps: 5 }),
 // Enquanto nao houver arte, o organismo calmo usa a folha normal com um brilho
 // quente suave atras.
-const CALM_SPRITE_SHEETS = Object.freeze({});
+const CALM_SPRITE_SHEETS = Object.freeze({
+  oportunista: Object.freeze({ src: 'assets/organisms/oportunista_zen.png', frameCount: 12, fps: 5 }),
+  // a rizoctonia_zen (1) tem um halo branco em volta; a 2 e a escolhida
+  rhizoctonia: Object.freeze({ src: 'assets/organisms/rizoctonia_zen2.png', frameCount: 12, fps: 5 }),
+  nematoide: Object.freeze({ src: 'assets/organisms/nematoide_zen.png', frameCount: 12, fps: 5 }),
+  ralstonia: Object.freeze({ src: 'assets/organisms/ralstonia_zen.png', frameCount: 12, fps: 5 }),
+});
 
 const enabled = new Map(Object.keys(ORGANISM_SPRITE_SHEETS).map(type => [type, true]));
 
@@ -11795,6 +11802,7 @@ function createOrganismSpriteRenderer({
     anchorX = .5,
     anchorY = .5,
     calm = 0,
+    calmKey = null,
   } = {}) {
     const sheet = ORGANISM_SPRITE_SHEETS[type];
     if (!sheet || !enabled.get(type)) return false;
@@ -11847,6 +11855,16 @@ function createOrganismSpriteRenderer({
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+    }
+    // particulas da calmaria brotam por tras do organismo zen
+    if (calmKey) {
+      drawCalmMotes(ctx, calmKey, {
+        x: x + renderWidth * (.5 - anchorX) * (flipX ? -1 : 1),
+        y: y + renderHeight * (.5 - anchorY),
+        size: Math.max(renderWidth, renderHeight),
+        calm: k,
+        time,
+      });
     }
     blit(record.image, sheet, calmReady ? 1 - k : 1);
     if (calmReady) blit(calmRecord.image, calmSheet, k);
@@ -11908,6 +11926,104 @@ if (typeof window !== 'undefined') {
   };
 }
 Object.assign(__exports, { ORGANISM_SPRITE_SHEETS, CALM_SPRITE_SHEETS, calculateOrganismSpriteFrame, createOrganismSpriteRenderer, isOrganismSpriteEnabled, setOrganismSpriteEnabled, organismSprites });
+},
+"src/render/calm-motes.js": (__exports, __require) => {
+// Particulas da calmaria: brotam por tras de cada organismo zen (branco,
+// amarelo, laranja e rosa, com brilho) e morrem logo. So visual, sem RNG da
+// simulacao. Cada organismo tem no maximo MAX_PER_KEY particulas vivas e so
+// os organismos desenhados (na tela) atualizam, entao o custo e limitado.
+
+const PALETTE = ['#ffffff', '#ffe38a', '#ffb066', '#ff9ec4'];
+const MAX_PER_KEY = 14;
+const RATE = 9; // por segundo, com calmaria cheia
+
+const pools = new WeakMap();
+const glowSprites = new Map();
+
+function glowSprite(color) {
+  let s = glowSprites.get(color);
+  if (s || typeof document === 'undefined') return s || null;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 32;
+  const g = cv.getContext('2d');
+  const grd = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  grd.addColorStop(0, color);
+  grd.addColorStop(.3, color);
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 32, 32);
+  glowSprites.set(color, cv);
+  return cv;
+}
+
+function pool(key) {
+  let p = pools.get(key);
+  if (!p) { p = { motes: [], last: null, acc: 0 }; pools.set(key, p); }
+  return p;
+}
+
+/**
+ * Atualiza e desenha as particulas de um organismo calmo, ANTES do sprite
+ * (assim ficam por tras). `time` e o relogio do jogo: pausado, nada se mexe.
+ */
+function drawCalmMotes(ctx, key, { x, y, size, calm, time }) {
+  if (!key) return;
+  const p = pool(key);
+  const dt = p.last === null ? 0 : Math.max(0, Math.min(.1, time - p.last));
+  p.last = time;
+
+  // nascimento
+  if (calm > 0) {
+    p.acc += dt * RATE * calm;
+    while (p.acc >= 1) {
+      p.acc -= 1;
+      if (p.motes.length >= MAX_PER_KEY) { p.acc = 0; break; }
+      const a = Math.random() * Math.PI * 2;
+      const r = size * (.08 + Math.random() * .22);
+      const speed = 22 + Math.random() * 46;
+      p.motes.push({
+        x: x + Math.cos(a) * r,
+        y: y + Math.sin(a) * r * .8,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed - 18,
+        life: .45 + Math.random() * .6,
+        max: 0,
+        radius: 1.6 + Math.random() * 2.6,
+        color: PALETTE[(Math.random() * PALETTE.length) | 0],
+      });
+      p.motes[p.motes.length - 1].max = p.motes[p.motes.length - 1].life;
+    }
+  } else {
+    p.acc = 0;
+  }
+
+  if (!p.motes.length) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  let w = 0;
+  for (const m of p.motes) {
+    m.life -= dt;
+    if (m.life <= 0) continue;
+    m.x += m.vx * dt;
+    m.y += m.vy * dt;
+    m.vx *= 1 - dt * 1.4;
+    m.vy = m.vy * (1 - dt * 1.4) - dt * 10;
+    const t = m.life / m.max;
+    const fade = t > .7 ? (1 - t) / .3 : t / .7;
+    ctx.globalAlpha = Math.max(0, Math.min(1, fade));
+    const spr = glowSprite(m.color);
+    const d = m.radius * 5;
+    if (spr) ctx.drawImage(spr, m.x - d / 2, m.y - d / 2, d, d);
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.radius * .45, 0, Math.PI * 2);
+    ctx.fill();
+    p.motes[w++] = m;
+  }
+  p.motes.length = w;
+  ctx.restore();
+}
+Object.assign(__exports, { drawCalmMotes });
 },
 "src/procgen/mycorrhiza-growth.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");
@@ -19155,8 +19271,10 @@ function createOpportunisticFungus({ state, entities, ecology, mycoparasitism = 
       height: 115 * (.9 + pulse * .1),
       time: state.time,
       phase: network.lesions[0].phase,
-      alpha: .5 + vigor * .5,
+      // calmo nao some: a versao zen aparece inteira
+      alpha: (.5 + vigor * .5) + (.5 - vigor * .5) * (network.calm || 0),
       calm: network.calm || 0,
+      calmKey: network,
       anchorY: .78,
       flipX: Math.sin(network.lesions[0].phase) < 0,
     })) return;
@@ -28165,6 +28283,7 @@ function createMeloidogyneLifecycle({ state, entities }) {
       alpha: caught ? .52 : 1,
       flipX: (j.vx || 1) < 0,
       calm: j.calm || 0,
+      calmKey: j,
     })) {
       ctx.save();
       ctx.font = '700 7px Inter,system-ui';
@@ -50660,6 +50779,7 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       alpha: enemy.contained ? .58 : 1,
       flipX: (enemy.rhizoAttackDirection || 1) < 0,
       calm: enemy.calm || 0,
+      calmKey: enemy,
     });
   }
 
@@ -53488,10 +53608,10 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
 
   // Uma célula pequena de Ralstonia. Usa a sprite quando existe; senão desenha o
   // bacilo procedural. Nunca desenha "a sprite grande" repetida.
-  function drawCell(ctx, x, y, { height = 26, phase = 0, alpha = .8, scale = 1, flip = false }) {
+  function drawCell(ctx, x, y, { height = 26, phase = 0, alpha = .8, scale = 1, flip = false, calm = 0 }) {
     if (organismSprites.draw(ctx, 'ralstonia', {
       x, y, height: height * scale, time: state.time, phase,
-      alpha, anchorY: .5, flipX: flip,
+      alpha, anchorY: .5, flipX: flip, calm,
     })) return;
     const rod = 2.2 * scale;
     ctx.save();
@@ -53537,8 +53657,9 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
       anchorY: .88,
       flipX: (focus.surfaceMotionDirection || 1) < 0,
       calm: focus.calm || 0,
+      calmKey: focus,
     }) || drawCell(ctx, focus.visualX ?? focus.x, root.y - 12, {
-      height: 44, phase: focus.phase, alpha: alphaBase, scale: 2.4,
+      height: 44, phase: focus.phase, alpha: alphaBase, scale: 2.4, calm: focus.calm || 0,
     });
 
     // População superficial: 2 a 5 células menores, fases e direções diferentes.
@@ -53561,6 +53682,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
           alpha: (focus.neutralized ? .3 : .62) + surface * .3,
           scale: .8 + (i % 3) * .12,
           flip: direcao < 0,
+          calm: focus.calm || 0,
         });
       }
     }
