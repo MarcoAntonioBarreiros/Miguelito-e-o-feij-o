@@ -591,7 +591,19 @@
       backdrop-filter: blur(3px);
     }
     #pause-menu[hidden] { display: none; }
-    #pause-menu .pause-panel {
+    /* Fim da campanha / fases 11+: mesmo painel do menu de pausa. */
+    #campaign-end {
+      position: fixed;
+      inset: 0;
+      z-index: 91;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      background: rgba(1,10,14,.45);
+    }
+    #campaign-end[hidden] { display: none; }
+    #campaign-end p { margin: 0 0 14px; font-size: 14px; line-height: 1.45; color: rgba(233,255,251,.82); }
+    #pause-menu .pause-panel, #campaign-end .pause-panel {
       width: min(360px, 100%);
       max-height: calc(100dvh - 32px);
       overflow: auto;
@@ -602,8 +614,8 @@
       color: #e9fffb;
       font-family: Inter, system-ui, sans-serif;
     }
-    #pause-menu h2 { margin: 0 0 12px; font-size: 20px; font-weight: 800; }
-    #pause-menu .pause-resume {
+    #pause-menu h2, #campaign-end h2 { margin: 0 0 12px; font-size: 20px; font-weight: 800; }
+    #pause-menu .pause-resume, #campaign-end .pause-resume {
       width: 100%;
       min-height: 42px;
       margin-bottom: 12px;
@@ -1050,6 +1062,13 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
     <button class="mobile-tool zoom-step" data-camera-action="in" aria-label="Aproximar câmera">+</button>
   </div>
 
+  <div id="campaign-end" hidden role="dialog" aria-modal="true" aria-labelledby="campaign-end-title">
+    <div class="pause-panel">
+      <h2 id="campaign-end-title">Campanha concluída</h2>
+      <p id="campaign-end-text"></p>
+      <button type="button" class="pause-resume" data-end-action="next-phase">Próxima fase</button>
+    </div>
+  </div>
   <div id="pause-menu" hidden role="dialog" aria-modal="true" aria-labelledby="pause-menu-title">
     <div class="pause-panel">
       <h2 id="pause-menu-title">Pausa</h2>
@@ -1089,7 +1108,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"3e6628d","subject":"Merge remote-tracking branch 'origin/main' into experimental/visual-2_5d","builtAt":"2026-10-19 13:08"};
+window.__BEANS_BUILD__ = {"commit":"83d26cd","subject":"Fase 10+: focos de patogeno do diretor - Ralstonia ja vascular (contenca","builtAt":"2026-10-19 14:13"};
 (() => {
 'use strict';
 const __modules = {
@@ -1139,6 +1158,7 @@ const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoder
 const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");
 const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");
 const { prepareRalstoniaTeachingEncounters } = __require("src/procgen/ralstonia-teaching.js");
+const { preparePathogenFocusRooms } = __require("src/procgen/pathogen-focus-rooms.js");
 const { narrate } = __require("src/procgen/narrator.js");
 const { createPauseMenu } = __require("src/procgen/pause-menu.js");
 const { FEATURE_LABELS, NARRATION } = __require("src/procgen/narration-catalog.js");
@@ -1153,7 +1173,7 @@ const { installLowTunnels, lowTunnelDiagnostics } = __require("src/procgen/low-t
 const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
 const { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } = __require("src/render/final-root-visual.js");
 const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");
-const { advanceCampaignPhase, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
+const { advanceCampaignPhase, advanceToExtraPhase, displayPhaseNumber, campaignPhaseSeed, // `campaignManifest` completo: o preload precisa da união das fases já
   // alcançadas, não só da atual.
 
   createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
@@ -2334,6 +2354,8 @@ function prepareLevel() {
   // Resource encounters must exist before resetEcology spawns their agents.
   // Only phase 9 reserves the independent prevention/containment lessons.
   prepareRalstoniaTeachingEncounters(levelData, { phaseManifest: getPhaseManifest(campaign.phase), seed });
+  // Fase 10+: focos de patogeno do diretor de salas (Ralstonia e Meloidogyne)
+  if (campaign.phase === 10) preparePathogenFocusRooms(levelData, { seed });
   applyInitialRootHealth(levelData, campaign.phase);
   synchronizeWorldBounds(levelData);
   // Tunel baixo (Dash/propulsor): so sobre pares que ja tem o vao certo, depois
@@ -2539,11 +2561,11 @@ function initGame({ announce = false } = {}) {
     sim.state.introFall = {
       stage: 'title',
       surface,
-      card: () => showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText()),
+      card: () => showPhaseCard(`Fase ${displayPhaseNumber(campaign)}`, profile.title, phaseIntroText()),
     };
     cameraView.resetTracking();
     showTitleScreen();
-  } else if (announce) showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText());
+  } else if (announce) showPhaseCard(`Fase ${displayPhaseNumber(campaign)}`, profile.title, phaseIntroText());
 }
 
 let phaseCardTimer = null;
@@ -2564,7 +2586,41 @@ function showPhaseCard(eyebrow, title, subtitle) {
   }, 3400);
 }
 
+// Fim da campanha (e de cada fase depois dela): painel com "Proxima fase".
+const campaignEndDiv = document.getElementById('campaign-end');
+const campaignEndTitle = document.getElementById('campaign-end-title');
+const campaignEndText = document.getElementById('campaign-end-text');
+const campaignEndButton = campaignEndDiv?.querySelector('[data-end-action="next-phase"]');
+let campaignEndTimer = 0;
+function showCampaignEnd() {
+  if (!campaignEndDiv || sim.state.gameState !== 'end' || phaseLab.enabled) return;
+  const done = displayPhaseNumber(campaign);
+  const next = done + 1;
+  campaignEndTitle.textContent = done > campaign.phase ? `Fase ${done} concluída` : 'Campanha concluída';
+  campaignEndText.textContent = done > campaign.phase
+    ? 'A rizosfera continua. A próxima fase é gerada agora, diferente desta.'
+    : 'Você completou as fases da campanha. A rizosfera continua: cada nova fase é gerada na hora, com todas as habilidades.';
+  campaignEndButton.textContent = `Próxima fase (Fase ${next})`;
+  campaignEndDiv.hidden = false;
+  campaignEndButton.focus({ preventScroll: true });
+}
+function hideCampaignEnd() {
+  clearTimeout(campaignEndTimer);
+  if (campaignEndDiv) campaignEndDiv.hidden = true;
+}
+function startExtraPhase() {
+  hideCampaignEnd();
+  if (!advanceToExtraPhase(campaign)) return;
+  gameAudio.endPhaseVictory();
+  biologicalAudio.stopAll({ fade: .20, clearPending: true });
+  prepareLevel();
+  initGame({ announce: true });
+}
+campaignEndButton?.addEventListener('click', startExtraPhase);
+window.miguelitoCampaignEnd = { show: showCampaignEnd, next: startExtraPhase };
+
 function startNewCampaign() {
+  hideCampaignEnd();
   if (phaseLab.enabled) {
     phaseLab.configureCampaign(campaign);
     for (const cardId of campaign.tutorialBootstrapSeen || []) {
@@ -2757,7 +2813,13 @@ function maybeAdvanceCampaign() {
   if (!advanceCampaignPhase(campaign)) {
     campaign.transitionRequested = false;
     sim.state.gameState = 'end';
-    sim.state.mission = 'Campanha concluída';
+    sim.state.mission = displayPhaseNumber(campaign) > campaign.phase
+      ? `Fase ${displayPhaseNumber(campaign)} concluída`
+      : 'Campanha concluída';
+    // A fase 10 e procedural: depois dela o jogo segue com fases 11, 12...
+    // (a 10 com semente nova), a partir do botao "Proxima fase".
+    clearTimeout(campaignEndTimer);
+    campaignEndTimer = setTimeout(showCampaignEnd, 1800);
     // Fim de campanha: o resultado longo entra sozinho, nunca junto do curto.
     gameAudio.stopStinger(.5);
     gameAudio.beginPhaseVictory({ campaign: true });
@@ -3540,7 +3602,7 @@ function loop(now) {
     if (sim.state.mission) {
       missionDiv.textContent = sim.state.gameState === 'end'
         ? sim.state.mission
-        : `Fase ${campaign.phase}`;
+        : `Fase ${displayPhaseNumber(campaign)}`;
     }
 
     // Mesmo com o jogo pausado: um cartão que acabou de abrir cobre a
@@ -4679,6 +4741,19 @@ function generateLevel(seedString, {
       directorLevel = nextPlatform.y;
     }
 
+    // Foco de patogeno (diretor): raiz ja infectada e, no bloco anterior, o
+    // organismo de controle (ver pathogen-focus-rooms.js).
+    const focus = recipe?.pathogenFoci?.find(f => f.chunkIndex === i);
+    if (focus && !nextPlatform.ascentGate && !nextPlatform.bridgeGate && !nextPlatform.nitrogenGate
+      && !nextPlatform.encounterInstanceId && !prevPlatform.encounterInstanceId && prevPlatform.logicIndex >= 0) {
+      nextPlatform.type = 'root';
+      nextPlatform.w = Math.max(nextPlatform.w, 200);
+      nextPlatform.pathogenFocusRoom = focus.kind;
+      nextPlatform.pathogenFocusId = focus.id;
+      prevPlatform.pathogenPrepHost = focus.kind;
+      prevPlatform.pathogenFocusId = focus.id;
+    }
+
     // Lugar reservado do desvio opcional (diretor): partida e retorno de raiz,
     // largos, com ~3 telas entre eles e nada de tunel/subida no meio.
     if (recipe?.detour) {
@@ -4787,6 +4862,7 @@ function generateLevel(seedString, {
       ? {
           rooms: recipe.rooms,
           combos: recipe.combos,
+          pathogenFoci: recipe.pathogenFoci,
           detour: recipe.detour
             ? { ...recipe.detour, start: detourStart?.logicIndex ?? null, rejoin: detourRejoin?.logicIndex ?? null }
             : null,
@@ -7528,6 +7604,33 @@ function createPhaseRecipe({
     swap.id = `${kind}-${swap.chunkIndex}`;
   }
 
+  // FOCOS DE PATOGENO (Etapa 3): uma raiz ja infectada em blocos de ligacao,
+  // com o organismo de controle no bloco anterior. Nao muda a geometria: so
+  // marca as raizes. Ralstonia (infeccao vascular a conter) e Meloidogyne
+  // (massa de ovos que espera o jogador chegar perto para eclodir).
+  const covered = new Set();
+  for (const room of rooms) for (let k = 0; k < room.chunks; k++) covered.add(room.chunkIndex + k);
+  // portao (subida, ponte, FBN) usa o bloco anterior como hospedeiro
+  const gateStarts = new Set(rooms.filter(r => r.gateKind).map(r => r.chunkIndex));
+  const plainChunk = c => c >= FIRST_ROOM_CHUNK && c <= end && !covered.has(c) && !blocked(logic[c])
+    && !reserved.has(c) && (!detour || c !== detour.startChunk);
+  const focusSlots = [];
+  for (let c = FIRST_ROOM_CHUNK + 1; c <= end; c++) {
+    // c e a raiz; c-1 recebe os organismos; nenhum portao usa c como hospedeiro
+    if (plainChunk(c) && plainChunk(c - 1) && !gateStarts.has(c + 1)) focusSlots.push(c);
+  }
+  const pathogenFoci = [];
+  const focusKinds = rnd() < .5 ? ['ralstonia', 'meloidogyne'] : ['meloidogyne', 'ralstonia'];
+  const span = end - FIRST_ROOM_CHUNK;
+  for (const [index, kind] of focusKinds.entries()) {
+    if (abilities[`${kind}Focus`] === false) continue;
+    const ideal = FIRST_ROOM_CHUNK + span * (index ? .7 : .35);
+    const free = focusSlots.filter(c => pathogenFoci.every(f => Math.abs(f.chunkIndex - c) >= 4));
+    if (!free.length) continue;
+    const chunkIndex = free.reduce((best, c) => (Math.abs(c - ideal) < Math.abs(best - ideal) ? c : best));
+    pathogenFoci.push({ kind, chunkIndex, id: `${kind}-foco-${chunkIndex}` });
+  }
+
   const byChunk = new Map();
   for (const room of rooms) byChunk.set(room.chunkIndex, room);
   return {
@@ -7539,6 +7642,7 @@ function createPhaseRecipe({
     baseY,
     combos,
     detour,
+    pathogenFoci,
     signature: rooms.map(room => (room.comboId ? `[${room.kind}]` : room.kind)).join('>'),
   };
 }
@@ -9041,6 +9145,8 @@ function blankCampaign(seed) {
   return {
     seed,
     phase: DEFAULT_START_PHASE,
+    // Fases depois da 10: a 10 de novo com semente nova (11, 12, 13...).
+    extraPhase: 0,
     unlocks: blankUnlocks(),
     totalScore: 0,
     history: [],
@@ -9075,6 +9181,7 @@ function campaignSnapshot(campaign) {
   return {
     seed: String(campaign.seed || randomCampaignSeed()),
     phase: validPhase(campaign.phase),
+    extraPhase: validExtraPhase(campaign.extraPhase),
     unlocks: blankUnlocks(campaign.unlocks),
     totalScore: Number.isFinite(campaign.totalScore) ? campaign.totalScore : 0,
     history: Array.isArray(campaign.history) ? campaign.history : [],
@@ -9099,6 +9206,7 @@ function createCampaign(seed = randomCampaignSeed(), { storage = null } = {}) {
   const campaign = blankCampaign(saved?.seed ? String(saved.seed) : seed);
   if (saved) {
     campaign.phase = validPhase(saved.phase);
+    campaign.extraPhase = validExtraPhase(saved.extraPhase);
     campaign.unlocks = blankUnlocks(saved.unlocks);
     campaign.unlocks.jetpack = migrateJetpackUnlock(saved.unlocks, saved.phase);
     campaign.totalScore = Number.isFinite(saved.totalScore) ? saved.totalScore : 0;
@@ -9250,8 +9358,35 @@ function prepareCampaignGeneration(campaign) {
   return profile;
 }
 
+function validExtraPhase(value) {
+  return Number.isInteger(value) && value > 0 ? value : 0;
+}
+
+/** Numero mostrado ao jogador: 1-10 na campanha; 11, 12... depois dela. */
+function displayPhaseNumber(campaign) {
+  return campaign.phase + validExtraPhase(campaign.extraPhase);
+}
+
+// A fase 11 em diante e a 10 (mesmas regras e habilidades) com semente nova.
 function campaignPhaseSeed(campaign) {
-  return `${campaign.seed}:fase-${campaign.phase}`;
+  return `${campaign.seed}:fase-${displayPhaseNumber(campaign)}`;
+}
+
+/** Depois da ultima fase da campanha: monta a proxima fase procedural. */
+function advanceToExtraPhase(campaign) {
+  const last = campaignManifest[campaignManifest.length - 1];
+  if (!last || campaign.phase !== last.phase) return false;
+  campaign.extraPhase = validExtraPhase(campaign.extraPhase) + 1;
+  ensureCampaignUnlockShape(campaign);
+  campaign.transitionRequested = false;
+  campaign.transitionAt = 0;
+  campaign.waitingForVictoryAudio = false;
+  campaign.victoryAudioFinished = false;
+  campaign.victoryAudioDeadline = 0;
+  campaign.transitionCaptured = false;
+  campaign.pendingReport = null;
+  persistCampaign(campaign);
+  return true;
 }
 
 // Só o nome: o desbloqueio é narrado pelo catálogo (`unlock.<feature>`) e
@@ -9445,7 +9580,7 @@ function advanceCampaignPhase(campaign) {
   persistCampaign(campaign);
   return true;
 }
-Object.assign(__exports, { CAMPAIGN_STORAGE_KEY, migrateJetpackUnlock, campaignSnapshot, persistCampaign, createCampaign, resetCampaign, ensureCampaignUnlockShape, resolvePhaseChunkCount, phaseManifestForCampaign, getPhaseProfile, prepareCampaignGeneration, campaignPhaseSeed, decorateCampaignLevel, unlockCampaignFeature, applyPersistentUnlocks, recordPhaseResult, advanceCampaignPhase });
+Object.assign(__exports, { CAMPAIGN_STORAGE_KEY, migrateJetpackUnlock, campaignSnapshot, persistCampaign, createCampaign, resetCampaign, ensureCampaignUnlockShape, resolvePhaseChunkCount, phaseManifestForCampaign, getPhaseProfile, prepareCampaignGeneration, displayPhaseNumber, campaignPhaseSeed, advanceToExtraPhase, decorateCampaignLevel, unlockCampaignFeature, applyPersistentUnlocks, recordPhaseResult, advanceCampaignPhase });
 },
 "src/procgen/traversal-route.js": (__exports, __require) => {
 function hasTraversalMetadata(platform) {
@@ -23151,7 +23286,9 @@ function routeGapCandidates(level, encounters, route, firstExudate, allowPromoti
     const hostPlatform = leftPlatform;
     if (!colonizableRoot(hostPlatform, allowPromotion) || hostPlatform.logicIndex <= firstExudate) continue;
     // sala de tunel do diretor (fase 10): o par e chao de tunel, nao portao
-    if ([leftPlatform, targetPlatform, rightPlatform].some(p => p?.tunnelRoomRole)) continue;
+    // ...nem foco de patogeno (a raiz infectada e o bloco com o controle)
+    if ([leftPlatform, targetPlatform, rightPlatform].some(p => p?.tunnelRoomRole
+      || p?.pathogenFocusRoom || p?.pathogenPrepHost)) continue;
 
     const blockedGapWidth = rightPlatform.x - (leftPlatform.x + leftPlatform.w);
     const leftLandingGap = targetPlatform.x - (leftPlatform.x + leftPlatform.w);
@@ -26679,6 +26816,9 @@ function isActiveMeloidogyneGall(gall) {
 // do percurso — medir a corda em vez da curva encurtaria a viagem.
 const ARRIVAL_PATH_SAMPLES = 18;
 
+// Distancia (px) em que a massa de ovos do foco do diretor comeca a eclodir.
+const EGG_FOCUS_WAKE_DISTANCE = 560;
+
 function createMeloidogyneLifecycle({ state, entities }) {
   const eggs = [], juveniles = [], galls = [];
   const rootGameplay = createRootHealthGameplay({ state, entities });
@@ -26780,6 +26920,14 @@ function createMeloidogyneLifecycle({ state, entities }) {
     // para quem desligar as chegadas dinamicas — e para as fases que ainda
     // dependem dela.
     if (!state.level?.dynamicPathogenArrival) seedInfestation();
+    // Foco do diretor de salas (fase 10+): massa de ovos ja na raiz, que so
+    // comeca a eclodir quando o jogador chega perto.
+    for (const authored of state.level?.authoredEggMasses || []) {
+      if (!authored?.platform) continue;
+      const mass = addEggMass(authored.platform, authored.x, 0, null, true);
+      mass.awaitPlayer = true;
+      mass.focusRoomId = authored.id || null;
+    }
     rootGameplay.reset();
   }
 
@@ -27108,6 +27256,11 @@ function createMeloidogyneLifecycle({ state, entities }) {
   function updateEggs(dt) {
     for (const m of eggs) {
       m.age += dt; m.y = m.platform.y - 7; m.x = clamp(m.x, m.platform.x + 20, m.platform.x + m.platform.w - 20);
+      if (m.awaitPlayer) {
+        const px = (state.player?.x ?? 0) + (state.player?.w ?? 0) / 2;
+        if (Math.abs(px - m.x) > EGG_FOCUS_WAKE_DISTANCE) continue;
+        m.awaitPlayer = false;
+      }
       const suppression = clamp(m.trichodermaSuppression || 0, 0, 1);
       if (m.neutralized) { m.eggs = 0; m.emptyAge += dt; continue; }
       if (m.eggs <= 0) { m.emptyAge += dt; continue; }
@@ -51578,7 +51731,8 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
       // still begin at V=0 and remain visible; protecting their target never
       // removes this independent opportunity to practice containment.
       const lesson = state.level.ralstoniaTeachingEncounters?.containment;
-      if (phaseNumber() === 9 && lesson?.root && desiredFocusCount() > 0) {
+      // fase 9 (curriculo) e fase 10+ (foco do diretor de salas)
+      if ((phaseNumber() === 9 || lesson?.directorRoom) && lesson?.root && desiredFocusCount() > 0) {
         const focus = createFocus({
           root: lesson.root, role: 'containment',
           surfaceLoad: CONFIG.containmentFocusSurfaceLoad,
@@ -53527,7 +53681,115 @@ function prepareRalstoniaTeachingEncounters(level, { phaseManifest, seed } = {})
   level.ralstoniaTeachingEncounters = plan;
   return level;
 }
-Object.assign(__exports, { prepareRalstoniaTeachingEncounters });
+
+// Fase 10 em diante (diretor de salas): um foco de contencao ja vascular na
+// raiz escolhida pelo diretor, com Bacillus, Pseudomonas, exsudatos e ferro no
+// bloco anterior. Mesmo encontro de contencao da fase 9, sem a prevencao.
+function prepareRalstoniaFocusRoom(level, { root, host, seed } = {}) {
+  if (!level || !root) return null;
+  const random = createRandom(`${seed ?? level.seed ?? 'phase-10'}:ralstonia-focus-room`);
+  const route = getPrimaryTraversalPlatforms(level);
+  level.microbeEncounters ||= [];
+  level.exudates ||= [];
+  level.ironDeposits ||= [];
+  const resourceRoot = host || resourceHost(route, root);
+  const encounters = ['bacillus', 'pseudomonas']
+    .map(organism => ensureEncounter(level, route, root, 'containment', organism, resourceRoot));
+  const exudates = ensureExudates(level, route, root, 'containment', encounters, 3, resourceRoot);
+  const iron = ensureIron(level, route, root, random);
+  const lesson = { root, role: 'containment', directorRoom: true, resources: { encounters, exudates, iron } };
+  level.ralstoniaTeachingEncounters = { ...(level.ralstoniaTeachingEncounters || {}), containment: lesson };
+  return lesson;
+}
+Object.assign(__exports, { prepareRalstoniaTeachingEncounters, prepareRalstoniaFocusRoom });
+},
+"src/procgen/pathogen-focus-rooms.js": (__exports, __require) => {
+// Focos de patogeno do diretor de salas (fase 10 em diante)
+// ========================================================
+//
+// O diretor marca uma raiz (`pathogenFocusRoom`) e o bloco anterior
+// (`pathogenPrepHost`). Aqui entram o foco e o que o controla:
+//
+//   ralstonia   infeccao vascular ja instalada (mesmo encontro de contencao
+//               da fase 9): Bacillus, Pseudomonas, 3 exsudatos e ferro antes.
+//   meloidogyne massa de ovos na raiz, que so eclode quando o jogador chega
+//               perto: Trichoderma e 2 exsudatos antes.
+//
+// As chegadas dinamicas (pressao do solo) continuam como estao; estes focos
+// somam a elas. Nenhum dos dois bloqueia a saida da fase 10 (o teste final
+// dela e pontuacao + raiz final), entao nao ha softlock possivel.
+const { prepareRalstoniaFocusRoom } = __require("src/procgen/ralstonia-teaching.js");
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function addEncounter(level, host, organism, role) {
+  const existing = (level.microbeEncounters || []).find(e => (e.id || e.type) === organism
+    && (e.platform === host || e.hostPlatform === host));
+  if (existing) return existing;
+  const encounter = {
+    id: organism,
+    platform: host,
+    platformId: host.id ?? host.platformId ?? null,
+    logicIndex: host.logicIndex,
+    x: host.x + host.w * .45,
+    y: host.y - 78,
+    r: 155,
+    territory: 360,
+    collect: false,
+    source: 'pathogen-focus-room',
+    teachingRole: role,
+    requiresSeenCardId: null,
+  };
+  level.microbeEncounters.push(encounter);
+  return encounter;
+}
+
+function addExudates(level, host, count, id) {
+  const items = [];
+  for (let index = 0; index < count; index++) {
+    const lateral = count === 1 ? .5 : .25 + index * (.5 / (count - 1));
+    const item = {
+      id: `${id}-exsudato-${index}`,
+      platform: host,
+      platformId: host.id ?? host.platformId ?? null,
+      logicIndex: host.logicIndex,
+      x: host.x + clamp(host.w * lateral, 24, host.w - 24),
+      y: host.y - 34,
+      taken: false,
+      authored: true,
+      source: 'pathogen-focus-room',
+    };
+    level.exudates.push(item);
+    items.push(item);
+  }
+  return items;
+}
+
+function preparePathogenFocusRooms(level, { seed } = {}) {
+  if (!level?.directorRecipe?.pathogenFoci?.length) return [];
+  level.microbeEncounters ||= [];
+  level.exudates ||= [];
+  const rooms = [];
+  for (const focus of level.directorRecipe.pathogenFoci) {
+    const root = (level.platforms || []).find(p => p.pathogenFocusId === focus.id && p.pathogenFocusRoom);
+    const host = (level.platforms || []).find(p => p.pathogenFocusId === focus.id && p.pathogenPrepHost);
+    if (!root || !host || root.type !== 'root') continue;
+    if (focus.kind === 'ralstonia') {
+      const lesson = prepareRalstoniaFocusRoom(level, { root, host, seed });
+      if (lesson) rooms.push({ ...focus, root, host });
+    } else if (focus.kind === 'meloidogyne') {
+      addEncounter(level, host, 'trichoderma', 'nematode-focus');
+      addExudates(level, host, 2, focus.id);
+      level.authoredEggMasses = [
+        ...(level.authoredEggMasses || []),
+        { id: focus.id, platform: root, x: root.x + root.w * .6 },
+      ];
+      rooms.push({ ...focus, root, host });
+    }
+  }
+  level.pathogenFocusRooms = rooms;
+  return rooms;
+}
+Object.assign(__exports, { preparePathogenFocusRooms });
 },
 "src/procgen/pause-menu.js": (__exports, __require) => {
 // Menu de pausa: os ajustes (som, luz, paralaxe, plataformas de segurança,
