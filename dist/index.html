@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"fc5ecaf","subject":"Tunel baixo: teto 12 px acima da cabeca, vao 8 px menor e salto duplo de","builtAt":"2026-10-19 02:03"};
+window.__BEANS_BUILD__ = {"commit":"2acfd16","subject":"Merge remote-tracking branch 'origin/main' into experimental/visual-2_5d","builtAt":"2026-10-19 02:15"};
 (() => {
 'use strict';
 const __modules = {
@@ -2318,7 +2318,7 @@ function prepareLevel() {
   synchronizeWorldBounds(levelData);
   // Tunel baixo (Dash/propulsor): so sobre pares que ja tem o vao certo, depois
   // de TODA a geometria (ancoras, objetivo final, limites do mundo); nao move plataforma nenhuma.
-  installLowTunnels(levelData, { phase: campaign.phase, seedValue: seed });
+  installLowTunnels(levelData, { phase: campaign.phase, seedValue: seed, abilities: campaign.unlocks || {} });
   window.miguelitoLowTunnels = () => lowTunnelDiagnostics(levelData, campaign.phase);
   traceGeometry('installLowTunnels');
   // CAPACIDADE MINERAL DA FASE, uma vez, no fim.
@@ -3292,7 +3292,8 @@ function announceLowTunnel() {
   for (const d of st.level?.ceilingDrops || []) {
     if (px < d.entryX - 380 || px > d.entryX) continue;
     if (Math.abs((st.player.y + st.player.h) - d.floorY) > 140) continue;
-    narrate(st, st.player.canJetpack ? 'tunnel.dash-jetpack' : 'tunnel.dash');
+    if (d.phosphate && d.crystal && !d.crystal.broken) narrate(st, 'tunnel.phosphate');
+    else if (!d.merged) narrate(st, st.player.canJetpack ? 'tunnel.dash-jetpack' : 'tunnel.dash');
     return;
   }
 }
@@ -14665,6 +14666,8 @@ const NARRATION = Object.freeze({
     text: 'Túnel baixo: ande e use o Dash no vão' },
   'tunnel.dash-jetpack': { kind: 'hint', scope: 'campaign',
     text: 'Túnel baixo: Dash ou propulsor para cruzar o vão' },
+  'tunnel.phosphate': { kind: 'hint', scope: 'campaign',
+    text: 'Fosfato no túnel: carregue no Bacillus e dissolva (E)' },
   'route.high': { kind: 'hint', scope: 'campaign',
     text: 'Rotas altas escondem recursos extras' },
   ...unlockEntries,
@@ -53327,6 +53330,14 @@ const LOW_TUNNEL = Object.freeze({
   minChunkSpacing: 4,
   maxPerPhase: 2,
   firstPhase: 4,
+  // tunel de fosfato (fases 8-10): cristal baixo, do chao ao teto
+  phosphatePhases: Object.freeze([8, 9, 10]),
+  crystalWidth: 66,
+  crystalBeforeEdge: 56,  // folga entre o cristal e a borda do vao (corrida do Dash)
+  mergedCover: 150,       // teto antes e depois do cristal no tunel sem vao
+  mergedMinLength: 360,   // bloco comprido minimo do tunel sem vao
+  mergedMaxGap: 300,      // vao original maximo que o bloco comprido fecha
+  chargerReach: 3,        // blocos antes do tunel onde vai a colonia de Bacillus
 });
 
 function routePlatforms(level) {
@@ -53432,8 +53443,34 @@ function planFor(a, b) {
   };
 }
 
+// Tunel SEM vao (so fosfato): o par vira um bloco comprido de terra, na altura
+// do primeiro; o cristal fica onde era o vao, com teto antes e depois.
+function planMerged(a, b) {
+  const floorY = floorOf(a);
+  if (Math.abs(floorOf(b) - floorY) > LOW_TUNNEL.maxRise) return null;
+  const pairGap = b.x - (a.x + a.w);
+  if (pairGap < 0 || pairGap > LOW_TUNNEL.mergedMaxGap) return null;
+  const right = b.x + b.w;
+  if (right - a.x < LOW_TUNNEL.mergedMinLength) return null;
+  const crystalX = a.x + a.w + pairGap / 2 - LOW_TUNNEL.crystalWidth / 2;
+  const start = Math.max(a.x + LOW_TUNNEL.landingZone, crystalX - LOW_TUNNEL.mergedCover);
+  const end = Math.min(right - LOW_TUNNEL.exitRunway, crystalX + LOW_TUNNEL.crystalWidth + LOW_TUNNEL.mergedCover);
+  if (crystalX - start < LOW_TUNNEL.minEntryCover || end - (crystalX + LOW_TUNNEL.crystalWidth) < LOW_TUNNEL.minExitCover) return null;
+  const bottom = floorY - LOW_TUNNEL.clearance;
+  return {
+    merged: true,
+    pairGap,
+    tunnelGap: 0,
+    floorY,
+    crystalX,
+    edgeX: crystalX,
+    exitX: crystalX + LOW_TUNNEL.crystalWidth,
+    block: { x: start, y: bottom - LOW_TUNNEL.blockHeight, w: end - start, h: LOW_TUNNEL.blockHeight },
+  };
+}
+
 /** Pares candidatos, em ordem de rota. Exportado para testes e diagnostico. */
-function lowTunnelCandidates(level, phase) {
+function lowTunnelCandidates(level, phase, { merged = false } = {}) {
   if (!(phase >= LOW_TUNNEL.firstPhase)) return [];
   const route = routePlatforms(level);
   const all = level.platforms || [];
@@ -53442,7 +53479,7 @@ function lowTunnelCandidates(level, phase) {
   for (let i = 0; i + 1 < route.length; i++) {
     const a = route[i];
     const b = route[i + 1];
-    const plan = planFor(a, b);
+    const plan = merged ? planMerged(a, b) : planFor(a, b);
     if (!plan) continue;
     if (!convertibleToSoil(a, referenced) || !convertibleToSoil(b, referenced)) continue;
     if (!chunkAllowed(phase, a.logicIndex) || !chunkAllowed(phase, b.logicIndex)) continue;
@@ -53475,23 +53512,41 @@ function lowTunnelCandidates(level, phase) {
  * Escolhe e instala os tuneis da fase. Deterministico pela semente. Devolve a
  * lista instalada (tambem em `level.ceilingDrops`).
  */
-function installLowTunnels(level, { phase, seedValue = '' } = {}) {
+function installLowTunnels(level, { phase, seedValue = '' , abilities = {} } = {}) {
   level.ceilingDrops = [];
   level.tunnelFloors = [];
-  const candidates = lowTunnelCandidates(level, phase);
-  if (!candidates.length) return level.ceilingDrops;
   const rnd = createRandom(`${seedValue}:low-tunnel:${phase}`);
+  const gapCandidates = lowTunnelCandidates(level, phase);
+  const phosphateOn = LOW_TUNNEL.phosphatePhases.includes(phase)
+    && abilities.phosphateSolubilization !== false;
+  const mergedCandidates = phosphateOn ? lowTunnelCandidates(level, phase, { merged: true }) : [];
   const chosen = [];
+  const spaced = c => !chosen.some(k => k.a === c.a || k.b === c.a || k.a === c.b
+    || Math.abs(k.chunk - c.chunk) < LOW_TUNNEL.minChunkSpacing);
 
-  if (phase === LOW_TUNNEL.firstPhase) {
+  if (phase === LOW_TUNNEL.firstPhase && gapCandidates.length) {
     // o que ensina: o primeiro par depois do Dash (de preferencia ja de terra)
-    const teach = candidates.find(c => !c.converts) || candidates[0];
+    const teach = gapCandidates.find(c => !c.converts) || gapCandidates[0];
     chosen.push({ ...teach, teaching: true });
   }
-  const pool = candidates.filter(c => !chosen.some(k => k.a === c.a));
+  if (phosphateOn) {
+    // um tunel de fosfato garantido: sem vao ou com vao, sorteado entre os que cabem
+    const options = [
+      ...mergedCandidates.map(c => ({ ...c, phosphate: true })),
+      ...gapCandidates.map(c => ({ ...c, phosphate: true })),
+    ];
+    while (options.length) {
+      const pick = options.splice(Math.floor(rnd() * options.length), 1)[0];
+      if (!spaced(pick)) continue;
+      if (!chargerFor(level, pick)) continue;
+      chosen.push(pick);
+      break;
+    }
+  }
+  const pool = gapCandidates.slice();
   while (chosen.length < LOW_TUNNEL.maxPerPhase && pool.length) {
     const pick = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
-    if (chosen.some(k => Math.abs(k.chunk - pick.chunk) < LOW_TUNNEL.minChunkSpacing)) continue;
+    if (!spaced(pick)) continue;
     chosen.push(pick);
   }
   chosen.sort((m, n) => m.a.x - n.a.x);
@@ -53502,6 +53557,8 @@ function installLowTunnels(level, { phase, seedValue = '' } = {}) {
       id: `low-tunnel-${c.chunk}`,
       lowTunnel: true,
       teaching: Boolean(c.teaching),
+      phosphate: Boolean(c.phosphate),
+      merged: Boolean(c.merged),
       gap: Math.round(c.tunnelGap),
       pairGap: c.gap,
       entryX: c.edgeX,
@@ -53509,28 +53566,109 @@ function installLowTunnels(level, { phase, seedValue = '' } = {}) {
       floorY: c.floorY,
       logicIndex: c.chunk,
       entryPlatform: c.a,
-      exitPlatform: c.b,
+      exitPlatform: c.merged ? c.a : c.b,
     };
     // chao de tunel e bloco de terra (como no prototipo)
     for (const p of [c.a, c.b]) {
       if (p.type === 'root') { p.type = 'soil'; p.lowTunnelConvertedFromRoot = true; }
     }
-    // os dois blocos de terra crescem ate as bordas do vao (mesma altura;
-    // o lado de fora de cada um fica onde estava)
-    if (c.growA) { c.a.w += c.growA; c.a.lowTunnelExtension = c.growA; }
-    if (c.growB) { c.b.x -= c.growB; c.b.w += c.growB; c.b.lowTunnelExtension = c.growB; }
+    if (c.merged) {
+      // um bloco comprido: o primeiro cresce ate o fim do segundo, que sai da fase
+      const right = c.b.x + c.b.w;
+      c.a.w = right - c.a.x;
+      c.a.lowTunnelExtension = right - c.a.x;
+      level.platforms.splice(level.platforms.indexOf(c.b), 1);
+    } else {
+      // os dois blocos de terra crescem ate as bordas do vao (mesma altura;
+      // o lado de fora de cada um fica onde estava)
+      if (c.growA) { c.a.w += c.growA; c.a.lowTunnelExtension = c.growA; }
+      if (c.growB) { c.b.x -= c.growB; c.b.w += c.growB; c.b.lowTunnelExtension = c.growB; }
+    }
     level.ceilingDrops.push(drop);
-    // os dois chaos do tunel nao cedem com a saude da raiz
-    for (const p of [c.a, c.b]) {
+    // os chaos do tunel nao cedem com a saude da raiz
+    for (const p of c.merged ? [c.a] : [c.a, c.b]) {
       p.lowTunnelAnchor = true;
       if (Number.isFinite(p.rootBaseY)) { p.y = p.rootBaseY; p.supportOffset = 0; }
     }
+    if (c.phosphate) installTunnelCrystal(level, c, drop);
     // exsudato que caiu dentro do bloco desce para baixo dele
     for (const e of level.exudates || []) {
       if (pointIn(drop, e.x, e.y, 6)) e.y = drop.y + drop.h + 22;
     }
   }
   return level.ceilingDrops;
+}
+
+// Bloco de raiz ate `chargerReach` passos antes do tunel para a colonia de
+// Bacillus que carrega a solubilizacao (como o portao de fosfato da fase 10).
+function chargerFor(level, c) {
+  const route = routePlatforms(level);
+  const i = route.indexOf(c.a);
+  if (i <= 0) return null;
+  const referenced = referencedPlatforms(level);
+  for (let k = 1; k <= LOW_TUNNEL.chargerReach && i - k >= 0; k++) {
+    const p = route[i - k];
+    if (p.lowTunnelAnchor || p.w < 90) continue;
+    if (p.type === 'root' || convertibleToSoil(p, referenced)) return p;
+  }
+  return null;
+}
+
+function installTunnelCrystal(level, c, drop) {
+  const w = LOW_TUNNEL.crystalWidth;
+  const x = c.merged ? c.crystalX : c.edgeX - LOW_TUNNEL.crystalBeforeEdge - w;
+  const deposit = {
+    id: `low-tunnel-${c.chunk}:phosphate`,
+    phosphateDeposit: true,
+    lowTunnel: true,
+    logicIndex: c.chunk,
+    requiredFeature: 'phosphateSolubilization',
+    // do chao ao teto: nao ha como pular por cima
+    x,
+    y: c.floorY - LOW_TUNNEL.clearance,
+    w,
+    h: LOW_TUNNEL.clearance,
+    remainingPhosphate: 1,
+    initialPhosphate: 1,
+    hp: 1,
+    broken: false,
+    localAvailablePhosphate: 0,
+    hostPlatformId: c.a.platformId || c.a.id || null,
+    destinationPlatformId: null,
+    routeScope: 'primary',
+    routeOwned: false,
+    authored: true,
+    difficulty: c.merged ? 'low-tunnel' : 'low-tunnel-dash',
+    transportRoot: null,
+    transportRootLogicIndex: null,
+  };
+  level.crystals ||= [];
+  level.phosphateDeposits ||= [];
+  level.availablePhosphatePools ||= [];
+  level.phosphateTransportParticles ||= [];
+  level.crystals.push(deposit);
+  level.phosphateDeposits.push(deposit);
+  drop.crystal = deposit;
+
+  const charger = chargerFor(level, c);
+  if (charger) {
+    if (charger.type !== 'root') { charger.type = 'root'; charger.lowTunnelCharger = true; }
+    level.authoredBeneficialColonies = [
+      ...(level.authoredBeneficialColonies || []),
+      {
+        id: `low-tunnel-${c.chunk}-bacillus`,
+        type: 'bacillus',
+        platform: charger,
+        x: charger.x + charger.w * .55,
+        y: charger.y - 8,
+        sourceCount: 5,
+        vigor: 1,
+        growth: 1,
+        rechargeIntensity: .35,
+      },
+    ];
+    drop.chargerLogicIndex = charger.logicIndex;
+  }
 }
 
 /** Diagnostico: por que cada par da rota foi recusado. */

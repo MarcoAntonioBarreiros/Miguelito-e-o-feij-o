@@ -1258,7 +1258,7 @@ function prepareLevel() {
   synchronizeWorldBounds(levelData);
   // Tunel baixo (Dash/propulsor): so sobre pares que ja tem o vao certo, depois
   // de TODA a geometria (ancoras, objetivo final, limites do mundo); nao move plataforma nenhuma.
-  installLowTunnels(levelData, { phase: campaign.phase, seedValue: seed });
+  installLowTunnels(levelData, { phase: campaign.phase, seedValue: seed, abilities: campaign.unlocks || {} });
   window.miguelitoLowTunnels = () => lowTunnelDiagnostics(levelData, campaign.phase);
   traceGeometry('installLowTunnels');
   // CAPACIDADE MINERAL DA FASE, uma vez, no fim.
@@ -2232,7 +2232,8 @@ function announceLowTunnel() {
   for (const d of st.level?.ceilingDrops || []) {
     if (px < d.entryX - 380 || px > d.entryX) continue;
     if (Math.abs((st.player.y + st.player.h) - d.floorY) > 140) continue;
-    narrate(st, st.player.canJetpack ? 'tunnel.dash-jetpack' : 'tunnel.dash');
+    if (d.phosphate && d.crystal && !d.crystal.broken) narrate(st, 'tunnel.phosphate');
+    else if (!d.merged) narrate(st, st.player.canJetpack ? 'tunnel.dash-jetpack' : 'tunnel.dash');
     return;
   }
 }

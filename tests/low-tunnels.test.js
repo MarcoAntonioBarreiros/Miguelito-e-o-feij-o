@@ -121,3 +121,75 @@ test('candidatos: trecho procedural, alturas compativeis e nada no caminho', () 
   assert.equal(lowTunnelCandidates(busy, 6).length, 0, 'raiz com organismo nao vira terra');
   assert.ok(level.platforms.every(p => p.lowTunnelAnchor), 'chao do tunel nao cede');
 });
+
+// --- tunel de fosfato (fases 8-10) -----------------------------------------
+function phosphateLevel(pairGap, { dy = 0 } = {}) {
+  // charger (raiz) -> a -> b, no trecho procedural p8-challenge (24-35)
+  const charger = { x: 300, y: FLOOR, w: 220, h: 60, logicIndex: 25, type: 'root' };
+  const a = { x: 700, y: FLOOR, w: 260, h: 60, logicIndex: 26, type: 'soil' };
+  const b = { x: 960 + pairGap, y: FLOOR + dy, w: 260, h: 60, logicIndex: 27, type: 'soil' };
+  return { platforms: [charger, a, b], exudates: [] };
+}
+
+function walkThrough(level, drop, { dash = false } = {}) {
+  const sim = createSimulator();
+  sim.reset();
+  const s = sim.state;
+  s.level.platforms = level.platforms;
+  s.level.ceilingDrops = level.ceilingDrops;
+  s.level.crystals = level.crystals;
+  s.level.hazards = [];
+  s.player.x = drop.entryPlatform.x + 10;
+  s.player.y = drop.floorY - 48;
+  s.player.canDash = true;
+  s.player.canDoubleJump = true;
+  let dashed = false;
+  for (let f = 0; f < 400; f++) {
+    const keys = { ArrowRight: true };
+    if (f % 25 < 4) keys.Space = true;
+    if (dash && !dashed && s.player.x + s.player.w >= drop.entryX - 30) { keys.ShiftLeft = true; dashed = true; }
+    sim.setInputs(keys);
+    sim.step(DT);
+    if (s.player.y > FLOOR + 170) return false;
+    if (s.player.onGround && s.player.x >= drop.exitX - 4) return true;
+  }
+  return false;
+}
+
+test('fosfato: so a partir da fase 8 e com colonia de Bacillus antes do tunel', () => {
+  for (const phase of [6, 7]) {
+    const level = phosphateLevel(110);
+    installLowTunnels(level, { phase, seedValue: 'f', abilities: { phosphateSolubilization: true } });
+    assert.ok(!(level.crystals || []).length, `fase ${phase} sem fosfato em tunel`);
+  }
+  const level = phosphateLevel(110);
+  installLowTunnels(level, { phase: 8, seedValue: 'f', abilities: { phosphateSolubilization: true } });
+  const drop = level.ceilingDrops.find(d => d.phosphate);
+  assert.ok(drop, 'tunel de fosfato na fase 8');
+  const colony = (level.authoredBeneficialColonies || []).find(c => c.type === 'bacillus');
+  assert.ok(colony && colony.x < drop.crystal.x, 'Bacillus antes do cristal');
+  assert.equal(drop.crystal.y + drop.crystal.h, drop.floorY, 'cristal apoiado no chao');
+  assert.equal(drop.crystal.y, drop.y + drop.h, 'cristal encosta no teto');
+});
+
+test('fosfato sem vao: bloco comprido unico; cristal bloqueia ate dissolver', () => {
+  const level = phosphateLevel(110);
+  installLowTunnels(level, { phase: 8, seedValue: 'f', abilities: { phosphateSolubilization: true } });
+  const drop = level.ceilingDrops.find(d => d.phosphate);
+  if (!drop.merged) return; // a semente escolheu o tipo com vao; coberto no proximo teste
+  assert.equal(level.platforms.length, 2, 'os dois blocos viraram um');
+  assert.equal(walkThrough(level, drop), false, 'cristal inteiro bloqueia');
+  drop.crystal.broken = true;
+  assert.equal(walkThrough(level, drop), true, 'dissolvido, passa andando');
+});
+
+test('fosfato com vao: dissolver e depois anda -> Dash -> anda', () => {
+  const level = phosphateLevel(246);
+  installLowTunnels(level, { phase: 8, seedValue: 'f', abilities: { phosphateSolubilization: true } });
+  const drop = level.ceilingDrops.find(d => d.phosphate);
+  assert.ok(drop && !drop.merged);
+  assert.ok(drop.crystal.x + drop.crystal.w <= drop.entryX - LOW_TUNNEL.crystalBeforeEdge + .5, 'corrida livre antes do vao');
+  assert.equal(walkThrough(level, drop, { dash: true }), false, 'cristal inteiro bloqueia');
+  drop.crystal.broken = true;
+  assert.equal(walkThrough(level, drop, { dash: true }), true, 'dissolvido, Dash atravessa');
+});

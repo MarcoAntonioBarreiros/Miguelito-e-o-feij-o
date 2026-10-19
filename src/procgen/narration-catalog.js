@@ -53,6 +53,8 @@ export const NARRATION = Object.freeze({
     text: 'Túnel baixo: ande e use o Dash no vão' },
   'tunnel.dash-jetpack': { kind: 'hint', scope: 'campaign',
     text: 'Túnel baixo: Dash ou propulsor para cruzar o vão' },
+  'tunnel.phosphate': { kind: 'hint', scope: 'campaign',
+    text: 'Fosfato no túnel: carregue no Bacillus e dissolva (E)' },
   'route.high': { kind: 'hint', scope: 'campaign',
     text: 'Rotas altas escondem recursos extras' },
   ...unlockEntries,
