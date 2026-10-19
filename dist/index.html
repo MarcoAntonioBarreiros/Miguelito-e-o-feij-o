@@ -1108,7 +1108,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"2c4e3a1","subject":"Merge remote-tracking branch 'origin/main' into experiment/calmaria","builtAt":"2026-10-19 19:55"};
+window.__BEANS_BUILD__ = {"commit":"e95d88e","subject":"Calmaria: sprites zen do Marco (rizoctonia_zen2), particulas quentes por","builtAt":"2026-10-19 20:07"};
 (() => {
 'use strict';
 const __modules = {
@@ -11978,9 +11978,11 @@ function drawCalmMotes(ctx, key, { x, y, size, calm, time }) {
     while (p.acc >= 1) {
       p.acc -= 1;
       if (p.motes.length >= MAX_PER_KEY) { p.acc = 0; break; }
+      // nascem na borda da silhueta e saem para fora: assim aparecem mesmo
+      // atras de um sprite cheio (no miolo ficavam escondidas pelo corpo)
       const a = Math.random() * Math.PI * 2;
-      const r = size * (.08 + Math.random() * .22);
-      const speed = 22 + Math.random() * 46;
+      const r = size * (.3 + Math.random() * .16);
+      const speed = 34 + Math.random() * 44;
       p.motes.push({
         x: x + Math.cos(a) * r,
         y: y + Math.sin(a) * r * .8,

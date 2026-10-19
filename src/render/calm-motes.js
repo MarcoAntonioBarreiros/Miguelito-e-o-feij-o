@@ -48,9 +48,11 @@ export function drawCalmMotes(ctx, key, { x, y, size, calm, time }) {
     while (p.acc >= 1) {
       p.acc -= 1;
       if (p.motes.length >= MAX_PER_KEY) { p.acc = 0; break; }
+      // nascem na borda da silhueta e saem para fora: assim aparecem mesmo
+      // atras de um sprite cheio (no miolo ficavam escondidas pelo corpo)
       const a = Math.random() * Math.PI * 2;
-      const r = size * (.08 + Math.random() * .22);
-      const speed = 22 + Math.random() * 46;
+      const r = size * (.3 + Math.random() * .16);
+      const speed = 34 + Math.random() * 44;
       p.motes.push({
         x: x + Math.cos(a) * r,
         y: y + Math.sin(a) * r * .8,
