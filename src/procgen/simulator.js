@@ -254,7 +254,8 @@ export function createSimulator({
     ecology,
     inoculants: beneficialInoculants,
   });
-  const opportunisticFungus = createOpportunisticFungus({ state, entities, ecology });
+  const opportunisticFungus = createOpportunisticFungus({ state, entities, ecology, mycoparasitism: trichoderma });
+  trichoderma.setTargetVisualProvider?.(targetId => opportunisticFungus.contactPaths(targetId));
   const bacillusBioprotection = createBacillusBioprotection({
     state,
     entities,

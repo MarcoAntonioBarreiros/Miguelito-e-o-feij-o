@@ -222,10 +222,13 @@ export function renderHyphalNetwork(ctx, network, state, style = {}) {
   ctx.lineJoin = 'round';
 
   for (const tip of network.tips) {
-    if (tip.points.length < 2) continue;
+    // Optional presentation hooks do not modify the mechanical point array.
+    // Existing callers retain exactly the same default rendering.
+    const points = style.pointProvider ? style.pointProvider(tip, network) : tip.points;
+    if (!points || points.length < 2) continue;
     const alpha = (tip.active ? .9 : .5) * fade;
     ctx.beginPath();
-    tip.points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+    points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
     ctx.shadowBlur = style.shadowBlur ?? 12;
     ctx.shadowColor = color;
     ctx.strokeStyle = colorWithAlpha(color, alpha * .28);
@@ -235,18 +238,18 @@ export function renderHyphalNetwork(ctx, network, state, style = {}) {
     ctx.strokeStyle = colorWithAlpha(core, alpha);
     ctx.lineWidth = Math.max(.7, (style.coreWidth || profile.coreWidth) - tip.depth * .22);
     ctx.stroke();
-    if (tip.active) {
+    if (tip.active && (!style.showTip || style.showTip(tip, network))) {
       ctx.shadowBlur = style.tipBlur ?? 16;
       ctx.shadowColor = color;
       ctx.fillStyle = tipColor;
       ctx.beginPath();
-      ctx.arc(tip.x, tip.y, 2.7 + Math.sin(state.time * 5 + tip.seed) * .65, 0, TAU);
+      ctx.arc(tip.x, tip.y, style.tipRadius ?? (2.7 + Math.sin(state.time * 5 + tip.seed) * .65), 0, TAU);
       ctx.fill();
       ctx.shadowBlur = 0;
     }
   }
 
-  for (const enzyme of network.enzymes) {
+  for (const enzyme of style.showEnzymes === false ? [] : network.enzymes) {
     ctx.globalAlpha = clamp(enzyme.life, 0, 1) * fade;
     const gradient = ctx.createRadialGradient(enzyme.x, enzyme.y, 0, enzyme.x, enzyme.y, enzyme.r);
     gradient.addColorStop(0, 'rgba(186,246,111,.36)');
@@ -254,7 +257,7 @@ export function renderHyphalNetwork(ctx, network, state, style = {}) {
     ctx.fillStyle = gradient;
     ctx.beginPath(); ctx.arc(enzyme.x, enzyme.y, enzyme.r, 0, TAU); ctx.fill();
   }
-  for (const fragment of network.fragments) {
+  for (const fragment of style.showFragments === false ? [] : network.fragments) {
     ctx.globalAlpha = clamp(fragment.life, 0, 1) * fade;
     ctx.fillStyle = fragment.color || '#ff8297';
     ctx.beginPath(); ctx.arc(fragment.x, fragment.y, fragment.r || 2.2, 0, TAU); ctx.fill();

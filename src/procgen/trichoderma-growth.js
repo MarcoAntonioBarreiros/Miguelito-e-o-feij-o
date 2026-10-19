@@ -3,6 +3,7 @@ import { clamp, createHyphalNetwork, renderHyphalNetwork, TAU, updateHyphalNetwo
 import { fxLanded } from '../game-audio.js';
 import { narrate } from './narrator.js';
 import { hyphalWorldBounds } from './world-bounds.js';
+import { drawOpportunisticMycoparasitism, opportunisticSearchPath } from '../render/opportunistic-mycoparasitism.js';
 
 function nearestPointOnRect(x, y, rect) {
   return { x: clamp(x, rect.x, rect.x + rect.w), y: clamp(y, rect.y, rect.y + rect.h) };
@@ -35,6 +36,7 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
   const naturalGerminationRadius = 190;
   const maxActiveNetworks = 6;
   let lastExhaustionToastAt = -Infinity;
+  let targetVisualProvider = null;
 
   function releaseColony(network, { reward = 0, cooldown = 1.4, stage = 'ready' } = {}) {
     const colony = colonies.byId(network?.metadata?.colonyId);
@@ -466,44 +468,29 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
     }
   }
 
-  function renderTargetStatus(ctx, network) {
-    const target = byAgentId(ecology.agents, network.metadata.targetId);
-    if (!target) return;
-    const contact = network.metadata.contact;
-    const lysis = network.metadata.lysis;
-    ctx.save();
-    ctx.translate(-state.cameraX, 0);
-    const pulse = 1 + Math.sin(state.time * 3.4 + network.metadata.phase) * .06;
-    ctx.strokeStyle = `rgba(141,240,168,${.18 + contact * .62})`;
-    ctx.lineWidth = 1.2 + contact * 2.2;
-    ctx.setLineDash([3, 6]);
-    ctx.beginPath();
-    ctx.arc(target.x, target.y, (18 + lysis * 18) * pulse, 0, TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    const coils = 2 + Math.floor(contact * 7);
-    for (let i = 0; i < coils; i++) {
-      const angle = state.time * (2.8 + i * .08) + network.metadata.phase + i / coils * TAU;
-      const radius = 11 + i * 2.3;
-      ctx.strokeStyle = `rgba(141,240,168,${.2 + contact * .62})`;
-      ctx.lineWidth = 1.15;
-      ctx.beginPath();
-      ctx.ellipse(target.x + Math.cos(angle) * 2.5, target.y + Math.sin(angle) * 1.8, radius, radius * .58, angle * .2, angle, angle + Math.PI * 1.5);
-      ctx.stroke();
-    }
-    ctx.restore();
+  function renderTargetStatus(ctx, network, substrate) {
+    if (!substrate) return;
+    drawOpportunisticMycoparasitism(ctx, substrate, network, state);
   }
 
   function render(ctx) {
     for (const network of networks.values()) {
+      const target = byAgentId(ecology.agents, network.metadata.targetId);
+      const substrate = targetVisualProvider?.(network.metadata.targetId) || null;
       renderHyphalNetwork(ctx, network, state, {
-        color: '#8df0a8', core: '#eaffef', tip: '#ffffff', shadowBlur: 14,
+        color: '#718d62', core: '#c1d4a5', tip: '#dce8c9',
+        shadowBlur: 0, tipBlur: 0, haloWidth: 2.7, coreWidth: 1.15, tipRadius: 1.45,
+        pointProvider: tip => opportunisticSearchPath(tip, target, substrate),
+        showTip: tip => tip.mode !== 'coil',
+        showEnzymes: false, showFragments: false,
       });
-      renderTargetStatus(ctx, network);
+      renderTargetStatus(ctx, network, substrate);
     }
   }
 
   return {
+    get networks() { return [...networks.values()]; },
+    setTargetVisualProvider(provider) { targetVisualProvider = typeof provider === 'function' ? provider : null; },
     get attackCount() { return activeNetworkCount(); },
     get searchCount() { return searchNetworks().length; },
     get vigorAverage() { return colonies.vigorAverage; },

@@ -3,6 +3,7 @@ import { organismSprites } from '../render/organism-sprites.js';
 import { getPhaseManifest } from './campaign-manifest.js';
 import { narrate } from './narrator.js';
 import { hyphalWorldBounds } from './world-bounds.js';
+import { drawOpportunisticMycelium, forgetOpportunisticVisual, opportunisticContactPaths, opportunisticVisualSnapshot, syncOpportunisticVisual } from '../render/opportunistic-mycelium.js';
 
 const TAU = Math.PI * 2;
 // Limiar e tempo de sustentação do marco de controle fúngico (fase 5).
@@ -173,7 +174,7 @@ function targetAngle(from, target) {
   return Math.atan2(target.y - from.y, target.x - from.x);
 }
 
-export function createOpportunisticFungus({ state, entities, ecology }) {
+export function createOpportunisticFungus({ state, entities, ecology, mycoparasitism = null }) {
   const networks = new Map();
   let contactIntensity = 0;
   let maximumIronLimitation = 0;
@@ -273,6 +274,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     for (const [key, network] of networks) {
       if (activeKeys.has(key)) continue;
       for (const agent of network.agents) delete agent.rootedFungus;
+      forgetOpportunisticVisual(network);
       networks.delete(key);
     }
   }
@@ -505,6 +507,8 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     );
     for (const network of networks.values()) {
       updateNetwork(network, dt, target, settings);
+      // Observe real biology every update, including when the renderer is off.
+      syncOpportunisticVisual(network, state.time, mycoparasitism?.networks || []);
       state.player.fungalAttachmentLevel = Math.max(
         state.player.fungalAttachmentLevel,
         network.attached,
@@ -582,86 +586,9 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
   }
 
   function drawNetwork(ctx, network) {
-    const response = network.response || { vigor: 1 };
-    const vigor = response.vigor;
-    const green = Math.round(72 + vigor * 45);
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    // Bainha fina: preserva o brilho neon sem transformar as hifas em ponte.
-    ctx.shadowColor = `rgba(255,74,119,${.12 + vigor * .2})`;
-    ctx.shadowBlur = 7 + vigor * 7;
-    for (const segment of network.segments) {
-      const width = Math.max(1.1, (2.35 - segment.depth * .3) * (.58 + vigor * .42));
-      ctx.strokeStyle = `rgba(112,23,54,${.16 + vigor * .18})`;
-      ctx.lineWidth = width + 1.7;
-      ctx.beginPath();
-      ctx.moveTo(segment.start.x, segment.start.y);
-      ctx.lineTo(segment.end.x, segment.end.y);
-      ctx.stroke();
-    }
-
-    ctx.shadowBlur = 4 + vigor * 5;
-    for (const segment of network.segments) {
-      const width = Math.max(.65, (1.55 - segment.depth * .18) * (.52 + vigor * .48));
-      ctx.strokeStyle = `rgba(255,${green},125,${.34 + vigor * .55})`;
-      ctx.lineWidth = width;
-      ctx.beginPath();
-      ctx.moveTo(segment.start.x, segment.start.y);
-      ctx.lineTo(segment.end.x, segment.end.y);
-      ctx.stroke();
-
-      if (segment.depth <= 1 && segment.order % 9 === 0) {
-        const dx = segment.end.x - segment.start.x;
-        const dy = segment.end.y - segment.start.y;
-        const length = Math.max(1, Math.hypot(dx, dy));
-        const nx = -dy / length;
-        const ny = dx / length;
-        ctx.strokeStyle = `rgba(255,210,211,${.22 + vigor * .36})`;
-        ctx.lineWidth = .75;
-        ctx.beginPath();
-        ctx.moveTo(segment.end.x - nx * 3.5, segment.end.y - ny * 3.5);
-        ctx.lineTo(segment.end.x + nx * 3.5, segment.end.y + ny * 3.5);
-        ctx.stroke();
-      }
-    }
-
-    for (const lesion of network.lesions) {
-      if (lesion === network.lesions[0]) continue;
-      const reached = lesion.reached ? 1 : .28;
-      const radius = 2.3 + reached * 2 + Math.sin(state.time * 2 + lesion.phase) * .35;
-      ctx.fillStyle = `rgba(255,92,126,${.22 + reached * .52})`;
-      ctx.shadowColor = 'rgba(255,78,118,.7)';
-      ctx.shadowBlur = lesion.reached ? 8 : 3;
-      ctx.beginPath();
-      ctx.arc(lesion.x, lesion.y, radius, 0, TAU);
-      ctx.fill();
-    }
-
-    for (const tip of network.tips) {
-      if (!tip.active) continue;
-      const radius = 1.5 + vigor * 1.7 + Math.sin(state.time * 4.2 + tip.phase) * .35;
-      ctx.fillStyle = `rgba(255,224,205,${.42 + vigor * .5})`;
-      ctx.shadowColor = 'rgba(255,112,132,.8)';
-      ctx.shadowBlur = 7 * vigor;
-      ctx.beginPath();
-      ctx.arc(tip.x, tip.y, radius, 0, TAU);
-      ctx.fill();
-    }
-
-    ctx.shadowBlur = 0;
-    for (const spore of network.spores) {
-      const alpha = clamp(spore.life / 3.5, .08, .34) * (.3 + vigor * .7);
-      ctx.fillStyle = `rgba(223,181,238,${alpha})`;
-      ctx.beginPath();
-      ctx.arc(spore.x, spore.y, 1.45 + Math.sin(state.time * 1.7 + spore.phase) * .25, 0, TAU);
-      ctx.fill();
-    }
-    ctx.restore();
-    // O foco animado fica na frente da rede: as hifas nascem visualmente
-    // atrás da sheet, sem atravessar o corpo do organismo.
-    drawFocus(ctx, network, vigor);
+    drawOpportunisticMycelium(ctx, network, state, mycoparasitism?.networks || []);
+    // Keep the existing sprite, scale, position and animation unchanged.
+    drawFocus(ctx, network, network.response?.vigor ?? 1);
   }
 
   function drawVigorIndicator(ctx, network) {
@@ -698,6 +625,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
   function clear() {
     for (const network of networks.values()) {
       for (const agent of network.agents) delete agent.rootedFungus;
+      forgetOpportunisticVisual(network);
     }
     networks.clear();
     contactIntensity = 0;
@@ -721,6 +649,14 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     clear,
     reset,
     get networks() { return networks; },
+    visualSnapshot(networkOrKey) {
+      const network = typeof networkOrKey === 'object' ? networkOrKey : networks.get(networkOrKey);
+      return network ? opportunisticVisualSnapshot(network, state.time, mycoparasitism?.networks || []) : null;
+    },
+    contactPaths(targetId) {
+      const network = [...networks.values()].find(candidate => candidate.agents.some(agent => agent.id === targetId));
+      return network ? opportunisticContactPaths(network, state.time, mycoparasitism?.networks || []) : null;
+    },
     get contactIntensity() { return contactIntensity; },
     get maximumIronLimitation() { return maximumIronLimitation; },
     // Leitura de HUD/telemetria: o vigor do foco MENOS controlado.
