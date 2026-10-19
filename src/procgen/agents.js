@@ -7,7 +7,9 @@ export function validateChunk(fromPlatform, toPlatform, primitive, agentType = '
   const sim = createSimulator();
   const validationEnd = Math.max(toPlatform.x + toPlatform.w + 600, 6000);
 
-  sim.state.level.platforms = [fromPlatform, toPlatform];
+  // copias: a simulacao de validacao nao pode carimbar estado de jogo
+  // (rootBaseY da saude da raiz etc.) nas plataformas reais da geracao
+  sim.state.level.platforms = [{ ...fromPlatform }, { ...toPlatform }];
   sim.state.level.hazards = [];
   sim.state.level.endX = validationEnd;
   sim.state.level.cameraMaxX = Math.max(0, validationEnd - 1280);
