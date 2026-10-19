@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"d591b2c","subject":"Integra melhorias WebGL aprovadas preservando os VFX da main (#1)","builtAt":"2026-10-19 01:44"};
+window.__BEANS_BUILD__ = {"commit":"769edb2","subject":"Substitui fosfato por cristais procedurais facetados (#2)","builtAt":"2026-10-19 02:47"};
 (() => {
 'use strict';
 const __modules = {
@@ -1138,6 +1138,7 @@ const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.
 const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");
 const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");
 const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");
+const { prepareRalstoniaTeachingEncounters } = __require("src/procgen/ralstonia-teaching.js");
 const { narrate } = __require("src/procgen/narrator.js");
 const { createPauseMenu } = __require("src/procgen/pause-menu.js");
 const { FEATURE_LABELS } = __require("src/procgen/narration-catalog.js");
@@ -1353,6 +1354,7 @@ const OBJECTIVE_LABELS = {
   activeCriticalRalstoniaCount: 'Chegue à raiz final sem murcha crítica ativa',
   blockedRalstoniaSpreadCount: 'Bloqueie uma disseminação para outra raiz',
   succeededRalstoniaSpreadCount: 'Impeça que a Ralstonia alcance uma segunda raiz',
+  unresolvedRalstoniaSpreadCount: 'Mantenha os focos secundários sob controle',
   averageVascularTransport: 'Preserve o transporte vascular',
   preservedVascularRootCount: 'Preserve raízes com transporte funcional',
   recoveredRootCount: 'Recupere uma raiz danificada',
@@ -1620,8 +1622,9 @@ function topologyDetourDebug(level) {
 function finalStatusClass(condition, result) {
   // Disseminacao contida e o mesmo tipo de leitura da murcha critica: um STATUS
   // do agora, nao uma conquista. Neutro antes de a doenca comecar, estavel
-  // enquanto nada passou, vermelho quando passou, verde so no fim.
-  if (condition.key === 'succeededRalstoniaSpreadCount') {
+  // enquanto não há ameaça pendente, vermelho quando o controle falta, verde
+  // só no fim. Um secundário recuperado devolve o status estável.
+  if (condition.key === 'unresolvedRalstoniaSpreadCount') {
     const passaram = Number(result?.actual) || 0;
     if (passaram > 0) return 'violated';
     if (levelData?.goal?.completed) return 'completed';
@@ -1637,15 +1640,16 @@ function finalStatusClass(condition, result) {
 }
 
 function finalStatusNote(condition, result) {
-  if (condition.key === 'succeededRalstoniaSpreadCount') {
+  if (condition.key === 'unresolvedRalstoniaSpreadCount') {
     const passaram = Number(result?.actual) || 0;
-    if (passaram > 0) return `A doença alcançou outra raiz: ${passaram}`;
-    if (levelData?.goal?.completed) return 'Concluído sem disseminação';
+    if (passaram > 0) return `Focos sem controle ou propagações em trânsito: ${passaram}`;
+    if (levelData?.goal?.completed) return 'Concluído com a propagação sob controle';
     if (!ralstoniaControl.challengeStarted) return '';
     const bloqueadas = ralstoniaControl.blockedSpreadCount || 0;
-    return bloqueadas
-      ? `Contida nesta raiz · ${bloqueadas} disseminação${bloqueadas > 1 ? 'ões' : ''} bloqueada${bloqueadas > 1 ? 's' : ''}`
-      : 'Contida nesta raiz';
+    const historico = ralstoniaControl.successfulSpreadCount || 0;
+    return historico
+      ? `Propagação controlada · histórico: ${historico}`
+      : bloqueadas ? `${bloqueadas} disseminação(ões) bloqueada(s)` : 'Nenhuma propagação sem controle';
   }
   if (condition.key !== 'activeCriticalRalstoniaCount') return '';
   const criticos = Number(result?.actual) || 0;
@@ -1940,7 +1944,7 @@ sim.goal.setCompletionGuard(() => {
   const result = objectiveEvaluator.evaluate(conditions);
   return {
     passed: result.passed,
-    message: campaign.phase === 5
+    message: campaign.phase === 9 ? ralstoniaControl.completionHint : campaign.phase === 5
       ? 'Falta ferro e controlar o fungo'
       : 'Faltam objetivos: veja a lista',
   };
@@ -2062,8 +2066,8 @@ function prepareLevel() {
   });
   levelData.optionalDetourPlaytestMode = optionalDetourPlaytestMode;
   // Marca lida por `meloidogyne-lifecycle` e `ralstonia-vascular-wilt` no
-  // reset: com ela ligada, nenhum dos dois povoa a fase por conta propria — a
-  // primeira geracao chega pelo controlador.
+  // reset: a contaminação ambiental chega pelo controlador. A fase 9 reserva
+  // separadamente uma raiz já infectada para a lição de contenção.
   levelData.dynamicPathogenArrival = true;
   const traceGeometry = stage => (
     campaign.phase === 3 ? recordRouteGeometryStage(levelData, stage) : null
@@ -2308,6 +2312,9 @@ function prepareLevel() {
   routeAnchors.synchronize();
   anchorPowerPickups(levelData);
   installFinalGoal(levelData);
+  // Resource encounters must exist before resetEcology spawns their agents.
+  // Only phase 9 reserves the independent prevention/containment lessons.
+  prepareRalstoniaTeachingEncounters(levelData, { phaseManifest: getPhaseManifest(campaign.phase), seed });
   applyInitialRootHealth(levelData, campaign.phase);
   synchronizeWorldBounds(levelData);
   // CAPACIDADE MINERAL DA FASE, uma vez, no fim.
@@ -5674,7 +5681,7 @@ const FINAL_TEST_KEYS = Object.freeze({
     // Fase 9 (Ralstonia): prevencao, contencao, murcha critica e disseminacao.
     'preventedRalstoniaEntryCount', 'containedVascularRalstoniaCount',
     'activeCriticalRalstoniaCount', 'blockedRalstoniaSpreadCount',
-    'succeededRalstoniaSpreadCount',
+    'succeededRalstoniaSpreadCount', 'unresolvedRalstoniaSpreadCount',
     'averageVascularTransport', 'preservedVascularRootCount',
     'deployedExudateCount', 'bacillusColonyCount',
     'opportunisticFungusVigor', 'controlledOpportunisticFungusCount', 'solubilizedPhosphateDepositCount',
@@ -6227,33 +6234,19 @@ const phases = [
     // Nao exige eliminar todos os focos nem zerar a carga vascular: exige provar
     // que o jogador sabe PREVENIR uma entrada e CONTER uma infeccao que ja
     // entrou — e que nenhuma murcha critica ficou solta no fim.
-    finalTest: { id: 'p9-test', goal: 'Prevenir uma entrada, conter uma infecção vascular, impedir que a doença alcance uma segunda raiz e chegar à raiz final sem foco crítico ativo.', requires: [
+    finalTest: { id: 'p9-test', goal: 'Prevenir uma entrada, conter uma infecção vascular, controlar qualquer disseminação e chegar à raiz final sem foco crítico ativo.', requires: [
       { type: 'worldState', key: 'preventedRalstoniaEntryCount', operator: '>=', value: 1 },
       { type: 'worldState', key: 'containedVascularRalstoniaCount', operator: '>=', value: 1 },
-      // NAO PEDE MAIS "bloqueie uma disseminacao".
-      //
-      // Aquilo exigia que uma disseminacao SAISSE para poder ser bloqueada — e
-      // bloquear exige protecao >= 0,5 na raiz-alvo, ou seja, um biofilme de
-      // Bacillus ja estabelecido la, dentro dos 4,5 s de aviso, com o alvo a ate
-      // 850 px. Medido na seed campanha-497125: duas disseminacoes dispararam,
-      // nenhuma bloqueavel a tempo. Pior, o objetivo brigava com o de baixo:
-      // para ter o que bloquear era preciso deixar a doenca avancar, e deixar
-      // avancar acende a murcha critica.
-      //
-      // A licao continua a mesma — nao deixe a Ralstonia passar desta raiz — mas
-      // agora ela e cumprida por PREVENIR e CONTER, que e o que a fase ensina.
-      // Quem joga bem satisfaz o objetivo jogando bem. Bloquear uma
-      // disseminacao continua valendo: e uma das maneiras de manter isto zerado.
-      { type: 'worldState', key: 'succeededRalstoniaSpreadCount', operator: '===', value: 0,
+      // O fim depende do que ainda exige controle: eventos em aviso/transito e
+      // focos secundarios nao neutralizados nem atualmente contidos. Uma chegada
+      // passada permanece no historico, mas nao condena o restante da partida:
+      // prevenir a entrada secundaria ou conter seu foco vascular recupera o
+      // objetivo. Uma recaida ou nova disseminacao volta a deixa-lo pendente.
+      { type: 'worldState', key: 'unresolvedRalstoniaSpreadCount', operator: '===', value: 0,
         latch: false, displayMode: 'final-status' },
-      // `latch: false` = leitura do AGORA. Sem a flag esta condicao nasce
-      // satisfeita (zero focos criticos no primeiro quadro), trava, e o objetivo
-      // aparece verde antes de a fase comecar. O runtime garante pelo menos uma
-      // oportunidade de disseminacao bloqueavel e recuperavel.
-      // `latch: false` = leitura do AGORA; `displayMode: 'final-status'` diz ao
-      // painel que isto e um STATUS, nao uma conquista: comeca neutro, fica
-      // estavel enquanto nao houver critico, vermelho quando houver, e so pode
-      // aparecer verde quando a fase termina.
+      // Os dois status sao leituras do AGORA. Nao podem ficar cumpridos para
+      // sempre porque valiam zero antes de a doenca comecar. O painel distingue
+      // situacao estavel durante a fase de conclusao confirmada na raiz final.
       { type: 'worldState', key: 'activeCriticalRalstoniaCount', operator: '===', value: 0,
         latch: false, displayMode: 'final-status' },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
@@ -32157,9 +32150,12 @@ function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'containedVascularRalstoniaCount') return systems.ralstonia?.containedCount || 0;
     if (key === 'activeCriticalRalstoniaCount') return systems.ralstonia?.criticalCount || 0;
     if (key === 'blockedRalstoniaSpreadCount') return systems.ralstonia?.blockedSpreadCount || 0;
-    // Quantas disseminacoes CHEGARAM a outra raiz. Zero e o estado que a fase 9
-    // pede no fim: a doenca nao saiu de onde comecou.
+    // Historico de chegadas preservado para telemetria e avaliacao da partida.
+    // O bloqueio da raiz final usa a situacao recuperavel abaixo, sem apaga-lo.
     if (key === 'succeededRalstoniaSpreadCount') return systems.ralstonia?.successfulSpreadCount || 0;
+    // Eventos em aviso/transito + focos secundarios ainda sem controle. O
+    // controlador inclui recaidas e murcha critica nesta leitura instantanea.
+    if (key === 'unresolvedRalstoniaSpreadCount') return systems.ralstonia?.unresolvedSpreadCount || 0;
     if (key === 'averageVascularTransport') return systems.ralstonia?.averageTransport ?? 1;
     if (key === 'preservedVascularRootCount') return systems.ralstonia?.preservedVascularRootCount || 0;
     if (key === 'ecologicalScore') return Number(state.level.ecologicalScore || 0);
@@ -41518,6 +41514,10 @@ function createPathogenArrival({ state, systems = {}, settings = null } = {}) {
     const foci = control.foci || level().ralstoniaFoci || [];
     const alive = foci.filter(focus => (
       focus && focus.state !== 'neutralized' && focus.neutralized !== true
+      // Only the independently reserved, distant lesson can wait outside the
+      // ambient cap. A normal inoculum already assigned to a root still counts.
+      && !(focus.teachingEncounter && focus.activationState === 'pending')
+      && !(focus.contained && (focus.vascularLoad || 0) < (control.config?.criticalThreshold ?? .82))
     )).length;
     return alive > 0 ? 1 : 0;
   }
@@ -41931,6 +41931,8 @@ function createPathogenArrival({ state, systems = {}, settings = null } = {}) {
     if (!pathogen || !arrivalApi(pathogen)) return false;
     const gate = preventionAvailableFromChunk(pathogen);
     if (!Number.isInteger(gate)) return false;
+    const lesson = pathogen === 'ralstonia' && level().ralstoniaTeachingEncounters?.prevention;
+    if (lesson?.root && playerLogicIndex() < lesson.root.logicIndex - 1) return false;
     // "Ultrapassar a região" é passar do chunk em que a prevenção ficou
     // acessível, não apenas alcançá-lo.
     return playerLogicIndex() > gate;
@@ -41969,7 +41971,10 @@ function createPathogenArrival({ state, systems = {}, settings = null } = {}) {
    *   inóculo CHEGA. Criar o foco na origem seria colonizar a raiz de longe.
    */
   function beginWarning(pathogen, { tutorial = false, source = 'pressure', targetRoot = null } = {}) {
-    const root = targetRoot || selectTargetRoot(pathogen);
+    const lessonRoot = tutorial && pathogen === 'ralstonia'
+      ? level().ralstoniaTeachingEncounters?.prevention?.root : null;
+    const root = targetRoot || (lessonRoot && (level().platforms || []).includes(lessonRoot) ? lessonRoot : null)
+      || selectTargetRoot(pathogen);
     if (!root) return null;
     const origin = selectOrigin(pathogen, root);
     const random = createRandom(
@@ -43670,6 +43675,7 @@ function ralstoniaContextMarkup(sim, nearbyRoot) {
     `;
 
   if (snapshot.hasFocus) {
+    if (snapshot.supportHint) html += `<div class="context-item" style="font-size: 10px; color: #b8e5dc;">${snapshot.supportHint}</div>`;
     html += ralstoniaBar('Carga superficial', snapshot.surfaceLoad, '#e8c27e');
     html += ralstoniaBar('Carga vascular', snapshot.vascularLoad, critico ? '#ff6f91' : '#e8905e');
     html += ralstoniaBar('Transporte vascular', snapshot.transport, '#7ed6cd');
@@ -50471,6 +50477,10 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
   function introduceEnvironmentalInoculum({ targetRoot = null, x = null, source = 'arrival' } = {}) {
     const root = targetRoot || eligibleRoots()[0];
     if (!root) return null;
+    // Repeated environmental exposures share the infection already on a host.
+    // They must not overwrite the independently reserved vascular lesson.
+    const existing = foci.find(focus => focus.root === root && !focus.neutralized);
+    if (existing) return existing;
     if (!initialized) {
       // Sem `seedFoci` a lista nem existe: a chegada monta o minimo e segue.
       foci.length = 0;
@@ -50484,7 +50494,8 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     }
     const focus = createFocus({
       root,
-      role: 'environmental',
+      role: root === state.level.ralstoniaTeachingEncounters?.prevention?.root
+        ? 'prevention' : 'environmental',
       surfaceLoad: CONFIG.introductoryFocusSurfaceLoad,
       // Zero, e este zero e o ponto todo desta etapa.
       vascularLoad: 0,
@@ -50509,6 +50520,21 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
         `${state.campaign?.seed || state.level?.seed || 'ralstonia'}:ralstonia-foci`,
       );
       initialized = true;
+      // A separate host was infected BEFORE this lesson. Environmental arrivals
+      // still begin at V=0 and remain visible; protecting their target never
+      // removes this independent opportunity to practice containment.
+      const lesson = state.level.ralstoniaTeachingEncounters?.containment;
+      if (phaseNumber() === 9 && lesson?.root && desiredFocusCount() > 0) {
+        const focus = createFocus({
+          root: lesson.root, role: 'containment',
+          surfaceLoad: CONFIG.containmentFocusSurfaceLoad,
+          vascularLoad: CONFIG.containmentFocusVascularLoad,
+          woundOpening: CONFIG.containmentFocusWoundOpening,
+          source: 'preexisting-teaching-infection',
+        });
+        focus.teachingEncounter = true;
+        focus.activationDistance = 150;
+      }
       return;
     }
     seedFoci();
@@ -50544,8 +50570,11 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     if (focus.activationState === 'active' || focus.activationState === 'neutralized') return;
 
     if (focus.activationState === 'pending') {
-      const near = distanceToRoot(focus.root) <= focus.activationDistance
-        || playerChunkIndex() >= (focus.rootLogicIndex ?? Infinity) - 1;
+      const distance = focus.teachingEncounter
+        ? Math.hypot(distanceToRoot(focus.root), state.player.y + state.player.h - focus.root.y)
+        : distanceToRoot(focus.root);
+      const near = distance <= focus.activationDistance
+        || (!focus.teachingEncounter && playerChunkIndex() >= (focus.rootLogicIndex ?? Infinity) - 1);
       if (!near) return;
       focus.activationState = 'warning';
       focus.activatedAt = state.time;
@@ -51018,7 +51047,9 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
   function findSpreadCandidate() {
     return foci.find(focus => (
       !focus.neutralized
+      && !focus.contained
       && focus.everEnteredVascular
+      && focus.vascularLoad >= CONFIG.spreadTriggerThreshold
       && focus.activationState === 'active'
       && focus.spreadGeneration < CONFIG.maximumSpreadGeneration
       && !hasActiveEvent(focus)
@@ -51777,6 +51808,54 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     return 'Ainda é possível impedir a entrada';
   }
 
+  function supportHintFor(focus) {
+    if (!focus || focus.neutralized || focus.activationState === 'pending') return '';
+    const colonies = (inoculants?.colonies || []).filter(colony => (
+      colony.platform === focus.root && (colony.type === 'bacillus' || colony.type === 'pseudomonas')
+    ));
+    if (!colonies.length) return focus.everEnteredVascular
+      ? 'Inocule Pseudomonas nesta raiz; mantenha exsudato e ferro disponíveis.'
+      : 'Proteja a entrada com Bacillus e exsudato antes da colonização vascular.';
+    if (colonies.some(colony => colony.dormant || colony.vigor < .3)) {
+      return 'Colônia sem vigor: forneça exsudato para sustentar o controle.';
+    }
+    const entries = [...(pseudomonas?.colonyStates?.values() || [])]
+      .filter(entry => entry.colony?.platform === focus.root && !entry.colony.dormant);
+    if (focus.everEnteredVascular && entries.some(entry => (entry.ironReserve || 0) < .08)) {
+      return 'Reserva de ferro baixa: mantenha a Pseudomonas ao alcance de Fe³⁺.';
+    }
+    return focus.contained
+      ? 'Contida, com carga residual. Mantenha exsudato e vigor para evitar recaída.'
+      : 'Mantenha o controle nesta raiz até completar a prevenção ou contenção.';
+  }
+
+  function unresolvedSpreadCount() {
+    const secondary = foci.filter(focus => (
+      (focus.role === 'spread' || focus.spreadGeneration > 0)
+      && !focus.neutralized
+      && (!focus.contained || focus.vascularLoad >= CONFIG.criticalThreshold)
+    )).length;
+    const traveling = spreadEvents.filter(event => (
+      event.state === 'warning' || event.state === 'traveling'
+    )).length;
+    return secondary + traveling + (state.level.ralstoniaTravelInoculum || []).length;
+  }
+
+  function completionHint() {
+    const plan = state.level.ralstoniaTeachingEncounters;
+    if (preventedCount < 1) {
+      const root = plan?.prevention?.root;
+      return `Proteja o foco superficial${root ? ` na raiz ${root.logicIndex}` : ''} com benéficos e exsudato.`;
+    }
+    if (containedCount < 1) {
+      const root = plan?.containment?.root;
+      return `Contenha a infecção vascular${root ? ` na raiz ${root.logicIndex}` : ''}: Pseudomonas, ferro e exsudato.`;
+    }
+    if (criticalCount > 0) return `Ainda há ${criticalCount} foco(s) com murcha crítica. Reforce o controle e o vigor.`;
+    if (unresolvedSpreadCount() > 0) return 'Controle os focos secundários e aguarde a resolução das propagações em trânsito.';
+    return 'Controle da Ralstonia concluído. Siga até a raiz final.';
+  }
+
   function rootSnapshot(root) {
     const focus = focusForRoot(root);
     const incoming = incomingEventForRoot(root);
@@ -51787,6 +51866,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
       roleLabel: focus ? focus.roleLabel : null,
       shortRoleLabel: focus ? focus.shortRoleLabel : null,
       reading: focus ? readingFor(focus) : 'Raiz visada pela disseminação',
+      supportHint: supportHintFor(focus),
       stage: focus ? focusState(focus) : null,
       stageLabel: focus ? stageLabel(focus) : null,
       doorLabel: focus ? ralstoniaDoorLabel(focus.woundOpening, CONFIG) : null,
@@ -51998,6 +52078,8 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     get criticalCount() { return criticalCount; },
     get blockedSpreadCount() { return blockedSpreadCount; },
     get successfulSpreadCount() { return successfulSpreadCount; },
+    get unresolvedSpreadCount() { return unresolvedSpreadCount(); },
+    get completionHint() { return completionHint(); },
     get spreadEventCount() { return spreadEventCount; },
     get activeSpreadEvents() {
       return spreadEvents.filter(event => event.state === 'warning' || event.state === 'traveling');
@@ -52066,7 +52148,8 @@ const RALSTONIA_SPREAD_STATES = Object.freeze([
 //
 // `pedagogicalSpread` é a exceção controlada da estreia: quando o jogador
 // alcança a região da terceira lição, o runtime marca UM foco vascular para
-// abrir o evento didático mesmo que ele esteja abaixo do limiar ou já contido.
+// antecipar o aviso de uma fonte ainda descontrolada. A lição nunca invalida
+// uma contenção efetiva nem faz uma carga residual baixa disseminar.
 function canRalstoniaFocusSpread(focus, {
   config = RALSTONIA_DEFAULTS,
   activeEventForFocus = false,
@@ -52075,6 +52158,7 @@ function canRalstoniaFocusSpread(focus, {
   if (!focus) return false;
   if (focus.activationState !== 'active') return false;
   if (focus.neutralized) return false;
+  if (focus.contained) return false;
   if (activeEventForFocus) return false;
 
   const generationCap = Number.isFinite(maximumGeneration)
@@ -52085,13 +52169,7 @@ function canRalstoniaFocusSpread(focus, {
   const budget = config.maximumSpreadEventsPerFocus + (focus.spreadBudgetBonus || 0);
   if (finite(focus.spreadEventsUsed) >= budget) return false;
 
-  if (focus.pedagogicalSpread === true) {
-    // Ainda exige que a bactéria esteja DENTRO do vaso: sem xilema colonizado
-    // não existe exsudato bacteriano para disseminar.
-    return Boolean(focus.everEnteredVascular);
-  }
-
-  if (focus.contained) return false;
+  if (focus.pedagogicalSpread === true && !focus.everEnteredVascular) return false;
   return clamp(finite(focus.vascularLoad), 0, 1) >= config.spreadTriggerThreshold;
 }
 
@@ -52200,6 +52278,202 @@ function ralstoniaArrivalProtection({
   };
 }
 Object.assign(__exports, { RALSTONIA_SPREAD_STATES, canRalstoniaFocusSpread, isRalstoniaSpreadTargetEligible, ralstoniaSpreadOpening, chooseRalstoniaSpreadTarget, ralstoniaArrivalProtection });
+},
+"src/procgen/ralstonia-teaching.js": (__exports, __require) => {
+const { createRandom } = __require("src/procgen/random.js");
+const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");
+const { resolveEntityPlatform } = __require("src/procgen/route-geometry.js");
+const SOURCE = 'ralstonia-teaching';
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function structuralPlatform(platform, minimumWidth = 120) {
+  return platform && !platform.final && !platform.recovery && !platform.safetyStep
+    && !platform.temporary && !platform.mycorrhizaStructure
+    && !platform.azospirillumStructure && !platform.azospirillumLadderStep
+    && !platform.nitrogenRootCollider && !platform.nitrogenRootStructure
+    && !platform.signatureChallenge
+    && platform.routeScope !== 'optional'
+    && Number.isInteger(platform.logicIndex)
+    && Number.isFinite(platform.x) && Number.isFinite(platform.y)
+    && platform.w >= minimumWidth;
+}
+
+function center(platform) {
+  return { x: platform.x + platform.w / 2, y: platform.y - 7 };
+}
+
+function distance(left, right) {
+  const a = center(left), b = center(right);
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function precedingHosts(route, root) {
+  return route.filter(platform => structuralPlatform(platform, 90)
+    && platform.logicIndex < root.logicIndex)
+    .sort((a, b) => b.logicIndex - a.logicIndex || distance(a, root) - distance(b, root));
+}
+
+function selectRoot(route, segment, random, reserved, previous) {
+  if (!segment) return null;
+  const candidates = route.filter(platform => structuralPlatform(platform)
+    && !reserved.has(platform)
+    && platform.logicIndex >= segment.from && platform.logicIndex <= segment.to
+    && precedingHosts(route, platform).length > 0);
+  if (candidates.includes(previous)) return previous;
+  const roots = candidates.filter(platform => platform.type === 'root');
+  const pool = roots.length ? roots : candidates.filter(platform => platform.type === 'soil');
+  if (!pool.length) return null;
+  const root = pool[Math.floor(random() * pool.length)];
+  if (root.type === 'soil') {
+    root.type = 'root';
+    root.ralstoniaPromotedRoot = true;
+  }
+  return root;
+}
+
+function resourceHost(route, root) {
+  const hosts = precedingHosts(route, root);
+  return hosts.find(platform => distance(platform, root) <= 900) || hosts[0] || null;
+}
+
+function usableEncounter(level, routeSet, root, organism) {
+  return (level.microbeEncounters || []).find(encounter => {
+    if ((encounter.id || encounter.type) !== organism) return false;
+    const host = resolveEntityPlatform(level, encounter);
+    return routeSet.has(host) && structuralPlatform(host, 90)
+      && host.logicIndex < root.logicIndex
+      && distance(host, root) <= 900
+      && encounter.x >= host.x + 12 && encounter.x <= host.x + host.w - 12
+      && encounter.y >= host.y - 170 && encounter.y <= host.y - 20;
+  }) || null;
+}
+
+function ensureEncounter(level, route, root, role, organism, host) {
+  const existing = usableEncounter(level, new Set(route), root, organism);
+  if (existing) return existing;
+  if (!host) return null;
+  const encounter = {
+    id: organism,
+    platform: host,
+    platformId: host.id ?? host.platformId ?? null,
+    logicIndex: host.logicIndex,
+    x: host.x + host.w * (organism === 'pseudomonas' ? .6 : .4),
+    y: host.y - 78,
+    r: 155,
+    territory: 360,
+    collect: false,
+    source: SOURCE,
+    teachingRole: role,
+    requiresSeenCardId: null,
+  };
+  level.microbeEncounters.push(encounter);
+  return encounter;
+}
+
+function accessibleExudates(level, routeSet, root, hosts) {
+  return (level.exudates || []).filter(item => {
+    const host = resolveEntityPlatform(level, item);
+    return routeSet.has(host) && hosts.has(host)
+      && host.logicIndex < root.logicIndex
+      && item.x >= host.x + 18 && item.x <= host.x + host.w - 18
+      && item.y >= host.y - 55 && item.y <= host.y - 20;
+  });
+}
+
+function ensureExudates(level, route, root, role, encounters, minimum, fallbackHost) {
+  const hosts = new Set(encounters.filter(Boolean)
+    .map(encounter => resolveEntityPlatform(level, encounter)).filter(Boolean));
+  if (fallbackHost) hosts.add(fallbackHost);
+  const items = accessibleExudates(level, new Set(route), root, hosts);
+  if (!fallbackHost) return items;
+  for (let index = items.length; index < minimum; index++) {
+    const lateral = minimum === 1 ? .5 : .25 + index * .25;
+    const offsetX = clamp(fallbackHost.w * lateral, 24, fallbackHost.w - 24);
+    const item = {
+      id: `p9-${role}-exudate-${index}`,
+      platform: fallbackHost,
+      platformId: fallbackHost.id ?? fallbackHost.platformId ?? null,
+      logicIndex: fallbackHost.logicIndex,
+      x: fallbackHost.x + offsetX,
+      y: fallbackHost.y - 34,
+      taken: false,
+      authored: true,
+      source: SOURCE,
+      teachingRole: role,
+    };
+    level.exudates.push(item);
+    items.push(item);
+  }
+  return items;
+}
+
+function ensureIron(level, route, root, random) {
+  const own = (level.ironDeposits || []).find(item => item.id === 'p9-containment-iron');
+  if (own) return own;
+  const point = center(root), routeSet = new Set(route);
+  const existing = (level.ironDeposits || []).find(item => {
+    const host = resolveEntityPlatform(level, item);
+    return routeSet.has(host) && (item.stock || 0) > .08
+      && Math.hypot(item.x - point.x, item.y - point.y) <= 350
+      && Math.max(
+        Math.hypot(item.x - root.x - 18, item.y - point.y),
+        Math.hypot(item.x - root.x - root.w + 18, item.y - point.y),
+      ) <= 400;
+  });
+  if (existing) {
+    // resetBiology conserva somente depósitos autorais. Reutilizar um depósito
+    // procedural sem esta marca faria o recurso desaparecer antes do jogo.
+    existing.authored = true;
+    return existing;
+  }
+  const deposit = {
+    id: 'p9-containment-iron',
+    platform: root,
+    platformId: root.id ?? root.platformId ?? null,
+    logicIndex: root.logicIndex,
+    x: root.x + root.w * .5,
+    y: root.y + Math.min(24, Math.max(12, root.h * .45)),
+    stock: 7,
+    maxStock: 7,
+    radius: 13,
+    phase: random() * Math.PI * 2,
+    exposed: true,
+    authored: true,
+    source: SOURCE,
+  };
+  level.ironDeposits.push(deposit);
+  return deposit;
+}
+
+// Reserva os dois encontros na geometria já pronta. Não cria infecção, não
+// move colisores e não consome o RNG do gerador. O runtime decide ativação e
+// progressão; este módulo garante a rota e os recursos antes de resetEcology.
+function prepareRalstoniaTeachingEncounters(level, { phaseManifest, seed } = {}) {
+  if (!level || phaseManifest?.phase !== 9 || phaseManifest?.ralstonia?.enabled !== true) return level;
+  const random = createRandom(`${seed ?? level.seed ?? 'phase-9'}:ralstonia-teaching`);
+  const route = getPrimaryTraversalPlatforms(level);
+  const previous = level.ralstoniaTeachingEncounters;
+  const reserved = new Set();
+  const plan = {};
+  level.microbeEncounters ||= [];
+  level.exudates ||= [];
+  level.ironDeposits ||= [];
+  for (const [role, segmentId] of [['prevention', 'p9-surface-intro'], ['containment', 'p9-vascular-intro']]) {
+    const segment = (phaseManifest.segments || []).find(entry => entry.id === segmentId);
+    const root = selectRoot(route, segment, random, reserved, previous?.[role]?.root);
+    if (!root) continue;
+    reserved.add(root);
+    const host = resourceHost(route, root);
+    const organisms = role === 'prevention' ? ['bacillus'] : ['bacillus', 'pseudomonas'];
+    const encounters = organisms.map(organism => ensureEncounter(level, route, root, role, organism, host));
+    const exudates = ensureExudates(level, route, root, role, encounters, role === 'prevention' ? 1 : 3, host);
+    const iron = role === 'containment' ? ensureIron(level, route, root, random) : null;
+    plan[role] = { root, role, segmentId, resources: { encounters, exudates, iron } };
+  }
+  level.ralstoniaTeachingEncounters = plan;
+  return level;
+}
+Object.assign(__exports, { prepareRalstoniaTeachingEncounters });
 },
 "src/procgen/pause-menu.js": (__exports, __require) => {
 // Menu de pausa: os ajustes (som, luz, paralaxe, plataformas de segurança,

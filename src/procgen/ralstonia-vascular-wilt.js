@@ -638,6 +638,10 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
   function introduceEnvironmentalInoculum({ targetRoot = null, x = null, source = 'arrival' } = {}) {
     const root = targetRoot || eligibleRoots()[0];
     if (!root) return null;
+    // Repeated environmental exposures share the infection already on a host.
+    // They must not overwrite the independently reserved vascular lesson.
+    const existing = foci.find(focus => focus.root === root && !focus.neutralized);
+    if (existing) return existing;
     if (!initialized) {
       // Sem `seedFoci` a lista nem existe: a chegada monta o minimo e segue.
       foci.length = 0;
@@ -651,7 +655,8 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     }
     const focus = createFocus({
       root,
-      role: 'environmental',
+      role: root === state.level.ralstoniaTeachingEncounters?.prevention?.root
+        ? 'prevention' : 'environmental',
       surfaceLoad: CONFIG.introductoryFocusSurfaceLoad,
       // Zero, e este zero e o ponto todo desta etapa.
       vascularLoad: 0,
@@ -676,6 +681,21 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
         `${state.campaign?.seed || state.level?.seed || 'ralstonia'}:ralstonia-foci`,
       );
       initialized = true;
+      // A separate host was infected BEFORE this lesson. Environmental arrivals
+      // still begin at V=0 and remain visible; protecting their target never
+      // removes this independent opportunity to practice containment.
+      const lesson = state.level.ralstoniaTeachingEncounters?.containment;
+      if (phaseNumber() === 9 && lesson?.root && desiredFocusCount() > 0) {
+        const focus = createFocus({
+          root: lesson.root, role: 'containment',
+          surfaceLoad: CONFIG.containmentFocusSurfaceLoad,
+          vascularLoad: CONFIG.containmentFocusVascularLoad,
+          woundOpening: CONFIG.containmentFocusWoundOpening,
+          source: 'preexisting-teaching-infection',
+        });
+        focus.teachingEncounter = true;
+        focus.activationDistance = 150;
+      }
       return;
     }
     seedFoci();
@@ -711,8 +731,11 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     if (focus.activationState === 'active' || focus.activationState === 'neutralized') return;
 
     if (focus.activationState === 'pending') {
-      const near = distanceToRoot(focus.root) <= focus.activationDistance
-        || playerChunkIndex() >= (focus.rootLogicIndex ?? Infinity) - 1;
+      const distance = focus.teachingEncounter
+        ? Math.hypot(distanceToRoot(focus.root), state.player.y + state.player.h - focus.root.y)
+        : distanceToRoot(focus.root);
+      const near = distance <= focus.activationDistance
+        || (!focus.teachingEncounter && playerChunkIndex() >= (focus.rootLogicIndex ?? Infinity) - 1);
       if (!near) return;
       focus.activationState = 'warning';
       focus.activatedAt = state.time;
@@ -1185,7 +1208,9 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
   function findSpreadCandidate() {
     return foci.find(focus => (
       !focus.neutralized
+      && !focus.contained
       && focus.everEnteredVascular
+      && focus.vascularLoad >= CONFIG.spreadTriggerThreshold
       && focus.activationState === 'active'
       && focus.spreadGeneration < CONFIG.maximumSpreadGeneration
       && !hasActiveEvent(focus)
@@ -1944,6 +1969,54 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     return 'Ainda é possível impedir a entrada';
   }
 
+  function supportHintFor(focus) {
+    if (!focus || focus.neutralized || focus.activationState === 'pending') return '';
+    const colonies = (inoculants?.colonies || []).filter(colony => (
+      colony.platform === focus.root && (colony.type === 'bacillus' || colony.type === 'pseudomonas')
+    ));
+    if (!colonies.length) return focus.everEnteredVascular
+      ? 'Inocule Pseudomonas nesta raiz; mantenha exsudato e ferro disponíveis.'
+      : 'Proteja a entrada com Bacillus e exsudato antes da colonização vascular.';
+    if (colonies.some(colony => colony.dormant || colony.vigor < .3)) {
+      return 'Colônia sem vigor: forneça exsudato para sustentar o controle.';
+    }
+    const entries = [...(pseudomonas?.colonyStates?.values() || [])]
+      .filter(entry => entry.colony?.platform === focus.root && !entry.colony.dormant);
+    if (focus.everEnteredVascular && entries.some(entry => (entry.ironReserve || 0) < .08)) {
+      return 'Reserva de ferro baixa: mantenha a Pseudomonas ao alcance de Fe³⁺.';
+    }
+    return focus.contained
+      ? 'Contida, com carga residual. Mantenha exsudato e vigor para evitar recaída.'
+      : 'Mantenha o controle nesta raiz até completar a prevenção ou contenção.';
+  }
+
+  function unresolvedSpreadCount() {
+    const secondary = foci.filter(focus => (
+      (focus.role === 'spread' || focus.spreadGeneration > 0)
+      && !focus.neutralized
+      && (!focus.contained || focus.vascularLoad >= CONFIG.criticalThreshold)
+    )).length;
+    const traveling = spreadEvents.filter(event => (
+      event.state === 'warning' || event.state === 'traveling'
+    )).length;
+    return secondary + traveling + (state.level.ralstoniaTravelInoculum || []).length;
+  }
+
+  function completionHint() {
+    const plan = state.level.ralstoniaTeachingEncounters;
+    if (preventedCount < 1) {
+      const root = plan?.prevention?.root;
+      return `Proteja o foco superficial${root ? ` na raiz ${root.logicIndex}` : ''} com benéficos e exsudato.`;
+    }
+    if (containedCount < 1) {
+      const root = plan?.containment?.root;
+      return `Contenha a infecção vascular${root ? ` na raiz ${root.logicIndex}` : ''}: Pseudomonas, ferro e exsudato.`;
+    }
+    if (criticalCount > 0) return `Ainda há ${criticalCount} foco(s) com murcha crítica. Reforce o controle e o vigor.`;
+    if (unresolvedSpreadCount() > 0) return 'Controle os focos secundários e aguarde a resolução das propagações em trânsito.';
+    return 'Controle da Ralstonia concluído. Siga até a raiz final.';
+  }
+
   function rootSnapshot(root) {
     const focus = focusForRoot(root);
     const incoming = incomingEventForRoot(root);
@@ -1954,6 +2027,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       roleLabel: focus ? focus.roleLabel : null,
       shortRoleLabel: focus ? focus.shortRoleLabel : null,
       reading: focus ? readingFor(focus) : 'Raiz visada pela disseminação',
+      supportHint: supportHintFor(focus),
       stage: focus ? focusState(focus) : null,
       stageLabel: focus ? stageLabel(focus) : null,
       doorLabel: focus ? ralstoniaDoorLabel(focus.woundOpening, CONFIG) : null,
@@ -2165,6 +2239,8 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     get criticalCount() { return criticalCount; },
     get blockedSpreadCount() { return blockedSpreadCount; },
     get successfulSpreadCount() { return successfulSpreadCount; },
+    get unresolvedSpreadCount() { return unresolvedSpreadCount(); },
+    get completionHint() { return completionHint(); },
     get spreadEventCount() { return spreadEventCount; },
     get activeSpreadEvents() {
       return spreadEvents.filter(event => event.state === 'warning' || event.state === 'traveling');

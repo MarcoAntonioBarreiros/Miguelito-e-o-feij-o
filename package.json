@@ -50,7 +50,7 @@
     "test:phase-ten-combo": "node --test tests/phase-ten-combo.test.js",
     "test:ralstonia": "node --test tests/ralstonia-vascular-wilt.test.js",
     "test:ralstonia-render": "node --test tests/ralstonia-render-stack.test.js",
-    "test:phase-nine-ralstonia": "node --test tests/phase-nine-ralstonia.test.js",
+    "test:phase-nine-ralstonia": "node --test tests/phase-nine-ralstonia.test.js tests/phase-nine-dynamic-lessons.test.js tests/phase-nine-objective-recovery.test.js tests/ralstonia-teaching.test.js",
     "test:nitrogen-safety-regression": "node --test tests/nitrogen-root-safety-step-regression.test.js",
     "test:audio-manifest": "node --test tests/audio-manifest.test.js",
     "test:audio-controller": "node --test tests/game-audio.test.js",

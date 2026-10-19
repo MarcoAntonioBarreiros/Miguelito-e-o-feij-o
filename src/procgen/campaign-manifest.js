@@ -226,7 +226,7 @@ export const FINAL_TEST_KEYS = Object.freeze({
     // Fase 9 (Ralstonia): prevencao, contencao, murcha critica e disseminacao.
     'preventedRalstoniaEntryCount', 'containedVascularRalstoniaCount',
     'activeCriticalRalstoniaCount', 'blockedRalstoniaSpreadCount',
-    'succeededRalstoniaSpreadCount',
+    'succeededRalstoniaSpreadCount', 'unresolvedRalstoniaSpreadCount',
     'averageVascularTransport', 'preservedVascularRootCount',
     'deployedExudateCount', 'bacillusColonyCount',
     'opportunisticFungusVigor', 'controlledOpportunisticFungusCount', 'solubilizedPhosphateDepositCount',
@@ -779,33 +779,19 @@ const phases = [
     // Nao exige eliminar todos os focos nem zerar a carga vascular: exige provar
     // que o jogador sabe PREVENIR uma entrada e CONTER uma infeccao que ja
     // entrou — e que nenhuma murcha critica ficou solta no fim.
-    finalTest: { id: 'p9-test', goal: 'Prevenir uma entrada, conter uma infecção vascular, impedir que a doença alcance uma segunda raiz e chegar à raiz final sem foco crítico ativo.', requires: [
+    finalTest: { id: 'p9-test', goal: 'Prevenir uma entrada, conter uma infecção vascular, controlar qualquer disseminação e chegar à raiz final sem foco crítico ativo.', requires: [
       { type: 'worldState', key: 'preventedRalstoniaEntryCount', operator: '>=', value: 1 },
       { type: 'worldState', key: 'containedVascularRalstoniaCount', operator: '>=', value: 1 },
-      // NAO PEDE MAIS "bloqueie uma disseminacao".
-      //
-      // Aquilo exigia que uma disseminacao SAISSE para poder ser bloqueada — e
-      // bloquear exige protecao >= 0,5 na raiz-alvo, ou seja, um biofilme de
-      // Bacillus ja estabelecido la, dentro dos 4,5 s de aviso, com o alvo a ate
-      // 850 px. Medido na seed campanha-497125: duas disseminacoes dispararam,
-      // nenhuma bloqueavel a tempo. Pior, o objetivo brigava com o de baixo:
-      // para ter o que bloquear era preciso deixar a doenca avancar, e deixar
-      // avancar acende a murcha critica.
-      //
-      // A licao continua a mesma — nao deixe a Ralstonia passar desta raiz — mas
-      // agora ela e cumprida por PREVENIR e CONTER, que e o que a fase ensina.
-      // Quem joga bem satisfaz o objetivo jogando bem. Bloquear uma
-      // disseminacao continua valendo: e uma das maneiras de manter isto zerado.
-      { type: 'worldState', key: 'succeededRalstoniaSpreadCount', operator: '===', value: 0,
+      // O fim depende do que ainda exige controle: eventos em aviso/transito e
+      // focos secundarios nao neutralizados nem atualmente contidos. Uma chegada
+      // passada permanece no historico, mas nao condena o restante da partida:
+      // prevenir a entrada secundaria ou conter seu foco vascular recupera o
+      // objetivo. Uma recaida ou nova disseminacao volta a deixa-lo pendente.
+      { type: 'worldState', key: 'unresolvedRalstoniaSpreadCount', operator: '===', value: 0,
         latch: false, displayMode: 'final-status' },
-      // `latch: false` = leitura do AGORA. Sem a flag esta condicao nasce
-      // satisfeita (zero focos criticos no primeiro quadro), trava, e o objetivo
-      // aparece verde antes de a fase comecar. O runtime garante pelo menos uma
-      // oportunidade de disseminacao bloqueavel e recuperavel.
-      // `latch: false` = leitura do AGORA; `displayMode: 'final-status'` diz ao
-      // painel que isto e um STATUS, nao uma conquista: comeca neutro, fica
-      // estavel enquanto nao houver critico, vermelho quando houver, e so pode
-      // aparecer verde quando a fase termina.
+      // Os dois status sao leituras do AGORA. Nao podem ficar cumpridos para
+      // sempre porque valiam zero antes de a doenca comecar. O painel distingue
+      // situacao estavel durante a fase de conclusao confirmada na raiz final.
       { type: 'worldState', key: 'activeCriticalRalstoniaCount', operator: '===', value: 0,
         latch: false, displayMode: 'final-status' },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
