@@ -1566,7 +1566,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       anchorY: .88,
       flipX: (focus.surfaceMotionDirection || 1) < 0,
       calm: focus.calm || 0,
-      calmKey: focus,
+      calmKey: focus.calmKey || focus,
     }) || drawCell(ctx, focus.visualX ?? focus.x, root.y - 12, {
       height: 44, phase: focus.phase, alpha: alphaBase, scale: 2.4, calm: focus.calm || 0,
     });
@@ -1965,6 +1965,8 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       // terra em volta (só desenho; o foco continua ligado à plataforma).
       const shown = Object.create(focus);
       shown.root = visibleRootRect(focus.root);
+      // `shown` e novo a cada quadro; as particulas da calmaria precisam do foco real
+      shown.calmKey = focus;
       drawVascularBlockage(ctx, shown);
       drawVascularMotion(ctx, shown);
       drawBacteria(ctx, shown);
