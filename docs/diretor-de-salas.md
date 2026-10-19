@@ -39,7 +39,7 @@ reserva uma janela de 17 chunks perto do começo ou do fim da fase.
 - O retorno (`'rejoin'`) é o primeiro bloco comum a 4300 px ou mais do centro da partida que não fique abaixo do bloco anterior.
 - O planejador do desvio tenta esse par primeiro.
 
-Medido em 60 sementes: o desvio sai em 59 das 60 fases com janela, contra cerca de 50% no sistema antigo.
+Medido em 60 sementes: 38 fases tiveram janela, e o desvio saiu em todas menos uma (no total, 39 das 60 fases têm desvio, cerca de 65%, contra cerca de 50% no sistema antigo). As fases curtas ficam sem desvio e com mais salas.
 
 Se o sorteio não trouxe um dos túneis, uma sala plana fora da janela vira o
 túnel que faltou.
