@@ -3,6 +3,7 @@ import { PHOSPHATE_SOLUBILIZATION_DEFAULTS } from './campaign-manifest.js';
 import { recordPhaseObjectiveAction } from './campaign-objective-progress.js';
 import { fxLanded } from '../game-audio.js';
 import { getPrimaryTraversalPlatforms } from './traversal-route.js';
+import { drawPhosphateCrystalCluster } from '../render/phosphate-crystals.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -689,49 +690,7 @@ export function createPhosphateSolubilization({
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const deposit of state.level.phosphateDeposits || []) {
-      if (deposit.broken) continue;
-      const ratio = deposit.remainingPhosphate / deposit.initialPhosphate;
-      // Prismas de fosfato que BROTAM da rocha: colunas facetadas ancoradas na
-      // superficie do bloco, de alturas variadas (estaveis por deposito) que
-      // encolhem conforme o fosfato e solubilizado. Antes era um unico poligono
-      // flutuando no ar.
-      const baseY = deposit.y + deposit.h;
-      const count = 5;
-      const columnWidth = deposit.w / count;
-      ctx.save();
-      ctx.globalAlpha = .5 + ratio * .5;
-      ctx.shadowBlur = 16;
-      ctx.shadowColor = '#db83ff';
-      for (let k = 0; k < count; k++) {
-        const seed = Math.sin(deposit.x * .13 + k * 12.9898) * .5 + .5;
-        const cx = deposit.x + columnWidth * (k + .5);
-        const half = columnWidth * (.34 + seed * .12);
-        const height = deposit.h * (.55 + seed * .45) * (.4 + ratio * .6);
-        const tipY = baseY - height;
-        const shoulderY = tipY + height * .2;
-        const body = ctx.createLinearGradient(cx, baseY, cx, tipY);
-        body.addColorStop(0, '#4a2d63');
-        body.addColorStop(1, '#c98cff');
-        ctx.fillStyle = body;
-        ctx.strokeStyle = '#efb4ff';
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(cx - half, baseY);
-        ctx.lineTo(cx - half, shoulderY);
-        ctx.lineTo(cx, tipY);
-        ctx.lineTo(cx + half, shoulderY);
-        ctx.lineTo(cx + half, baseY);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,236,255,.5)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, tipY);
-        ctx.lineTo(cx, baseY);
-        ctx.stroke();
-      }
-      ctx.restore();
+      drawPhosphateCrystalCluster(ctx, deposit, state.time);
     }
     for (const pool of state.level.availablePhosphatePools || []) {
       if (pool.amount <= .001) continue;
