@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Miguelito · cristais de fosfato</title>
+  <link rel="stylesheet" href="./preview.css">
+</head>
+<body>
+  <header>
+    <div><span class="eyebrow">MIGUELITO · ESTUDO VISUAL</span><h1>Cristais de fosfato</h1></div>
+    <span class="status" id="status" role="status">Preparando a fase 7…</span>
+  </header>
+  <main>
+    <section aria-label="Teste no jogo" class="game-section">
+      <div class="toolbar">
+        <label>Fase <select id="phase" aria-label="Fase"></select></label>
+        <button id="focus" disabled>Ir aos cristais</button>
+        <button id="mode" disabled>Comparar em 2D</button>
+        <button id="play" disabled>Jogar a partir daqui</button>
+        <button id="fullscreen">Tela cheia</button>
+        <label class="stock">Reserva <input id="stock" type="range" min="0" max="100" value="100"><output id="stock-value">100%</output></label>
+      </div>
+      <div class="game-wrap"><iframe id="game" title="Jogo real — fase do fosfato" allow="fullscreen" allowfullscreen></iframe></div>
+      <p class="hint">Inicia na fase 7, ao lado do depósito. Cena pausada para observar. Use “Jogar a partir daqui” para testar os controles e a solubilização. G alterna 2D/WebGL durante o jogo.</p>
+    </section>
+    <section class="collection" aria-label="Variações procedurais">
+      <div class="collection-heading"><div><span class="eyebrow">GEOMETRIA GERADA POR CÓDIGO</span><h2>Uma família, diferentes formações.</h2><p>Facetas rosa e violeta, pontas assimétricas e reflexos que cintilam. Sem imagens prontas.</p></div><button id="regenerate">Gerar novas variações ↗</button></div>
+      <div id="specimens"></div>
+      <p class="hint">Caixa de colisão original: 58 × 210. A base ilustrada se abre para dentro da plataforma, sem mudar a física. A última amostra mostra como o mesmo gerador se adapta a um agrupamento ainda mais largo.</p>
+    </section>
+  </main>
+  <script type="module" src="./preview.js"></script>
+</body>
+</html>
