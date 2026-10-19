@@ -67,6 +67,7 @@ import { createTrichodermaMeloidogyneControl } from './trichoderma-meloidogyne-c
 import { createTrichodermaRhizoctoniaControl } from './trichoderma-rhizoctonia-control.js';
 import { createRalstoniaVascularWilt } from './ralstonia-vascular-wilt.js';
 import { prepareRalstoniaTeachingEncounters } from './ralstonia-teaching.js';
+import { preparePathogenFocusRooms } from './pathogen-focus-rooms.js';
 import { narrate } from './narrator.js';
 import { createPauseMenu } from './pause-menu.js';
 import { FEATURE_LABELS, NARRATION } from './narration-catalog.js';
@@ -1276,6 +1277,8 @@ function prepareLevel() {
   // Resource encounters must exist before resetEcology spawns their agents.
   // Only phase 9 reserves the independent prevention/containment lessons.
   prepareRalstoniaTeachingEncounters(levelData, { phaseManifest: getPhaseManifest(campaign.phase), seed });
+  // Fase 10+: focos de patogeno do diretor de salas (Ralstonia e Meloidogyne)
+  if (campaign.phase === 10) preparePathogenFocusRooms(levelData, { seed });
   applyInitialRootHealth(levelData, campaign.phase);
   synchronizeWorldBounds(levelData);
   // Tunel baixo (Dash/propulsor): so sobre pares que ja tem o vao certo, depois

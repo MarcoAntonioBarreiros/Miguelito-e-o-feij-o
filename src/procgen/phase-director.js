@@ -261,6 +261,33 @@ export function createPhaseRecipe({
     swap.id = `${kind}-${swap.chunkIndex}`;
   }
 
+  // FOCOS DE PATOGENO (Etapa 3): uma raiz ja infectada em blocos de ligacao,
+  // com o organismo de controle no bloco anterior. Nao muda a geometria: so
+  // marca as raizes. Ralstonia (infeccao vascular a conter) e Meloidogyne
+  // (massa de ovos que espera o jogador chegar perto para eclodir).
+  const covered = new Set();
+  for (const room of rooms) for (let k = 0; k < room.chunks; k++) covered.add(room.chunkIndex + k);
+  // portao (subida, ponte, FBN) usa o bloco anterior como hospedeiro
+  const gateStarts = new Set(rooms.filter(r => r.gateKind).map(r => r.chunkIndex));
+  const plainChunk = c => c >= FIRST_ROOM_CHUNK && c <= end && !covered.has(c) && !blocked(logic[c])
+    && !reserved.has(c) && (!detour || c !== detour.startChunk);
+  const focusSlots = [];
+  for (let c = FIRST_ROOM_CHUNK + 1; c <= end; c++) {
+    // c e a raiz; c-1 recebe os organismos; nenhum portao usa c como hospedeiro
+    if (plainChunk(c) && plainChunk(c - 1) && !gateStarts.has(c + 1)) focusSlots.push(c);
+  }
+  const pathogenFoci = [];
+  const focusKinds = rnd() < .5 ? ['ralstonia', 'meloidogyne'] : ['meloidogyne', 'ralstonia'];
+  const span = end - FIRST_ROOM_CHUNK;
+  for (const [index, kind] of focusKinds.entries()) {
+    if (abilities[`${kind}Focus`] === false) continue;
+    const ideal = FIRST_ROOM_CHUNK + span * (index ? .7 : .35);
+    const free = focusSlots.filter(c => pathogenFoci.every(f => Math.abs(f.chunkIndex - c) >= 4));
+    if (!free.length) continue;
+    const chunkIndex = free.reduce((best, c) => (Math.abs(c - ideal) < Math.abs(best - ideal) ? c : best));
+    pathogenFoci.push({ kind, chunkIndex, id: `${kind}-foco-${chunkIndex}` });
+  }
+
   const byChunk = new Map();
   for (const room of rooms) byChunk.set(room.chunkIndex, room);
   return {
@@ -272,6 +299,7 @@ export function createPhaseRecipe({
     baseY,
     combos,
     detour,
+    pathogenFoci,
     signature: rooms.map(room => (room.comboId ? `[${room.kind}]` : room.kind)).join('>'),
   };
 }
