@@ -6,7 +6,7 @@ import { createNecroticZone } from './necrotic-zone.js';
 import { createPlayerSprite } from './player-sprite.js';
 import { jetpackPose } from './player-equipment.js';
 import { resolvePlayerSkin } from './player-skins.js';
-import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from './bacillus-sprite.js';
+import { drawBacillusBiofilm } from './bacillus-biofilm.js';
 import { organismSprites } from './organism-sprites.js';
 import { createRhizosphereBackdrop } from './rhizosphere-backdrop.js';
 import { createRhizosphereParallax } from './rhizosphere-parallax.js';
@@ -355,35 +355,14 @@ export function createRenderer({
     });
 
     microbes.discoverVisibleEncounters();
-    level.checkpoints.forEach((c, ci) => {
-      ctx.save();
-      ctx.translate(c.x, c.y);
-      const col = c.active ? '#70e5d6' : 'rgba(185,220,207,.35)';
-      const glow = c.active ? .20 : .06;
-      ctx.fillStyle = `rgba(112,229,214,${glow})`;
-      for (let i = 0; i < 7; i++) {
-        const a = i / 7 * Math.PI * 2 + time * .12;
-        ctx.beginPath();
-        ctx.arc(Math.cos(a) * 18, Math.sin(a) * 13, 17 + Math.sin(time + i) * 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      if (!isBacillusSpriteEnabled()) {
-        for (let i = 0; i < 6; i++) {
-          const a = i / 6 * Math.PI * 2 + ci * .45;
-          const bx = Math.cos(a) * 19;
-          const by = Math.sin(a) * 13;
-          microbes.drawBacteriumWithFlags(bx, by, a + Math.PI / 2, .55, col, i + ci, 'short', 'peri', c.active && i % 3 === 0 ? .9 : 0);
-        }
-      }
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 1.4;
-      ctx.setLineDash([3, 5]);
-      ctx.beginPath();
-      ctx.arc(0, 0, 31 + Math.sin(time * 2 + ci) * 2, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-    });
+    // Natural checkpoints use the same surface coating as inoculated films.
+    // Gameplay normally owns their drawing; this fallback covers a frame before
+    // its reset without restoring the old seven-circle flower underneath EPS.
+    for (const checkpoint of level.checkpoints) {
+      if ((level.biofilms || []).some(film => film.checkpoint === checkpoint)) continue;
+      drawBacillusBiofilm(ctx, { key: checkpoint, platforms: level.platforms,
+        film: { checkpoint, growth: 1, activated: checkpoint.active } }, time);
+    }
 
     microbes.drawMicrobeEcosystems();
     level.allies.forEach((a, i) => {

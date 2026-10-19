@@ -2,6 +2,7 @@ import { W } from '../core/constants.js';
 import { fxLanded } from '../game-audio.js';
 import { externalControlPressure } from './biological-audio-signals.js';
 import { narrate } from './narrator.js';
+import { drawBacillusBiofilm } from '../render/bacillus-biofilm.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -432,55 +433,6 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     )).length;
   }
 
-  function drawProtectedRoot(ctx, entry) {
-    if (entry.maturity < .55 || entry.mode === 'spores') return;
-    const platform = entry.colony.platform;
-    if (!platform) return;
-    const strength = clamp(entry.maturity * entry.colony.vigor, 0, 1);
-    ctx.save();
-    ctx.globalAlpha = .16 + strength * .3;
-    ctx.strokeStyle = '#94ffe0';
-    ctx.lineWidth = 2 + strength * 2;
-    ctx.setLineDash([6, 8]);
-    ctx.beginPath();
-    ctx.moveTo(platform.x + 12, platform.y - 3);
-    ctx.lineTo(platform.x + platform.w - 12, platform.y - 3);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-  }
-
-  function drawAntibioticHalo(ctx, entry) {
-    if (entry.maturity < .68 || entry.mode === 'spores') return;
-    const colony = entry.colony;
-    const reserve = clamp(entry.antibioticReserve / .45, 0, 1);
-    if (reserve <= .02) return;
-    const radius = 82 + entry.maturity * 42 + (colony.sourceCount || 1) * 11;
-    ctx.save();
-    ctx.translate(colony.x, colony.y);
-    ctx.strokeStyle = entry.activePressure > .04 ? 'rgba(255,206,119,.58)' : 'rgba(112,229,214,.25)';
-    ctx.lineWidth = 1.2;
-    ctx.setLineDash([2, 7]);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius + Math.sin(state.time * 1.7 + entry.phase) * 3, 0, TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    const moleculeCount = 5 + Math.round(reserve * 7);
-    for (let i = 0; i < moleculeCount; i++) {
-      const angle = state.time * (.3 + i * .012) + entry.phase + i * TAU / moleculeCount;
-      const rr = radius * (.35 + (i % 4) * .13);
-      const x = Math.cos(angle) * rr;
-      const y = Math.sin(angle * 1.23) * rr * .56;
-      ctx.fillStyle = i % 2 ? '#ffd77e' : '#9effdf';
-      ctx.globalAlpha = .38 + reserve * .4;
-      ctx.beginPath();
-      ctx.arc(x, y, 1.7 + (i % 3) * .45, 0, TAU);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
   function drawSpores(ctx, entry) {
     if (entry.mode !== 'spores' && entry.mode !== 'germinating' && entry.mode !== 'sporulating') return;
     const colony = entry.colony;
@@ -603,12 +555,12 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
 
   function render(ctx) {
     if (!colonyStates.size) return;
+    const visibleWidth = state.visibleWorldWidth || W / Math.max(.1, state.cameraZoom || 1);
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const entry of colonyStates.values()) {
-      if (entry.colony.x < state.cameraX - 230 || entry.colony.x > state.cameraX + W + 230) continue;
-      drawProtectedRoot(ctx, entry);
-      drawAntibioticHalo(ctx, entry);
+      if (entry.colony.x < state.cameraX - 230 || entry.colony.x > state.cameraX + visibleWidth + 230) continue;
+      drawBacillusBiofilm(ctx, { entry }, state.time);
       drawSpores(ctx, entry);
       drawReserve(ctx, entry);
     }

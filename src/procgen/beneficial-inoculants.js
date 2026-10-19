@@ -1,7 +1,6 @@
 import { organismVerticalBounds } from './world-bounds.js';
 import { MICROBE_MOTION_PROFILES } from './microbe-ecology.js';
 import { H, W } from '../core/constants.js';
-import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from '../render/bacillus-sprite.js';
 import { organismSprites } from '../render/organism-sprites.js';
 import { COLONY_ESTABLISHMENT_GROWTH } from '../audio-manifest.js';
 import { narrate } from './narrator.js';
@@ -553,6 +552,9 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
   }
 
   function drawColony(ctx, colony) {
+    // The Bacillus lifecycle draws its adherent cells INSIDE the EPS coating.
+    // Rendering the generic colony too would duplicate five floating sprites.
+    if (colony.type === 'bacillus') return;
     const profile = PROFILES[colony.type];
     const growth = colony.growth;
     const pulse = 1 + Math.sin(state.time * 2 + colony.phase) * .045;
@@ -608,19 +610,6 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
           ctx.ellipse(x, y, 5.3, 1.8, angle, 0, TAU);
           ctx.fill();
           ctx.stroke();
-        }
-      } else if (colony.type === 'bacillus') {
-        const spriteCount = 5;
-        if (i < spriteCount) {
-          const alpha = colony.dormant ? .35 : .95;
-          const bx = (i / Math.max(1, spriteCount - 1) - 0.5) * Math.max(110, radius * 2.2);
-          const by = -22 + Math.sin(state.time * 2.2 + i * 0.8) * 3;
-          const drawn = drawInoculatedBacillusSprite(ctx, bx, by, 54, null, state.time, i, alpha);
-          if (!drawn) {
-            ctx.roundRect(x - 4.5, y - 2, 9, 4, 2);
-            ctx.fill();
-            ctx.stroke();
-          }
         }
       } else if (colony.type === 'pseudomonas' || colony.type === 'myco') {
         if (colonySpriteReady) {

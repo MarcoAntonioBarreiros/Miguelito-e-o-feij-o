@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"d591b2c","subject":"Integra melhorias WebGL aprovadas preservando os VFX da main (#1)","builtAt":"2026-10-19 01:44"};
+window.__BEANS_BUILD__ = {"commit":"769edb2","subject":"Substitui fosfato por cristais procedurais facetados (#2)","builtAt":"2026-10-19 12:15"};
 (() => {
 'use strict';
 const __modules = {
@@ -15542,7 +15542,6 @@ Object.assign(__exports, { createTrichodermaColonies });
 const { organismVerticalBounds } = __require("src/procgen/world-bounds.js");
 const { MICROBE_MOTION_PROFILES } = __require("src/procgen/microbe-ecology.js");
 const { H, W } = __require("src/core/constants.js");
-const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");
 const { organismSprites } = __require("src/render/organism-sprites.js");
 const { COLONY_ESTABLISHMENT_GROWTH } = __require("src/audio-manifest.js");
 const { narrate } = __require("src/procgen/narrator.js");
@@ -16093,6 +16092,9 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
   }
 
   function drawColony(ctx, colony) {
+    // The Bacillus lifecycle draws its adherent cells INSIDE the EPS coating.
+    // Rendering the generic colony too would duplicate five floating sprites.
+    if (colony.type === 'bacillus') return;
     const profile = PROFILES[colony.type];
     const growth = colony.growth;
     const pulse = 1 + Math.sin(state.time * 2 + colony.phase) * .045;
@@ -16148,19 +16150,6 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
           ctx.ellipse(x, y, 5.3, 1.8, angle, 0, TAU);
           ctx.fill();
           ctx.stroke();
-        }
-      } else if (colony.type === 'bacillus') {
-        const spriteCount = 5;
-        if (i < spriteCount) {
-          const alpha = colony.dormant ? .35 : .95;
-          const bx = (i / Math.max(1, spriteCount - 1) - 0.5) * Math.max(110, radius * 2.2);
-          const by = -22 + Math.sin(state.time * 2.2 + i * 0.8) * 3;
-          const drawn = drawInoculatedBacillusSprite(ctx, bx, by, 54, null, state.time, i, alpha);
-          if (!drawn) {
-            ctx.roundRect(x - 4.5, y - 2, 9, 4, 2);
-            ctx.fill();
-            ctx.stroke();
-          }
         }
       } else if (colony.type === 'pseudomonas' || colony.type === 'myco') {
         if (colonySpriteReady) {
@@ -18048,6 +18037,7 @@ const { W } = __require("src/core/constants.js");
 const { fxLanded } = __require("src/game-audio.js");
 const { externalControlPressure } = __require("src/procgen/biological-audio-signals.js");
 const { narrate } = __require("src/procgen/narrator.js");
+const { drawBacillusBiofilm } = __require("src/render/bacillus-biofilm.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -18477,55 +18467,6 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
     )).length;
   }
 
-  function drawProtectedRoot(ctx, entry) {
-    if (entry.maturity < .55 || entry.mode === 'spores') return;
-    const platform = entry.colony.platform;
-    if (!platform) return;
-    const strength = clamp(entry.maturity * entry.colony.vigor, 0, 1);
-    ctx.save();
-    ctx.globalAlpha = .16 + strength * .3;
-    ctx.strokeStyle = '#94ffe0';
-    ctx.lineWidth = 2 + strength * 2;
-    ctx.setLineDash([6, 8]);
-    ctx.beginPath();
-    ctx.moveTo(platform.x + 12, platform.y - 3);
-    ctx.lineTo(platform.x + platform.w - 12, platform.y - 3);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-  }
-
-  function drawAntibioticHalo(ctx, entry) {
-    if (entry.maturity < .68 || entry.mode === 'spores') return;
-    const colony = entry.colony;
-    const reserve = clamp(entry.antibioticReserve / .45, 0, 1);
-    if (reserve <= .02) return;
-    const radius = 82 + entry.maturity * 42 + (colony.sourceCount || 1) * 11;
-    ctx.save();
-    ctx.translate(colony.x, colony.y);
-    ctx.strokeStyle = entry.activePressure > .04 ? 'rgba(255,206,119,.58)' : 'rgba(112,229,214,.25)';
-    ctx.lineWidth = 1.2;
-    ctx.setLineDash([2, 7]);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius + Math.sin(state.time * 1.7 + entry.phase) * 3, 0, TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    const moleculeCount = 5 + Math.round(reserve * 7);
-    for (let i = 0; i < moleculeCount; i++) {
-      const angle = state.time * (.3 + i * .012) + entry.phase + i * TAU / moleculeCount;
-      const rr = radius * (.35 + (i % 4) * .13);
-      const x = Math.cos(angle) * rr;
-      const y = Math.sin(angle * 1.23) * rr * .56;
-      ctx.fillStyle = i % 2 ? '#ffd77e' : '#9effdf';
-      ctx.globalAlpha = .38 + reserve * .4;
-      ctx.beginPath();
-      ctx.arc(x, y, 1.7 + (i % 3) * .45, 0, TAU);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
   function drawSpores(ctx, entry) {
     if (entry.mode !== 'spores' && entry.mode !== 'germinating' && entry.mode !== 'sporulating') return;
     const colony = entry.colony;
@@ -18648,12 +18589,12 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
 
   function render(ctx) {
     if (!colonyStates.size) return;
+    const visibleWidth = state.visibleWorldWidth || W / Math.max(.1, state.cameraZoom || 1);
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const entry of colonyStates.values()) {
-      if (entry.colony.x < state.cameraX - 230 || entry.colony.x > state.cameraX + W + 230) continue;
-      drawProtectedRoot(ctx, entry);
-      drawAntibioticHalo(ctx, entry);
+      if (entry.colony.x < state.cameraX - 230 || entry.colony.x > state.cameraX + visibleWidth + 230) continue;
+      drawBacillusBiofilm(ctx, { entry }, state.time);
       drawSpores(ctx, entry);
       drawReserve(ctx, entry);
     }
@@ -18699,546 +18640,272 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
 }
 Object.assign(__exports, { createBacillusBioprotection });
 },
-"src/procgen/bacillus-bioprotection-safety.js": (__exports, __require) => {
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-
-function createBacillusBioprotectionSafety({ state, inoculants }) {
-  function colonies() {
-    return (inoculants.colonies || []).filter(colony => colony.type === 'bacillus');
-  }
-
-  function splitSharedFilms() {
-    const owners = new Map();
-    const films = state.level.biofilms || (state.level.biofilms = []);
-
-    for (const colony of colonies()) {
-      const entry = colony.bacillusState;
-      const film = entry?.film || colony.linkedBiofilm;
-      if (!film) continue;
-      const owner = owners.get(film);
-      if (!owner) {
-        owners.set(film, colony.id);
-        film.bacillusColonyId = colony.id;
-        continue;
-      }
-      if (owner === colony.id) continue;
-
-      const clone = {
-        ...film,
-        x: colony.x,
-        y: colony.y,
-        platform: colony.platform,
-        radius: Math.min(film.radius || 18, 18),
-        targetRadius: 28,
-        growth: Math.min(film.growth || .08, .18),
-        activated: false,
-        bacillusManaged: true,
-        bacillusColonyId: colony.id,
-      };
-      films.push(clone);
-      colony.linkedBiofilm = clone;
-      if (entry) entry.film = clone;
-      owners.set(clone, colony.id);
-    }
-  }
-
-  function constrainStressedFilms() {
-    for (const colony of colonies()) {
-      const entry = colony.bacillusState;
-      const film = entry?.film || colony.linkedBiofilm;
-      if (!entry || !film) continue;
-
-      if (entry.mode === 'spores') {
-        film.targetRadius = 0;
-        film.radius = 0;
-        film.growth = 0;
-        film.functional = false;
-        continue;
-      }
-
-      if (entry.mode !== 'sporulating' && colony.vigor > .08) continue;
-      const base = 34 + entry.maturity * (48 + (colony.sourceCount || 1) * 6);
-      const target = clamp(base * .18, 4, 24);
-      film.targetRadius = target;
-      film.radius = Math.min(film.radius || 0, target + 4);
-      film.growth = Math.min(film.growth || 0, .28);
-      film.functional = false;
-    }
-  }
-
-  function update() {
-    splitSharedFilms();
-    constrainStressedFilms();
-  }
-
-  return { update };
-}
-Object.assign(__exports, { createBacillusBioprotectionSafety });
-},
-"src/procgen/rhizobium-nodulation.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { narrate } = __require("src/procgen/narrator.js");
+"src/render/bacillus-biofilm.js": (__exports, __require) => {
+// A surface coating, not the biological area of protection. All dimensions here
+// are visual; film.radius and every simulation threshold keep their old meaning.
+const { drawInoculatedBacillusSprite } = __require("src/render/bacillus-sprite.js");
 const { visibleRootRect } = __require("src/render/rhizosphere-geometry.js");
+const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
+const smooth = (lo, hi, value) => { const t = clamp((value - lo) / (hi - lo)); return t * t * (3 - 2 * t); };
+const noise = (seed, i) => { const n = Math.sin(seed * .173 + i * 127.1) * 43758.5453; return n - Math.floor(n); };
+const cache = new WeakMap();
 const TAU = Math.PI * 2;
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const lerp = (a, b, t) => a + (b - a) * t;
 
-const STAGES = [
-  'recognition',
-  'root-hair-curl',
-  'infection-thread',
-  'primordium',
-  'young-nodule',
-  'mature-nodule',
-];
-
-const STAGE_DURATION = {
-  recognition: 1.8,
-  'root-hair-curl': 2.3,
-  'infection-thread': 4.7,
-  primordium: 3.8,
-  'young-nodule': 4.4,
-};
-
-function hostCompatible(colony) {
-  return Boolean(
-    colony?.platform
-    && colony.platform.type === 'root'
-    && !colony.platform.mycorrhizaStructure,
-  );
-}
-
-function stageIndex(stage) {
-  return Math.max(0, STAGES.indexOf(stage));
-}
-
-function stageLabel(site, activity = 0) {
-  if (!site.compatible) return 'sem raiz hospedeira';
-  if (site.paused) return site.mature ? 'nódulo inativo — pouco carbono' : 'nodulação pausada — pouco carbono';
-  if (site.stage === 'recognition') return 'reconhecimento do hospedeiro';
-  if (site.stage === 'root-hair-curl') return 'curvatura do pelo radicular';
-  if (site.stage === 'infection-thread') return 'fio de infecção';
-  if (site.stage === 'primordium') return 'primórdio do nódulo';
-  if (site.stage === 'young-nodule') return 'nódulo jovem';
-  if (activity > .55) return 'fixação ativa de N₂';
-  if (activity > .16) return 'fixação limitada de N₂';
-  return 'nódulo inativo — pouco carbono';
-}
-
-function createRhizobiumNodulation({ state, entities, inoculants }) {
-  const sites = new Map();
-  let totalFixation = 0;
-
-  function clear() {
-    // Os fios de infecção e a FBN pertencem a esta fase: nenhum atravessa.
-    entities?.audio?.stopGroup('rhizobium-thread');
-    entities?.audio?.stopLoop('nitrogen-fixation:nearest');
-    sites.clear();
-    totalFixation = 0;
-    state.level.rhizobiumNodules = [];
-  }
-
-  function reset() {
-    clear();
-  }
-
-  function createSite(colony) {
-    const compatible = hostCompatible(colony);
-    const site = {
-      id: `nodule-${colony.id}`,
-      colony,
-      platform: colony.platform,
-      x: colony.x,
-      surfaceY: colony.platform?.y ?? colony.y,
-      depth: clamp((colony.platform?.h || 56) * .34, 16, 34),
-      compatible,
-      stage: compatible ? 'recognition' : 'incompatible',
-      progress: 0,
-      maturity: 0,
-      mature: false,
-      paused: false,
-      activity: 0,
-      fixationRate: 0,
-      phase: Math.random() * TAU,
-      lobes: clamp(colony.sourceCount || 1, 1, 3),
-      announced: new Set(),
-    };
-    sites.set(colony.id, site);
-    // Reconhecimento hospedeiro–Rhizobium: o sítio nasce JÁ nesse estágio, então
-    // a criação é a transição. Uma vez por sítio, nunca por quadro.
-    if (compatible) {
-      entities?.audio?.play('rhizobiumRecognition', { x: site.x, y: site.surfaceY });
-    }
-    if (!compatible) narrate(state, 'rhizobium.no-host');
-    return site;
-  }
-
-  function syncSites() {
-    const rhizobiumColonies = (inoculants.colonies || []).filter(colony => colony.type === 'rhizobium');
-    const activeIds = new Set(rhizobiumColonies.map(colony => colony.id));
-
-    for (const colony of rhizobiumColonies) {
-      let site = sites.get(colony.id);
-      if (!site) site = createSite(colony);
-      site.colony = colony;
-      site.platform = colony.platform;
-      site.x = colony.x;
-      site.surfaceY = colony.platform?.y ?? colony.y;
-    }
-    for (const id of sites.keys()) {
-      if (!activeIds.has(id)) sites.delete(id);
-    }
-    state.level.rhizobiumNodules = [...sites.values()];
-  }
-
-  // Áudio e toast respondem à MESMA transição, mas um não depende do outro: o
-  // narrador pode segurar ou dispensar o toast (escopo de campanha: as cinco
-  // etapas só aparecem no primeiro nódulo), e o som toca sempre.
-  function advanceStage(site) {
-    const index = stageIndex(site.stage);
-    const next = STAGES[Math.min(STAGES.length - 1, index + 1)];
-    site.stage = next;
-    site.progress = 0;
-    const audio = entities?.audio;
-    const threadKey = `rhizobium-thread:${site.id}`;
-
-    if (next === 'root-hair-curl') {
-      audio?.play('rhizobiumRootHairCurl', { x: site.x, y: site.surfaceY });
-      narrate(state, 'rhizobium.curl');
-    } else if (next === 'infection-thread') {
-      audio?.startLoop(threadKey, 'rhizobiumInfectionThread', {
-        x: site.x, y: site.surfaceY, gain: .55,
-      });
-      narrate(state, 'rhizobium.thread');
-    } else if (next === 'primordium') {
-      // O fio terminou: o loop sai antes de o primórdio soar.
-      audio?.stopLoop(threadKey);
-      audio?.play('rhizobiumPrimordium', { x: site.x, y: site.surfaceY + site.depth });
-      narrate(state, 'rhizobium.primordium');
-    } else if (next === 'young-nodule') {
-      audio?.play('rhizobiumYoungNodule', { x: site.x, y: site.surfaceY + site.depth });
-      narrate(state, 'rhizobium.young');
-    } else if (next === 'mature-nodule') {
-      site.mature = true;
-      site.maturity = 1;
-      // Única transição mature false → true de um sítio. Um nódulo restaurado já
-      // maduro não passa por aqui e por isso não toca conclusão.
-      audio?.play('rhizobiumMatureNodule', { x: site.x, y: site.surfaceY + site.depth });
-      narrate(state, 'rhizobium.mature');
-      entities.burst(site.x, site.surfaceY + site.depth, '#ff9db5', 36, 145);
-    }
-  }
-
-  function updateDevelopingSite(site, dt) {
-    const colony = site.colony;
-    const carbon = clamp(
-      .18 + colony.vigor * .72 + (colony.rechargeIntensity || 0) * .32,
-      .12,
-      1.22,
-    );
-    const sourceBoost = 1 + Math.max(0, (colony.sourceCount || 1) - 1) * .13;
-    site.paused = colony.dormant || colony.vigor < .055;
-    site.activity = 0;
-    site.fixationRate = 0;
-
-    const audio = entities?.audio;
-    const threadKey = `rhizobium-thread:${site.id}`;
-
-    if (site.paused) {
-      // Sem carbono o fio para de avançar: o loop recua, mas não é destruído.
-      if (site.stage === 'infection-thread') audio?.pauseLoop(threadKey);
-      colony.stage = stageLabel(site);
-      return;
-    }
-
-    const duration = STAGE_DURATION[site.stage] || 1;
-    site.progress = clamp(site.progress + dt * carbon * sourceBoost / duration, 0, 1);
-    colony.stage = stageLabel(site);
-
-    // Sustenta o loop do fio: posição acompanha a profundidade atual, ganho e
-    // rate sobem com o avanço. `startLoop` é idempotente — não cria segundo
-    // source nem reinicia a faixa.
-    if (site.stage === 'infection-thread') {
-      audio?.startLoop(threadKey, 'rhizobiumInfectionThread', {
-        x: site.x,
-        y: site.surfaceY + site.depth * site.progress,
-        gain: .55 + site.progress * .45,
-        rate: .94 + site.progress * .12,
-      });
-    }
-
-    if (site.progress >= 1) advanceStage(site);
-  }
-
-  function updateMatureSite(site, dt) {
-    const colony = site.colony;
-    const carbon = clamp(
-      colony.vigor * .82 + (colony.rechargeIntensity || 0) * .36,
-      0,
-      1,
-    );
-    const bacteroidCapacity = .58 + Math.min(3, colony.sourceCount || 1) * .24;
-    const activity = clamp(carbon * bacteroidCapacity, 0, 1.35);
-    site.paused = colony.dormant || colony.vigor < .045;
-    site.activity = site.paused ? 0 : activity;
-    site.fixationRate = site.activity * (colony.sourceCount || 1);
-    totalFixation += site.fixationRate;
-    colony.stage = stageLabel(site, site.activity);
-
-    if (site.activity <= 0) return;
-
-    colony.vigor = clamp(colony.vigor - dt * .00165 * site.fixationRate, 0, 1);
-    state.player.soil += dt * .022 * site.fixationRate;
-    state.player.hope += dt * .013 * site.fixationRate;
-
-    if (Math.random() < dt * .45 * site.activity) {
-      const angle = site.phase + state.time * .7;
-      entities.burst(
-        site.x + Math.cos(angle) * 12,
-        site.surfaceY + site.depth + Math.sin(angle) * 7,
-        '#ffd783',
-        2,
-        28,
-      );
-    }
-  }
-
-  // Um loop de FBN por nódulo viraria zumbido: numa raiz com três nódulos
-  // maduros seriam três cópias da mesma textura somadas. Toca no máximo UM, o do
-  // nódulo funcional mais próximo, e a posição acompanha esse nódulo.
-  const FIXATION_AUDIBLE_ACTIVITY = .16;
-  const FIXATION_KEY = 'nitrogen-fixation:nearest';
-
-  function updateFixationLoop() {
-    const audio = entities?.audio;
-    if (!audio) return;
-    const player = state.player;
-    const playerCenterX = player ? player.x + player.w / 2 : 0;
-
-    let nearest = null;
-    let nearestDistance = Infinity;
-    for (const site of sites.values()) {
-      if (!site.mature || site.activity <= FIXATION_AUDIBLE_ACTIVITY) continue;
-      const distance = Math.abs(site.x - playerCenterX);
-      if (distance < nearestDistance) {
-        nearest = site;
-        nearestDistance = distance;
-      }
-    }
-
-    if (!nearest) {
-      audio.stopLoop(FIXATION_KEY);
-      return;
-    }
-    audio.startLoop(FIXATION_KEY, 'nitrogenFixationActive', {
-      x: nearest.x,
-      y: nearest.surfaceY + nearest.depth,
-      // Proporcional à atividade real do nódulo, e sempre discreto.
-      gain: clamp(nearest.activity, 0, 1),
-      rate: .96 + clamp(nearest.activity, 0, 1) * .08,
-    });
-  }
-
-  function update(dt) {
-    if (state.gameState !== 'play') return;
-    syncSites();
-    totalFixation = 0;
-
-    for (const site of sites.values()) {
-      const colony = site.colony;
-      if (!site.compatible) {
-        colony.stage = 'rizosfera sem hospedeiro';
-        site.activity = 0;
-        site.fixationRate = 0;
-        continue;
-      }
-      if (!site.mature) updateDevelopingSite(site, dt);
-      else updateMatureSite(site, dt);
-    }
-
-    updateFixationLoop();
-  }
-
-  function drawRootHair(ctx, site) {
-    const stage = stageIndex(site.stage);
-    if (stage < 1) return;
-    const curl = clamp(stage === 1 ? site.progress : 1, 0, 1);
-    const y = site.surfaceY - 4;
-    ctx.strokeStyle = `rgba(235,221,198,${.35 + curl * .55})`;
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.moveTo(site.x - 28, y + 2);
-    ctx.bezierCurveTo(
-      site.x - 18, y - 24 * curl,
-      site.x + 22, y - 25 * curl,
-      site.x + 11, y - 4,
-    );
-    if (curl > .56) {
-      ctx.bezierCurveTo(site.x + 2, y + 7, site.x - 7, y - 3, site.x + 1, y - 10);
-    }
-    ctx.stroke();
-  }
-
-  function drawInfectionThread(ctx, site) {
-    const index = stageIndex(site.stage);
-    if (index < 2) return;
-    const progress = index === 2 ? site.progress : 1;
-    const startY = site.surfaceY - 7;
-    const endY = site.surfaceY + site.depth * progress;
-    ctx.strokeStyle = `rgba(224,190,255,${.42 + progress * .5})`;
-    ctx.lineWidth = 2.1;
-    ctx.shadowBlur = 7;
-    ctx.shadowColor = '#c7a5ff';
-    ctx.beginPath();
-    ctx.moveTo(site.x + 1, startY);
-    ctx.bezierCurveTo(
-      site.x + 12, lerp(startY, endY, .34),
-      site.x - 10, lerp(startY, endY, .7),
-      site.x + 2, endY,
-    );
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    const cellCount = 2 + Math.floor(progress * 5);
-    for (let i = 0; i < cellCount; i++) {
-      const t = (i + .5) / cellCount * progress;
-      const yy = lerp(startY, site.surfaceY + site.depth, t);
-      const xx = site.x + Math.sin(t * Math.PI * 3 + site.phase) * 5;
-      ctx.fillStyle = '#ead8ff';
-      ctx.beginPath();
-      ctx.ellipse(xx, yy, 2.8, 1.4, t * 2, 0, TAU);
-      ctx.fill();
-    }
-  }
-
-  function drawPrimordium(ctx, site) {
-    const index = stageIndex(site.stage);
-    if (index < 3) return;
-    const development = index === 3 ? site.progress * .48 : index === 4 ? .48 + site.progress * .42 : 1;
-    const radius = lerp(3, 15 + site.lobes * 1.7, development);
-    const centerY = site.surfaceY + site.depth;
-
-    ctx.save();
-    ctx.translate(site.x, centerY);
-    ctx.scale(1, .76);
-    const gradient = ctx.createRadialGradient(-radius * .2, -radius * .25, 1, 0, 0, radius * 1.2);
-    gradient.addColorStop(0, index >= 5 ? '#ffd0da' : '#f6dfc8');
-    gradient.addColorStop(.62, index >= 5 ? '#df6688' : '#dba98f');
-    gradient.addColorStop(1, 'rgba(94,38,50,.82)');
-    ctx.fillStyle = gradient;
-    ctx.strokeStyle = index >= 5 ? '#ffb2c5' : '#f1c7ac';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    for (let i = 0; i < 18; i++) {
-      const angle = i / 18 * TAU;
-      const lobe = 1 + Math.sin(angle * site.lobes + site.phase) * .12 * development;
-      const x = Math.cos(angle) * radius * lobe;
-      const y = Math.sin(angle) * radius * lobe;
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    if (index >= 4) {
-      const count = 5 + site.colony.sourceCount * 3;
-      for (let i = 0; i < count; i++) {
-        const angle = i / count * TAU + site.phase;
-        const rr = radius * (.2 + (i % 4) * .15);
-        ctx.fillStyle = index >= 5 ? '#7b254a' : '#a2697d';
-        ctx.globalAlpha = .52 + (i % 3) * .15;
-        ctx.beginPath();
-        ctx.ellipse(Math.cos(angle) * rr, Math.sin(angle) * rr, 3.2, 1.25, angle, 0, TAU);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
-    ctx.restore();
-  }
-
-  function drawFixationFlux(ctx, site) {
-    if (!site.mature || site.activity <= .08) return;
-    const centerY = site.surfaceY + site.depth;
-    const intensity = clamp(site.activity, 0, 1);
-    for (let i = 0; i < 5; i++) {
-      const t = (state.time * (.18 + i * .012) + i * .21 + site.phase) % 1;
-      const angle = site.phase + i * 1.37;
-      const startX = site.x + Math.cos(angle) * (36 + i * 3);
-      const startY = centerY - 30 - i * 3;
-      const x = lerp(startX, site.x, t);
-      const y = lerp(startY, centerY, t) + Math.sin(t * Math.PI) * 8;
-      ctx.globalAlpha = (.25 + intensity * .6) * (1 - Math.abs(t - .5) * .7);
-      ctx.fillStyle = '#8db8ff';
-      ctx.beginPath();
-      ctx.arc(x, y, 2.2, 0, TAU);
-      ctx.fill();
-    }
-
-    for (let i = 0; i < 4; i++) {
-      const t = (state.time * .22 + i * .27 + site.phase * .2) % 1;
-      const x = site.x + (i - 1.5) * 5 + Math.sin(t * TAU + i) * 2;
-      const y = lerp(centerY, site.surfaceY + 5, t);
-      ctx.globalAlpha = .25 + intensity * .65;
-      ctx.fillStyle = '#ffd783';
-      ctx.beginPath();
-      ctx.arc(x, y, 2.1, 0, TAU);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    ctx.font = '700 8px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(180,208,255,.82)';
-    ctx.fillText('N₂', site.x - 27, centerY - 24);
-    ctx.fillStyle = 'rgba(255,220,139,.9)';
-    ctx.fillText('NH₄⁺', site.x + 26, site.surfaceY + 4);
-  }
-
-  function drawIncompatible(ctx, site) {
-    ctx.strokeStyle = 'rgba(199,165,255,.45)';
-    ctx.setLineDash([3, 5]);
-    ctx.beginPath();
-    ctx.arc(site.x, site.surfaceY - 8, 15, 0, TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  function render(ctx) {
-    if (!sites.size) return;
-    ctx.save();
-    ctx.translate(-state.cameraX, 0);
-    for (const site of sites.values()) {
-      if (site.x < state.cameraX - 160 || site.x > state.cameraX + W + 160) continue;
-      if (!site.compatible) {
-        drawIncompatible(ctx, site);
-        continue;
-      }
-      // O nódulo nasce na raiz visível do agregado, colado à borda de baixo
-      // dela (só desenho; o sítio continua com a profundidade da plataforma).
-      const root = site.platform ? visibleRootRect(site.platform) : null;
-      const shown = root && root !== site.platform ? Object.create(site) : site;
-      if (shown !== site) shown.depth = Math.min(site.depth, root.h * .9);
-      drawRootHair(ctx, shown);
-      drawInfectionThread(ctx, shown);
-      drawPrimordium(ctx, shown);
-      drawFixationFlux(ctx, shown);
-    }
-    ctx.restore();
-  }
-
+function biofilmVisualState({ entry = null, colony = entry?.colony, film = entry?.film, progress = null } = {}) {
+  // Ecological film.growth also advances independently in gameplay.update. It
+  // must NEVER replace the Bacillus lifecycle's maturity for a managed colony.
+  const maturity = clamp(entry ? entry.maturity : progress ?? film?.growth ?? 1);
+  const mode = entry?.mode || film?.bacillusMode || 'matrix';
+  const vigor = clamp(colony?.vigor ?? 1);
+  const spores = mode === 'spores';
+  const sporulation = mode === 'sporulating' ? clamp(entry?.sporulation || 0) : 0;
   return {
-    get siteCount() { return sites.size; },
-    get matureCount() { return [...sites.values()].filter(site => site.mature).length; },
-    get activeCount() { return [...sites.values()].filter(site => site.mature && site.activity > .16).length; },
-    get incompatibleCount() { return [...sites.values()].filter(site => !site.compatible).length; },
-    get fixationRate() { return totalFixation; },
-    clear,
-    reset,
-    update,
-    render,
+    maturity, vigor, mode,
+    functional: Boolean(film?.functional ?? (!entry && maturity >= .42)),
+    adhesion: smooth(.06, .26, maturity),
+    matrix: smooth(.12, .42, maturity),
+    expansion: smooth(.24, .74, maturity),
+    maturation: smooth(.65, 1, maturity),
+    hydration: spores ? 0 : (1 - sporulation * .82) * (.48 + vigor * .52),
+    activity: clamp(entry?.activePressure || 0),
+    antibiotic: clamp(entry?.antibioticReserve || 0),
+    sourceCount: clamp(colony?.sourceCount ?? 3, 1, 8),
   };
 }
-Object.assign(__exports, { createRhizobiumNodulation });
+
+function biofilmSurface({ film, colony, entry, platform = colony?.platform || film?.platform, platforms = [] }) {
+  const x = film?.checkpoint?.x ?? colony?.x ?? film?.x ?? entry?.colony?.x ?? 0;
+  const y = film?.checkpoint ? film.checkpoint.y + 8 : colony?.y ?? film?.y ?? 0;
+  // Natural checkpoints have no platform reference. Resolve their actual host
+  // only for painting; do not attach/change any simulation object.
+  if (!platform) {
+    let best = 110;
+    for (const p of platforms) {
+      if (p.final || p.mycorrhizaStructure) continue;
+      const d = Math.hypot(x - clamp(x, p.x, p.x + p.w), y - p.y);
+      if (d < best) { platform = p; best = d; }
+    }
+  }
+  const rect = platform ? visibleRootRect(platform) : null;
+  const left = rect ? rect.x + 6 : x - 90;
+  const right = rect ? rect.x + rect.w - 6 : x + 90;
+  const center = clamp(x, left + 2, right - 2);
+  const seed = Math.round(x * 13 + y * 7 + (platform?.logicIndex || 0) * 83);
+  return { x: center, y: rect?.y ?? y + 7, left, right, band: clamp(rect?.h || 18, 14, 24), seed };
+}
+
+function buildBiofilmProfile(surface, visual, time = 0) {
+  const m = visual.maturity;
+  const spread = .12 + .88 * smooth(.09, .82, m);
+  const reach = 80 + visual.sourceCount * 10;
+  const left = Math.max(surface.left, surface.x - reach * spread * (.94 + noise(surface.seed, 1) * .15));
+  const right = Math.min(surface.right, surface.x + reach * spread * (.94 + noise(surface.seed, 2) * .15));
+  const center = (left + right) / 2;
+  const half = Math.max(1, (right - left) / 2);
+  const bridge = smooth(.34, .42, m);
+  const eps = smooth(.12, .29, m) * visual.hydration;
+  const samples = [];
+  for (let i = 0; i <= 80; i++) {
+    const u = i / 80;
+    const x = left + (right - left) * u;
+    const envelope = Math.pow(Math.max(0, 1 - ((x - center) / half) ** 2), .48);
+    let density = 0;
+    for (let k = 0; k < 9; k++) {
+      const at = (k + .25 + noise(surface.seed, 10 + k) * .5) / 9;
+      const onset = .13 + Math.abs(at - .5) * .30 + noise(surface.seed, 30 + k) * .025;
+      const emergence = smooth(onset, onset + .11, m);
+      const width = .015 + .058 * visual.matrix + noise(surface.seed, 50 + k) * .012;
+      const d = (u - at) / width;
+      density = Math.max(density, emergence * Math.exp(-d * d * 1.5));
+    }
+    const ripple = .83 + .12 * Math.sin(u * 25 + surface.seed) + .055 * Math.sin(u * 61 + surface.seed * .3);
+    // Only restrained breathing/gloss uses time. Extent, density and thickness
+    // cannot advance unless real maturity advances (same principle as nodules).
+    const breath = Math.sin(time * 1.1 + u * 8 + surface.seed) * .24 * visual.matrix;
+    const depth = Math.max(density, bridge * (.68 + .12 * Math.sin(u * 19 + surface.seed)));
+    const height = depth * envelope * eps;
+    samples.push({ x, top: surface.y - height * (10 + visual.expansion * 8) * ripple - breath * height,
+      bottom: surface.y + height * (4 + visual.expansion * 6) * (1.08 - ripple * .2), height });
+  }
+  // Gaps are separate attached EPS islands early on; later the same heightfield
+  // joins into one continuous film. There is no replacement at a stage boundary.
+  const segments = [];
+  let segment = [];
+  for (const p of samples) {
+    if (p.height > .025) segment.push(p);
+    else if (segment.length) { if (segment.length > 1) segments.push(segment); segment = []; }
+  }
+  if (segment.length > 1) segments.push(segment);
+  return { left, right, samples, segments };
+}
+
+function trace(ctx, points, reverse = false, edge = 'top', move = true) {
+  const list = reverse ? [...points].reverse() : points;
+  if (move) ctx.moveTo(list[0].x, list[0][edge]); else ctx.lineTo(list[0].x, list[0][edge]);
+  for (let i = 1; i < list.length - 1; i++) {
+    ctx.quadraticCurveTo(list[i].x, list[i][edge], (list[i].x + list[i + 1].x) / 2, (list[i][edge] + list[i + 1][edge]) / 2);
+  }
+  const last = list[list.length - 1]; ctx.lineTo(last.x, last[edge]);
+}
+
+function outline(ctx, profile) {
+  ctx.beginPath();
+  for (const points of profile.segments) {
+    trace(ctx, points); trace(ctx, points, true, 'bottom', false); ctx.closePath();
+  }
+}
+
+function paintGel(ctx, surface, visual, profile) {
+  if (!profile.segments.length) return;
+  const y = surface.y;
+  outline(ctx, profile);
+  const gel = ctx.createLinearGradient(0, y - 19, 0, y + 12);
+  gel.addColorStop(0, 'rgba(177,250,201,.59)');
+  gel.addColorStop(.36, 'rgba(102,215,156,.46)');
+  gel.addColorStop(.7, 'rgba(57,170,123,.47)');
+  gel.addColorStop(1, 'rgba(22,102,77,.62)');
+  ctx.fillStyle = gel; ctx.fill();
+  ctx.strokeStyle = 'rgba(24,111,82,.48)'; ctx.lineWidth = 1.1; ctx.stroke();
+  // Broad refracted edge inside the gel, never an external halo.
+  ctx.save(); outline(ctx, profile); ctx.clip();
+  ctx.strokeStyle = 'rgba(168,255,199,.17)'; ctx.lineWidth = 5; ctx.stroke();
+  ctx.restore();
+}
+
+function paintCells(ctx, surface, visual, profile, time) {
+  const m = visual.maturity;
+  const slots = 12;
+  const spread = .2 + .8 * smooth(.10, .78, m);
+  for (let k = 0; k < slots; k++) {
+    // Stable low-discrepancy placement: daughter cells appear between the first
+    // adherent cells. They do not orbit, float away or form a radial rosette.
+    const u = k < 2 ? .43 + k * .16 : .055 + ((k * .61803398875) % 1) * .89;
+    const onset = k < 2 ? .025 : .12 + (k - 2) * .047;
+    const alpha = smooth(onset, onset + .10, m) * (.55 + visual.vigor * .45) * (1 - (1 - visual.hydration) * .7);
+    if (alpha < .005) continue;
+    const x = clamp(surface.x + (u - .5) * (profile.right - profile.left) * spread,
+      surface.left + 7, surface.right - 7);
+    const index = clamp(Math.round((x - profile.left) / Math.max(1, profile.right - profile.left) * 80), 0, 80);
+    const p = profile.samples[index];
+    const y = surface.y - (3.5 + visual.expansion * 1.3) + (noise(surface.seed, k + 100) - .5) * (3 + visual.expansion * 13);
+    const width = 9.0 + noise(surface.seed, k + 120) * 3.4 + smooth(onset, onset + .15, m) * 1.3;
+    ctx.save(); ctx.translate(x, Math.max(p.top + 5.5, y));
+    ctx.rotate((noise(surface.seed, k + 140) - .5) * 2.1);
+    const drawn = drawInoculatedBacillusSprite(ctx, 0, 0, width, null, time, k * 3.7, alpha);
+    if (!drawn) {
+      // Only an asset-loading fallback; the real game uses its unmodified sheet.
+      ctx.globalAlpha = alpha; ctx.fillStyle = '#aa7ed8';
+      ctx.beginPath(); ctx.roundRect(-3, -6, 6, 12, 3); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function paintGlaze(ctx, surface, visual, profile, time) {
+  if (!profile.segments.length) return;
+  ctx.save(); outline(ctx, profile); ctx.clip();
+  ctx.fillStyle = 'rgba(164,255,199,.09)'; ctx.fill();
+  for (const segment of profile.segments) {
+    ctx.beginPath();
+    trace(ctx, segment.map(p => ({ x: p.x, top: p.top + 2.0 })));
+    ctx.strokeStyle = 'rgba(217,255,225,.38)'; ctx.lineWidth = .85; ctx.stroke();
+    // Interrupted wet highlights follow the local surface instead of tracing
+    // a solid neon border around the whole film.
+    for (let k = 0; k < 3; k++) {
+      const begin = Math.floor(segment.length * (.13 + k * .28));
+      const end = Math.min(segment.length, begin + Math.max(2, Math.floor(segment.length * .10)));
+      if (end - begin < 2) continue;
+      ctx.beginPath(); trace(ctx, segment.slice(begin, end).map(p => ({ x: p.x, top: p.top + 3.2 })));
+      ctx.strokeStyle = `rgba(243,255,229,${.20 + visual.maturation * .18})`;
+      ctx.lineWidth = 1.7; ctx.lineCap = 'round'; ctx.stroke();
+    }
+  }
+  // A few inclusions trapped in EPS, not emitted particles. Their locations are
+  // fixed to the root and their brightness reflects real film vitality.
+  for (let i = 0; i < 6; i++) {
+    const u = .08 + noise(surface.seed, 180 + i) * .84;
+    const p = profile.samples[Math.round(u * 80)];
+    if (p.height < .2) continue;
+    const r = .7 + noise(surface.seed, 200 + i) * 1.1;
+    const y = p.top + (p.bottom - p.top) * (.32 + noise(surface.seed, 220 + i) * .45);
+    ctx.strokeStyle = `rgba(187,255,224,${.18 + visual.vigor * .16})`;
+    ctx.lineWidth = .65;
+    ctx.beginPath(); ctx.ellipse(p.x, y, r, r * .75, -.3, 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function paintRelief(ctx, surface, profile) {
+  if (!profile.segments.length) return;
+  outline(ctx, profile);
+  const height = ctx.createLinearGradient(0, surface.y - 20, 0, surface.y + 12);
+  height.addColorStop(0, '#000'); height.addColorStop(.42, '#dedede');
+  height.addColorStop(.62, '#bcbcbc'); height.addColorStop(1, '#000');
+  ctx.fillStyle = height; ctx.fill();
+  ctx.save(); outline(ctx, profile); ctx.clip();
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+}
+
+function makeCanvas(ctx) {
+  return ctx.canvas?.ownerDocument?.createElement?.('canvas')
+    || (typeof document !== 'undefined' ? document.createElement('canvas') : null);
+}
+
+function drawBacillusBiofilm(ctx, { entry = null, colony = entry?.colony, film = entry?.film,
+  platform = colony?.platform || film?.platform, platforms = [], progress = null, key = entry || film || colony } = {}, time = 0) {
+  const visual = biofilmVisualState({ entry, colony, film, progress });
+  if (visual.hydration <= 0 || !key) return;
+  const surface = biofilmSurface({ film, colony, entry, platform, platforms });
+  const reach = (80 + visual.sourceCount * 10) * 1.1 + 8;
+  const x0 = Math.max(surface.left - 2, surface.x - reach);
+  const x1 = Math.min(surface.right + 2, surface.x + reach);
+  const bounds = { x: x0, y: surface.y - 34, w: Math.max(4, x1 - x0), h: 53 };
+  const transform = ctx.getTransform?.();
+  if (transform && ctx.canvas?.width > 0 && ctx.canvas?.height > 0) {
+    const corners = [[bounds.x, bounds.y], [bounds.x + bounds.w, bounds.y],
+      [bounds.x, bounds.y + bounds.h], [bounds.x + bounds.w, bounds.y + bounds.h]]
+      .map(([x, y]) => [transform.a * x + transform.c * y + transform.e, transform.b * x + transform.d * y + transform.f]);
+    if (Math.max(...corners.map(p => p[0])) < -8 || Math.min(...corners.map(p => p[0])) > ctx.canvas.width + 8
+      || Math.max(...corners.map(p => p[1])) < -8 || Math.min(...corners.map(p => p[1])) > ctx.canvas.height + 8) return;
+  }
+  let item = cache.get(key);
+  if (!item) {
+    item = { image: makeCanvas(ctx), relief: makeCanvas(ctx), revision: 0, stamp: '', lastTime: -Infinity };
+    cache.set(key, item);
+  }
+  let profile = null;
+  const paint = (target, relief = false) => {
+    profile ||= buildBiofilmProfile(surface, visual, time);
+    if (relief) { paintRelief(target, surface, profile); return; }
+    paintGel(target, surface, visual, profile);
+    paintCells(target, surface, visual, profile, time);
+    paintGlaze(target, surface, visual, profile, time);
+  };
+  if (!item.image || !item.relief) { ctx.save(); paint(ctx); ctx.restore(); return; }
+  // A bounded local patch retains sprite detail. It is uploaded only while its
+  // own biology/animation changes, never as a full-screen extra texture.
+  const scale = 2.5;
+  // Moving a root/camera moves the patch pose, not its pixels. Only a change in
+  // local host geometry should force a repaint between the bounded updates.
+  const stamp = [visual.mode, surface.x - bounds.x, surface.left - bounds.x,
+    surface.right - bounds.x, bounds.w].map(value => typeof value === 'number' ? value.toFixed(3) : value).join(':');
+  if (stamp !== item.stamp || time < item.lastTime || time - item.lastTime >= 1 / 24) {
+    for (const [canvas, relief] of [[item.image, false], [item.relief, true]]) {
+      const w = Math.max(2, Math.ceil(bounds.w * scale)), h = Math.ceil(bounds.h * scale);
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      const target = canvas.getContext('2d');
+      target.setTransform(1, 0, 0, 1, 0, 0); target.clearRect(0, 0, canvas.width, canvas.height);
+      target.setTransform(scale, 0, 0, scale, -bounds.x * scale, -bounds.y * scale);
+      paint(target, relief);
+    }
+    item.revision++; item.stamp = stamp; item.lastTime = time;
+  }
+  const packet = { key, image: item.image, relief: item.relief, ...bounds, revision: item.revision,
+    activity: visual.functional ? .55 + visual.vigor * .45 : .15 + visual.vigor * .1 };
+  if (typeof ctx.__glBiofilm === 'function' && ctx.__glBiofilm(packet) !== false) return;
+  ctx.drawImage(item.image, bounds.x, bounds.y, bounds.w, bounds.h);
+}
+Object.assign(__exports, { biofilmVisualState, biofilmSurface, buildBiofilmProfile, drawBacillusBiofilm });
 },
 "src/render/rhizosphere-geometry.js": (__exports, __require) => {
 // GEOMETRIA DA RIZOSFERA — só desenho
@@ -21934,6 +21601,547 @@ function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, time = 
   return true;
 }
 Object.assign(__exports, { FINAL_ROOT_COLLAR_OFFSET, FINAL_ROOT_SCALE, FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_BRANCHES_LOCAL, finalRootCollar, finalRootBounds, traceSoftRootGlowTube, drawFinalRoot });
+},
+"src/procgen/bacillus-bioprotection-safety.js": (__exports, __require) => {
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function createBacillusBioprotectionSafety({ state, inoculants }) {
+  function colonies() {
+    return (inoculants.colonies || []).filter(colony => colony.type === 'bacillus');
+  }
+
+  function splitSharedFilms() {
+    const owners = new Map();
+    const films = state.level.biofilms || (state.level.biofilms = []);
+
+    for (const colony of colonies()) {
+      const entry = colony.bacillusState;
+      const film = entry?.film || colony.linkedBiofilm;
+      if (!film) continue;
+      const owner = owners.get(film);
+      if (!owner) {
+        owners.set(film, colony.id);
+        film.bacillusColonyId = colony.id;
+        continue;
+      }
+      if (owner === colony.id) continue;
+
+      const clone = {
+        ...film,
+        x: colony.x,
+        y: colony.y,
+        platform: colony.platform,
+        radius: Math.min(film.radius || 18, 18),
+        targetRadius: 28,
+        growth: Math.min(film.growth || .08, .18),
+        activated: false,
+        bacillusManaged: true,
+        bacillusColonyId: colony.id,
+      };
+      films.push(clone);
+      colony.linkedBiofilm = clone;
+      if (entry) entry.film = clone;
+      owners.set(clone, colony.id);
+    }
+  }
+
+  function constrainStressedFilms() {
+    for (const colony of colonies()) {
+      const entry = colony.bacillusState;
+      const film = entry?.film || colony.linkedBiofilm;
+      if (!entry || !film) continue;
+
+      if (entry.mode === 'spores') {
+        film.targetRadius = 0;
+        film.radius = 0;
+        film.growth = 0;
+        film.functional = false;
+        continue;
+      }
+
+      if (entry.mode !== 'sporulating' && colony.vigor > .08) continue;
+      const base = 34 + entry.maturity * (48 + (colony.sourceCount || 1) * 6);
+      const target = clamp(base * .18, 4, 24);
+      film.targetRadius = target;
+      film.radius = Math.min(film.radius || 0, target + 4);
+      film.growth = Math.min(film.growth || 0, .28);
+      film.functional = false;
+    }
+  }
+
+  function update() {
+    splitSharedFilms();
+    constrainStressedFilms();
+  }
+
+  return { update };
+}
+Object.assign(__exports, { createBacillusBioprotectionSafety });
+},
+"src/procgen/rhizobium-nodulation.js": (__exports, __require) => {
+const { W } = __require("src/core/constants.js");
+const { narrate } = __require("src/procgen/narrator.js");
+const { visibleRootRect } = __require("src/render/rhizosphere-geometry.js");
+const TAU = Math.PI * 2;
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const lerp = (a, b, t) => a + (b - a) * t;
+
+const STAGES = [
+  'recognition',
+  'root-hair-curl',
+  'infection-thread',
+  'primordium',
+  'young-nodule',
+  'mature-nodule',
+];
+
+const STAGE_DURATION = {
+  recognition: 1.8,
+  'root-hair-curl': 2.3,
+  'infection-thread': 4.7,
+  primordium: 3.8,
+  'young-nodule': 4.4,
+};
+
+function hostCompatible(colony) {
+  return Boolean(
+    colony?.platform
+    && colony.platform.type === 'root'
+    && !colony.platform.mycorrhizaStructure,
+  );
+}
+
+function stageIndex(stage) {
+  return Math.max(0, STAGES.indexOf(stage));
+}
+
+function stageLabel(site, activity = 0) {
+  if (!site.compatible) return 'sem raiz hospedeira';
+  if (site.paused) return site.mature ? 'nódulo inativo — pouco carbono' : 'nodulação pausada — pouco carbono';
+  if (site.stage === 'recognition') return 'reconhecimento do hospedeiro';
+  if (site.stage === 'root-hair-curl') return 'curvatura do pelo radicular';
+  if (site.stage === 'infection-thread') return 'fio de infecção';
+  if (site.stage === 'primordium') return 'primórdio do nódulo';
+  if (site.stage === 'young-nodule') return 'nódulo jovem';
+  if (activity > .55) return 'fixação ativa de N₂';
+  if (activity > .16) return 'fixação limitada de N₂';
+  return 'nódulo inativo — pouco carbono';
+}
+
+function createRhizobiumNodulation({ state, entities, inoculants }) {
+  const sites = new Map();
+  let totalFixation = 0;
+
+  function clear() {
+    // Os fios de infecção e a FBN pertencem a esta fase: nenhum atravessa.
+    entities?.audio?.stopGroup('rhizobium-thread');
+    entities?.audio?.stopLoop('nitrogen-fixation:nearest');
+    sites.clear();
+    totalFixation = 0;
+    state.level.rhizobiumNodules = [];
+  }
+
+  function reset() {
+    clear();
+  }
+
+  function createSite(colony) {
+    const compatible = hostCompatible(colony);
+    const site = {
+      id: `nodule-${colony.id}`,
+      colony,
+      platform: colony.platform,
+      x: colony.x,
+      surfaceY: colony.platform?.y ?? colony.y,
+      depth: clamp((colony.platform?.h || 56) * .34, 16, 34),
+      compatible,
+      stage: compatible ? 'recognition' : 'incompatible',
+      progress: 0,
+      maturity: 0,
+      mature: false,
+      paused: false,
+      activity: 0,
+      fixationRate: 0,
+      phase: Math.random() * TAU,
+      lobes: clamp(colony.sourceCount || 1, 1, 3),
+      announced: new Set(),
+    };
+    sites.set(colony.id, site);
+    // Reconhecimento hospedeiro–Rhizobium: o sítio nasce JÁ nesse estágio, então
+    // a criação é a transição. Uma vez por sítio, nunca por quadro.
+    if (compatible) {
+      entities?.audio?.play('rhizobiumRecognition', { x: site.x, y: site.surfaceY });
+    }
+    if (!compatible) narrate(state, 'rhizobium.no-host');
+    return site;
+  }
+
+  function syncSites() {
+    const rhizobiumColonies = (inoculants.colonies || []).filter(colony => colony.type === 'rhizobium');
+    const activeIds = new Set(rhizobiumColonies.map(colony => colony.id));
+
+    for (const colony of rhizobiumColonies) {
+      let site = sites.get(colony.id);
+      if (!site) site = createSite(colony);
+      site.colony = colony;
+      site.platform = colony.platform;
+      site.x = colony.x;
+      site.surfaceY = colony.platform?.y ?? colony.y;
+    }
+    for (const id of sites.keys()) {
+      if (!activeIds.has(id)) sites.delete(id);
+    }
+    state.level.rhizobiumNodules = [...sites.values()];
+  }
+
+  // Áudio e toast respondem à MESMA transição, mas um não depende do outro: o
+  // narrador pode segurar ou dispensar o toast (escopo de campanha: as cinco
+  // etapas só aparecem no primeiro nódulo), e o som toca sempre.
+  function advanceStage(site) {
+    const index = stageIndex(site.stage);
+    const next = STAGES[Math.min(STAGES.length - 1, index + 1)];
+    site.stage = next;
+    site.progress = 0;
+    const audio = entities?.audio;
+    const threadKey = `rhizobium-thread:${site.id}`;
+
+    if (next === 'root-hair-curl') {
+      audio?.play('rhizobiumRootHairCurl', { x: site.x, y: site.surfaceY });
+      narrate(state, 'rhizobium.curl');
+    } else if (next === 'infection-thread') {
+      audio?.startLoop(threadKey, 'rhizobiumInfectionThread', {
+        x: site.x, y: site.surfaceY, gain: .55,
+      });
+      narrate(state, 'rhizobium.thread');
+    } else if (next === 'primordium') {
+      // O fio terminou: o loop sai antes de o primórdio soar.
+      audio?.stopLoop(threadKey);
+      audio?.play('rhizobiumPrimordium', { x: site.x, y: site.surfaceY + site.depth });
+      narrate(state, 'rhizobium.primordium');
+    } else if (next === 'young-nodule') {
+      audio?.play('rhizobiumYoungNodule', { x: site.x, y: site.surfaceY + site.depth });
+      narrate(state, 'rhizobium.young');
+    } else if (next === 'mature-nodule') {
+      site.mature = true;
+      site.maturity = 1;
+      // Única transição mature false → true de um sítio. Um nódulo restaurado já
+      // maduro não passa por aqui e por isso não toca conclusão.
+      audio?.play('rhizobiumMatureNodule', { x: site.x, y: site.surfaceY + site.depth });
+      narrate(state, 'rhizobium.mature');
+      entities.burst(site.x, site.surfaceY + site.depth, '#ff9db5', 36, 145);
+    }
+  }
+
+  function updateDevelopingSite(site, dt) {
+    const colony = site.colony;
+    const carbon = clamp(
+      .18 + colony.vigor * .72 + (colony.rechargeIntensity || 0) * .32,
+      .12,
+      1.22,
+    );
+    const sourceBoost = 1 + Math.max(0, (colony.sourceCount || 1) - 1) * .13;
+    site.paused = colony.dormant || colony.vigor < .055;
+    site.activity = 0;
+    site.fixationRate = 0;
+
+    const audio = entities?.audio;
+    const threadKey = `rhizobium-thread:${site.id}`;
+
+    if (site.paused) {
+      // Sem carbono o fio para de avançar: o loop recua, mas não é destruído.
+      if (site.stage === 'infection-thread') audio?.pauseLoop(threadKey);
+      colony.stage = stageLabel(site);
+      return;
+    }
+
+    const duration = STAGE_DURATION[site.stage] || 1;
+    site.progress = clamp(site.progress + dt * carbon * sourceBoost / duration, 0, 1);
+    colony.stage = stageLabel(site);
+
+    // Sustenta o loop do fio: posição acompanha a profundidade atual, ganho e
+    // rate sobem com o avanço. `startLoop` é idempotente — não cria segundo
+    // source nem reinicia a faixa.
+    if (site.stage === 'infection-thread') {
+      audio?.startLoop(threadKey, 'rhizobiumInfectionThread', {
+        x: site.x,
+        y: site.surfaceY + site.depth * site.progress,
+        gain: .55 + site.progress * .45,
+        rate: .94 + site.progress * .12,
+      });
+    }
+
+    if (site.progress >= 1) advanceStage(site);
+  }
+
+  function updateMatureSite(site, dt) {
+    const colony = site.colony;
+    const carbon = clamp(
+      colony.vigor * .82 + (colony.rechargeIntensity || 0) * .36,
+      0,
+      1,
+    );
+    const bacteroidCapacity = .58 + Math.min(3, colony.sourceCount || 1) * .24;
+    const activity = clamp(carbon * bacteroidCapacity, 0, 1.35);
+    site.paused = colony.dormant || colony.vigor < .045;
+    site.activity = site.paused ? 0 : activity;
+    site.fixationRate = site.activity * (colony.sourceCount || 1);
+    totalFixation += site.fixationRate;
+    colony.stage = stageLabel(site, site.activity);
+
+    if (site.activity <= 0) return;
+
+    colony.vigor = clamp(colony.vigor - dt * .00165 * site.fixationRate, 0, 1);
+    state.player.soil += dt * .022 * site.fixationRate;
+    state.player.hope += dt * .013 * site.fixationRate;
+
+    if (Math.random() < dt * .45 * site.activity) {
+      const angle = site.phase + state.time * .7;
+      entities.burst(
+        site.x + Math.cos(angle) * 12,
+        site.surfaceY + site.depth + Math.sin(angle) * 7,
+        '#ffd783',
+        2,
+        28,
+      );
+    }
+  }
+
+  // Um loop de FBN por nódulo viraria zumbido: numa raiz com três nódulos
+  // maduros seriam três cópias da mesma textura somadas. Toca no máximo UM, o do
+  // nódulo funcional mais próximo, e a posição acompanha esse nódulo.
+  const FIXATION_AUDIBLE_ACTIVITY = .16;
+  const FIXATION_KEY = 'nitrogen-fixation:nearest';
+
+  function updateFixationLoop() {
+    const audio = entities?.audio;
+    if (!audio) return;
+    const player = state.player;
+    const playerCenterX = player ? player.x + player.w / 2 : 0;
+
+    let nearest = null;
+    let nearestDistance = Infinity;
+    for (const site of sites.values()) {
+      if (!site.mature || site.activity <= FIXATION_AUDIBLE_ACTIVITY) continue;
+      const distance = Math.abs(site.x - playerCenterX);
+      if (distance < nearestDistance) {
+        nearest = site;
+        nearestDistance = distance;
+      }
+    }
+
+    if (!nearest) {
+      audio.stopLoop(FIXATION_KEY);
+      return;
+    }
+    audio.startLoop(FIXATION_KEY, 'nitrogenFixationActive', {
+      x: nearest.x,
+      y: nearest.surfaceY + nearest.depth,
+      // Proporcional à atividade real do nódulo, e sempre discreto.
+      gain: clamp(nearest.activity, 0, 1),
+      rate: .96 + clamp(nearest.activity, 0, 1) * .08,
+    });
+  }
+
+  function update(dt) {
+    if (state.gameState !== 'play') return;
+    syncSites();
+    totalFixation = 0;
+
+    for (const site of sites.values()) {
+      const colony = site.colony;
+      if (!site.compatible) {
+        colony.stage = 'rizosfera sem hospedeiro';
+        site.activity = 0;
+        site.fixationRate = 0;
+        continue;
+      }
+      if (!site.mature) updateDevelopingSite(site, dt);
+      else updateMatureSite(site, dt);
+    }
+
+    updateFixationLoop();
+  }
+
+  function drawRootHair(ctx, site) {
+    const stage = stageIndex(site.stage);
+    if (stage < 1) return;
+    const curl = clamp(stage === 1 ? site.progress : 1, 0, 1);
+    const y = site.surfaceY - 4;
+    ctx.strokeStyle = `rgba(235,221,198,${.35 + curl * .55})`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(site.x - 28, y + 2);
+    ctx.bezierCurveTo(
+      site.x - 18, y - 24 * curl,
+      site.x + 22, y - 25 * curl,
+      site.x + 11, y - 4,
+    );
+    if (curl > .56) {
+      ctx.bezierCurveTo(site.x + 2, y + 7, site.x - 7, y - 3, site.x + 1, y - 10);
+    }
+    ctx.stroke();
+  }
+
+  function drawInfectionThread(ctx, site) {
+    const index = stageIndex(site.stage);
+    if (index < 2) return;
+    const progress = index === 2 ? site.progress : 1;
+    const startY = site.surfaceY - 7;
+    const endY = site.surfaceY + site.depth * progress;
+    ctx.strokeStyle = `rgba(224,190,255,${.42 + progress * .5})`;
+    ctx.lineWidth = 2.1;
+    ctx.shadowBlur = 7;
+    ctx.shadowColor = '#c7a5ff';
+    ctx.beginPath();
+    ctx.moveTo(site.x + 1, startY);
+    ctx.bezierCurveTo(
+      site.x + 12, lerp(startY, endY, .34),
+      site.x - 10, lerp(startY, endY, .7),
+      site.x + 2, endY,
+    );
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    const cellCount = 2 + Math.floor(progress * 5);
+    for (let i = 0; i < cellCount; i++) {
+      const t = (i + .5) / cellCount * progress;
+      const yy = lerp(startY, site.surfaceY + site.depth, t);
+      const xx = site.x + Math.sin(t * Math.PI * 3 + site.phase) * 5;
+      ctx.fillStyle = '#ead8ff';
+      ctx.beginPath();
+      ctx.ellipse(xx, yy, 2.8, 1.4, t * 2, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  function drawPrimordium(ctx, site) {
+    const index = stageIndex(site.stage);
+    if (index < 3) return;
+    const development = index === 3 ? site.progress * .48 : index === 4 ? .48 + site.progress * .42 : 1;
+    const radius = lerp(3, 15 + site.lobes * 1.7, development);
+    const centerY = site.surfaceY + site.depth;
+
+    ctx.save();
+    ctx.translate(site.x, centerY);
+    ctx.scale(1, .76);
+    const gradient = ctx.createRadialGradient(-radius * .2, -radius * .25, 1, 0, 0, radius * 1.2);
+    gradient.addColorStop(0, index >= 5 ? '#ffd0da' : '#f6dfc8');
+    gradient.addColorStop(.62, index >= 5 ? '#df6688' : '#dba98f');
+    gradient.addColorStop(1, 'rgba(94,38,50,.82)');
+    ctx.fillStyle = gradient;
+    ctx.strokeStyle = index >= 5 ? '#ffb2c5' : '#f1c7ac';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < 18; i++) {
+      const angle = i / 18 * TAU;
+      const lobe = 1 + Math.sin(angle * site.lobes + site.phase) * .12 * development;
+      const x = Math.cos(angle) * radius * lobe;
+      const y = Math.sin(angle) * radius * lobe;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    if (index >= 4) {
+      const count = 5 + site.colony.sourceCount * 3;
+      for (let i = 0; i < count; i++) {
+        const angle = i / count * TAU + site.phase;
+        const rr = radius * (.2 + (i % 4) * .15);
+        ctx.fillStyle = index >= 5 ? '#7b254a' : '#a2697d';
+        ctx.globalAlpha = .52 + (i % 3) * .15;
+        ctx.beginPath();
+        ctx.ellipse(Math.cos(angle) * rr, Math.sin(angle) * rr, 3.2, 1.25, angle, 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  function drawFixationFlux(ctx, site) {
+    if (!site.mature || site.activity <= .08) return;
+    const centerY = site.surfaceY + site.depth;
+    const intensity = clamp(site.activity, 0, 1);
+    for (let i = 0; i < 5; i++) {
+      const t = (state.time * (.18 + i * .012) + i * .21 + site.phase) % 1;
+      const angle = site.phase + i * 1.37;
+      const startX = site.x + Math.cos(angle) * (36 + i * 3);
+      const startY = centerY - 30 - i * 3;
+      const x = lerp(startX, site.x, t);
+      const y = lerp(startY, centerY, t) + Math.sin(t * Math.PI) * 8;
+      ctx.globalAlpha = (.25 + intensity * .6) * (1 - Math.abs(t - .5) * .7);
+      ctx.fillStyle = '#8db8ff';
+      ctx.beginPath();
+      ctx.arc(x, y, 2.2, 0, TAU);
+      ctx.fill();
+    }
+
+    for (let i = 0; i < 4; i++) {
+      const t = (state.time * .22 + i * .27 + site.phase * .2) % 1;
+      const x = site.x + (i - 1.5) * 5 + Math.sin(t * TAU + i) * 2;
+      const y = lerp(centerY, site.surfaceY + 5, t);
+      ctx.globalAlpha = .25 + intensity * .65;
+      ctx.fillStyle = '#ffd783';
+      ctx.beginPath();
+      ctx.arc(x, y, 2.1, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.font = '700 8px Inter,system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(180,208,255,.82)';
+    ctx.fillText('N₂', site.x - 27, centerY - 24);
+    ctx.fillStyle = 'rgba(255,220,139,.9)';
+    ctx.fillText('NH₄⁺', site.x + 26, site.surfaceY + 4);
+  }
+
+  function drawIncompatible(ctx, site) {
+    ctx.strokeStyle = 'rgba(199,165,255,.45)';
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath();
+    ctx.arc(site.x, site.surfaceY - 8, 15, 0, TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function render(ctx) {
+    if (!sites.size) return;
+    ctx.save();
+    ctx.translate(-state.cameraX, 0);
+    for (const site of sites.values()) {
+      if (site.x < state.cameraX - 160 || site.x > state.cameraX + W + 160) continue;
+      if (!site.compatible) {
+        drawIncompatible(ctx, site);
+        continue;
+      }
+      // O nódulo nasce na raiz visível do agregado, colado à borda de baixo
+      // dela (só desenho; o sítio continua com a profundidade da plataforma).
+      const root = site.platform ? visibleRootRect(site.platform) : null;
+      const shown = root && root !== site.platform ? Object.create(site) : site;
+      if (shown !== site) shown.depth = Math.min(site.depth, root.h * .9);
+      drawRootHair(ctx, shown);
+      drawInfectionThread(ctx, shown);
+      drawPrimordium(ctx, shown);
+      drawFixationFlux(ctx, shown);
+    }
+    ctx.restore();
+  }
+
+  return {
+    get siteCount() { return sites.size; },
+    get matureCount() { return [...sites.values()].filter(site => site.mature).length; },
+    get activeCount() { return [...sites.values()].filter(site => site.mature && site.activity > .16).length; },
+    get incompatibleCount() { return [...sites.values()].filter(site => !site.compatible).length; },
+    get fixationRate() { return totalFixation; },
+    clear,
+    reset,
+    update,
+    render,
+  };
+}
+Object.assign(__exports, { createRhizobiumNodulation });
 },
 "src/procgen/nitrogen-root.js": (__exports, __require) => {
 const { canTakeRole } = __require("src/procgen/platform-occupancy.js");
@@ -26902,8 +27110,8 @@ Object.assign(__exports, { GOAL_ORBIT_PARTICLE_COUNT, goalOrbitParticle, goalOrb
 },
 "src/procgen/ecological-gameplay.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");
-const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");
 const { narrate } = __require("src/procgen/narrator.js");
+const { drawBacillusBiofilm } = __require("src/render/bacillus-biofilm.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -27226,53 +27434,6 @@ function createEcologicalGameplay({ state, input, entities, ecology, pathogenPre
     ctx.globalAlpha = 1;
   }
 
-  // Fonte unica de posicao do biofilme: quando ele pertence a um checkpoint,
-  // deriva de checkpoint.x/y no momento do render, em vez de depender da copia
-  // film.x/film.y que so e sincronizada quando gameplay.update() roda. Assim a
-  // elipse grande do checkpoint nunca fica presa a uma posicao antiga.
-  function biofilmPosition(film) {
-    if (film.checkpoint) return { x: film.checkpoint.x, y: film.checkpoint.y + 8 };
-    return { x: film.x, y: film.y };
-  }
-
-  function drawBiofilm(ctx, film) {
-    const { x: fx, y: fy } = biofilmPosition(film);
-    const pulse = 1 + Math.sin(state.time * 1.8 + fx * .01) * .04;
-    ctx.save();
-    ctx.translate(fx, fy);
-    ctx.scale(pulse, pulse * .62);
-    const radius = film.radius * film.growth;
-    const matrix = ctx.createRadialGradient(0, 0, 4, 0, 0, radius);
-    matrix.addColorStop(0, film.activated ? 'rgba(112,229,214,.34)' : 'rgba(112,229,214,.24)');
-    matrix.addColorStop(.7, 'rgba(112,229,214,.11)');
-    matrix.addColorStop(1, 'rgba(112,229,214,0)');
-    ctx.fillStyle = matrix;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = film.activated ? 'rgba(190,255,241,.72)' : 'rgba(112,229,214,.45)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([3, 7]);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * .72, 0, TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    // Partículas brilhantes da matriz do biofilme (camada frontal em partículas)
-    for (let i = 0; i < 10; i++) {
-      const angle = i / 10 * TAU + state.time * .12;
-      const radiusOffset = radius * (.28 + (i % 3) * .18);
-      const bx = Math.cos(angle) * radiusOffset;
-      const by = Math.sin(angle) * radiusOffset * 0.45;
-      const alpha = .5 + (i % 3) * .18;
-      ctx.fillStyle = i % 2 ? 'rgba(112,229,214,0.75)' : 'rgba(227,255,245,0.85)';
-      ctx.beginPath();
-      ctx.arc(bx, by - 6, 2.5 + (i % 3) * 0.9, 0, TAU);
-      ctx.fill();
-    }
-    ctx.restore();
-    ctx.globalAlpha = 1;
-  }
-
   function drawInfection(ctx) {
     const infection = clamp(state.player.infection || 0, 0, 1);
     if (infection <= .01) return;
@@ -27314,16 +27475,17 @@ function createEcologicalGameplay({ state, input, entities, ecology, pathogenPre
     ctx.translate(-state.cameraX, 0);
     for (const cloud of clouds) drawCloud(ctx, cloud);
     for (const candidate of formingBiofilms.values()) {
-      const progress = clamp(candidate.progress / 3.4, 0, 1);
-      ctx.strokeStyle = `rgba(112,229,214,${.18 + progress * .42})`;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([3, 6]);
-      ctx.beginPath();
-      ctx.arc(candidate.x, candidate.y, 18 + progress * 48, 0, TAU);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      // This alternate ecological pathway has its own real formation progress.
+      drawBacillusBiofilm(ctx, { film: candidate, progress: clamp(candidate.progress / 3.4, 0, 1) * .42,
+        platforms: state.level.platforms }, state.time);
     }
-    for (const film of biofilms) drawBiofilm(ctx, film);
+    for (const film of biofilms) {
+      // Managed films use entry.maturity in bacillusBioprotection.render; their
+      // generic growth is a different clock and would cover the new film twice.
+      if (!film.bacillusManaged) drawBacillusBiofilm(ctx, { film,
+        progress: .42 + clamp(film.growth || 0, 0, 1) * .58,
+        platforms: state.level.platforms }, state.time);
+    }
     drawInfection(ctx);
     ctx.restore();
   }
@@ -44342,7 +44504,7 @@ const { createNecroticZone } = __require("src/render/necrotic-zone.js");
 const { createPlayerSprite } = __require("src/render/player-sprite.js");
 const { jetpackPose } = __require("src/render/player-equipment.js");
 const { resolvePlayerSkin } = __require("src/render/player-skins.js");
-const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");
+const { drawBacillusBiofilm } = __require("src/render/bacillus-biofilm.js");
 const { organismSprites } = __require("src/render/organism-sprites.js");
 const { createRhizosphereBackdrop } = __require("src/render/rhizosphere-backdrop.js");
 const { createRhizosphereParallax } = __require("src/render/rhizosphere-parallax.js");
@@ -44690,35 +44852,14 @@ function createRenderer({
     });
 
     microbes.discoverVisibleEncounters();
-    level.checkpoints.forEach((c, ci) => {
-      ctx.save();
-      ctx.translate(c.x, c.y);
-      const col = c.active ? '#70e5d6' : 'rgba(185,220,207,.35)';
-      const glow = c.active ? .20 : .06;
-      ctx.fillStyle = `rgba(112,229,214,${glow})`;
-      for (let i = 0; i < 7; i++) {
-        const a = i / 7 * Math.PI * 2 + time * .12;
-        ctx.beginPath();
-        ctx.arc(Math.cos(a) * 18, Math.sin(a) * 13, 17 + Math.sin(time + i) * 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      if (!isBacillusSpriteEnabled()) {
-        for (let i = 0; i < 6; i++) {
-          const a = i / 6 * Math.PI * 2 + ci * .45;
-          const bx = Math.cos(a) * 19;
-          const by = Math.sin(a) * 13;
-          microbes.drawBacteriumWithFlags(bx, by, a + Math.PI / 2, .55, col, i + ci, 'short', 'peri', c.active && i % 3 === 0 ? .9 : 0);
-        }
-      }
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 1.4;
-      ctx.setLineDash([3, 5]);
-      ctx.beginPath();
-      ctx.arc(0, 0, 31 + Math.sin(time * 2 + ci) * 2, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-    });
+    // Natural checkpoints use the same surface coating as inoculated films.
+    // Gameplay normally owns their drawing; this fallback covers a frame before
+    // its reset without restoring the old seven-circle flower underneath EPS.
+    for (const checkpoint of level.checkpoints) {
+      if ((level.biofilms || []).some(film => film.checkpoint === checkpoint)) continue;
+      drawBacillusBiofilm(ctx, { key: checkpoint, platforms: level.platforms,
+        film: { checkpoint, growth: 1, activated: checkpoint.active } }, time);
+    }
 
     microbes.drawMicrobeEcosystems();
     level.allies.forEach((a, i) => {
@@ -47360,12 +47501,19 @@ function createRhizosphereLighting({ canvas, state, getAgents, enabled = true })
 
     for (const b of level.biofilms || []) {
       if (!Number.isFinite(b.x)) continue;
+      const colony = b.bacillusManaged
+        ? (level.beneficialColonies || []).find(c => c.id === b.bacillusColonyId) : null;
+      const entry = colony?.bacillusState;
+      const maturity = entry ? entry.maturity : b.growth ?? 1;
+      const vitality = entry ? (entry.mode === 'spores' ? 0 : Math.min(1, colony.vigor * 1.4)) : 1;
+      const amount = Math.max(0, Math.min(1, (maturity - .15) / .6)) * vitality;
+      if (amount <= .01) continue;
       lights.push({
         x: b.x,
         y: b.y,
-        maskR: 90, maskA: .50,
-        glowR: 30, glowA: .36,
-        color: '#7fd8ff',
+        maskR: 60, maskA: .18 * amount,
+        glowR: 18, glowA: .08 * amount,
+        color: '#8de7c5',
         kind: 'biofilm',
       });
     }

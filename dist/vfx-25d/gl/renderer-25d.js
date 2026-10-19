@@ -22,6 +22,7 @@ import { createGrowthLayer, hashString } from './growth.js';
 import { createParticleField } from './particles.js';
 import { SHAFT_PROFILE_GLSL, shaftSourceY, visibleShafts } from './shaft-profile.js';
 import { createNativeLayer, createTextureCache, installCanvasVersions } from './native-layer.js';
+import { createBiofilmLayer } from './biofilm-material.js';
 
 const FOV = 32;
 // Padrao = valores calibrados pelo Marco no painel (17/10/2026), mais o
@@ -626,6 +627,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
   const camera = new THREE.PerspectiveCamera(FOV, 16 / 9, 10, 8000);
   const scene = new THREE.Scene();
   const occScene = new THREE.Scene();
+  const biofilmLayer = createBiofilmLayer({ scene, shared });
   const fsCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
   let W = 0, H = 0;
@@ -693,6 +695,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     // um tubo solido e a raiz parecia mais grossa.
     const glow = make('glow');
     fxBridge.ctx.__glPlayerEquipment = paint => paintEquipmentOverlay(fx.ctx, equipment.ctx, paint);
+    fxBridge.ctx.__glBiofilm = packet => biofilmLayer.capture(fxBridge.ctx, packet);
     return { bg, terrain, fx, glow, equipment, captured, terrainBridge, fxBridge };
   }
 
@@ -1019,42 +1022,8 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     // Colonias: sem luz nem brilho permanente (o halo saiu). A inoculacao e
     // o vigor baixo aparecem como particulas transitorias (vfx-particles.js),
     // desenhadas na camada de brilho.
-    // Biofilme do checkpoint: as particulas da matriz (giram) e o anel
-    // pontilhado ganham brilho proprio em HDR nas MESMAS posicoes que o jogo
-    // desenha (ecological-gameplay.js drawBiofilm), para o bloom espalha-los
-    // sem precisar subir o bloom global.
-    if (settings.bloom) {
-      for (const film of level.biofilms || []) {
-        const fx = film.checkpoint ? film.checkpoint.x : film.x;
-        const fy = film.checkpoint ? film.checkpoint.y + 8 : film.y;
-        if (!Number.isFinite(fx) || Math.abs(fx - camCX) > visW) continue;
-        const pulse = 1 + Math.sin(time * 1.8 + fx * .01) * .04;
-        const radius = (film.radius || 72) * (film.growth ?? 1);
-        const on = film.activated || film.checkpoint?.active;
-        const k = (on ? 1 : .6) * tuning.emission;
-        for (let i = 0; i < 10; i++) {
-          const angle = i / 10 * TAU + time * .12;
-          const ro = radius * (.28 + (i % 3) * .18);
-          const bx = Math.cos(angle) * ro;
-          const by = Math.sin(angle) * ro * .45 - 6;
-          const white = i % 2 === 0;
-          emitters.add(fx + bx * pulse, -(fy + by * pulse * .62),
-            white ? .85 : .44, white ? 1 : .9, white ? .96 : .84, (white ? .62 : .48) * k, 9 + (i % 3) * 3);
-        }
-        // anel: um brilho que corre pelo pontilhado no sentido horario (na
-        // tela, angulo crescente com y para baixo), com uma cauda que apaga
-        const rr = radius * .72 * pulse;
-        const head = time * 1.4 + fx * .003;
-        for (let j = 0; j < 28; j++) {
-          const a = j / 28 * TAU;
-          const behind = ((head - a) % TAU + TAU) % TAU;          // 0 = na cabeca
-          const trail = Math.exp(-behind * 1.8);
-          const v = .03 + .42 * trail;
-          if (v < .05) continue;
-          emitters.add(fx + Math.cos(a) * rr, -(fy + Math.sin(a) * rr * .62), .5, .95, .88, v * k, 8 + 5 * trail);
-        }
-      }
-    }
+    // The surface EPS owns its wet highlights. The former radial checkpoint
+    // dots and dashed HDR ring would draw an unrelated flower over the film.
     for (const c of level.checkpoints || []) {
       if (!Number.isFinite(c.x) || Math.abs(c.x - camCX) > visW) continue;
       pushLight(c.x + 10, -(c.y + 10), 50, 240, .35, .95, .9, c.active ? 1.2 : .45, 0, 30, false, 'c' + Math.round(c.x));
@@ -1132,6 +1101,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
       if (L.scale !== 1) L.ctx.setTransform(L.scale, 0, 0, L.scale, 0, 0);
     }
     layers.captured.length = 0;
+    biofilmLayer.begin();
     layers.terrainBridge.beginFrame();
     layers.fxBridge.beginFrame();
     goalOrbitQueue.length = 0;
@@ -1186,6 +1156,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
 
     // 3. sprites capturados -> lotes iluminados
     const toWorld = toWorldFactory(zoom, camX, camY);
+    biofilmLayer.update(toWorld);
     for (const b of batches.values()) b.begin();
     for (const s of layers.captured) {
       let b = batches.get(s.image);
@@ -1352,6 +1323,7 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
     stats.sprites = layers.captured.length;
     stats.lights = active.length;
     stats.segments = segs;
+    stats.biofilms = biofilmLayer.stats.visible;
     fpsAcc += dtReal; fpsN++;
     if (fpsAcc > .5) { stats.fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
   }
