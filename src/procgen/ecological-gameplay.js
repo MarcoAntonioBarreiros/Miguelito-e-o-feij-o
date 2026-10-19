@@ -376,7 +376,8 @@ export function createEcologicalGameplay({ state, input, entities, ecology, path
         progress: .42 + clamp(film.growth || 0, 0, 1) * .58,
         platforms: state.level.platforms }, state.time);
     }
-    drawInfection(ctx);
+    // A infeccao (Rhizoctonia) agora e desenhada no proprio Miguelito, por cima
+    // do corpo (render/player-afflictions.js); as estrelas em orbita saem.
     ctx.restore();
   }
 

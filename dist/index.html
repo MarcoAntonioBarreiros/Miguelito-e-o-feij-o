@@ -1108,7 +1108,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"3104f9d","subject":"Calmaria: poeira da GPU vira polen dourado/rosa/branco dentro do halo (f","builtAt":"2026-10-19 22:16"};
+window.__BEANS_BUILD__ = {"commit":"dae4dfa","subject":"Miguelito: hifas da contaminacao por cima do corpo (rede que sobe dos pe","builtAt":"2026-10-19 22:29"};
 (() => {
 'use strict';
 const __modules = {
@@ -29329,7 +29329,8 @@ function createEcologicalGameplay({ state, input, entities, ecology, pathogenPre
         progress: .42 + clamp(film.growth || 0, 0, 1) * .58,
         platforms: state.level.platforms }, state.time);
     }
-    drawInfection(ctx);
+    // A infeccao (Rhizoctonia) agora e desenhada no proprio Miguelito, por cima
+    // do corpo (render/player-afflictions.js); as estrelas em orbita saem.
     ctx.restore();
   }
 
@@ -48972,6 +48973,7 @@ const hash = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v
 
 function createPlayerAfflictions() {
   let shown = 0;            // contaminacao desenhada (acompanha a real)
+  let shownRhizo = 0;       // infeccao por Rhizoctonia desenhada
   let lastTime = null;
   let trailTimer = 0;
   const fragments = [];     // pedacos de hifa seca caindo (mundo)
@@ -49001,6 +49003,20 @@ function createPlayerAfflictions() {
       }
     }
     shown += (c - shown) * clamp(dt * 6, 0, 1);
+    // Rhizoctonia: mesma ideia; ao curar, o micelio seco cai
+    const r = clamp(player.infection || 0, 0, 1);
+    if (r < shownRhizo - .06) {
+      const n = Math.min(12, Math.round((shownRhizo - r) * 22));
+      for (let i = 0; i < n; i++) {
+        fragments.push({
+          x: cx + (Math.random() - .5) * 20, y: cy + 22 - Math.random() * (8 + shownRhizo * 30),
+          vx: (Math.random() - .5) * 46, vy: -18 - Math.random() * 36,
+          rot: Math.random() * TAU, spin: (Math.random() - .5) * 8,
+          len: 3 + Math.random() * 5, life: .9 + Math.random() * .5, max: 1.4,
+        });
+      }
+    }
+    shownRhizo += (r - shownRhizo) * clamp(dt * 6, 0, 1);
     for (const f of fragments) {
       f.life -= dt; f.vy += 220 * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.spin * dt;
     }
@@ -49014,7 +49030,7 @@ function createPlayerAfflictions() {
       trail.push({ x: cx + (Math.random() - .5) * 8, y: player.y + player.h, life: 1.6, size: 4 + c * 5 });
       if (trail.length > 24) trail.shift();
     }
-    return { c: shown, cx, cy };
+    return { c: shown, r: shownRhizo, cx, cy };
   }
 
   // Hifas como rede que envolve o corpo: cada uma nasce nos pes/pernas e
@@ -49174,10 +49190,75 @@ function createPlayerAfflictions() {
     ctx.restore();
   }
 
+  // Rhizoctonia (fase 6+): micelio bege-castanho com ramos em angulo reto
+  // (o jeito dela), manchas de lesao escura nas pernas e, alta, escleródios.
+  // Fica nas pernas e no tronco baixo: e um fungo de colo/caule.
+  function drawRhizoctonia(ctx, r, time) {
+    if (r < .03) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    // lesoes (por baixo das hifas)
+    const lesions = 1 + Math.round(r * 4);
+    for (let i = 0; i < lesions; i++) {
+      const x = -9 + hash(i + 70) * 18;
+      const y = 6 + hash(i + 71) * 16;
+      ctx.globalAlpha = .35 + r * .45;
+      ctx.fillStyle = 'rgba(52,32,20,.9)';
+      ctx.beginPath(); ctx.ellipse(x, y, 2.4 + r * 3.2, 1.6 + r * 2, hash(i + 72) * 3, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(214,170,110,.75)'; ctx.lineWidth = .9; ctx.stroke();
+    }
+    // hifas com ramos a 90 graus
+    const n = 2 + Math.round(r * 7);
+    for (let i = 0; i < n; i++) {
+      let x = -10 + hash(i + 80) * 20;
+      let y = 23 - hash(i + 81) * 4;
+      const steps = 2 + Math.round(r * 6 * (.6 + .4 * hash(i + 82)));
+      const pts = [[x, y]];
+      const branches = [];
+      for (let k = 0; k < steps; k++) {
+        const len = 4 + hash(i * 11 + k) * 2.5;
+        x = clamp(x + (hash(i * 7 + k) - .5) * 5.5, -13, 13);
+        y = Math.max(-14, y - len);
+        pts.push([x, y]);
+        if (k > 0 && hash(i * 19 + k) > .72) branches.push([x, y, hash(i * 23 + k) < .5 ? -1 : 1, 2.5 + hash(i * 29 + k) * 3]);
+      }
+      const stroke = (color, width) => {
+        ctx.strokeStyle = color; ctx.lineWidth = width;
+        ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k][0], pts[k][1]);
+        for (const [bx, by, dir, len] of branches) {
+          // quase em angulo reto, curvando para cima na ponta
+          ctx.moveTo(bx, by);
+          ctx.quadraticCurveTo(bx + dir * len * .8, by + .3, bx + dir * len, by - len * .45 + Math.sin(time * 1.5 + i) * .4);
+        }
+        ctx.stroke();
+      };
+      ctx.globalAlpha = .6 + r * .35;
+      stroke('#5e4c36', 2);
+      stroke('#cbbd9e', .9);
+      // estrangulamento na base de cada ramo (marca da Rhizoctonia)
+      ctx.fillStyle = '#806e51';
+      for (const [bx, by] of branches) { ctx.beginPath(); ctx.arc(bx, by, .9, 0, TAU); ctx.fill(); }
+    }
+    // escleródios
+    if (r > .45) {
+      const k = Math.round((r - .45) * 12) + 1;
+      for (let i = 0; i < k; i++) {
+        ctx.globalAlpha = .9;
+        ctx.fillStyle = i % 2 ? '#3d2a1c' : '#4f3825';
+        ctx.beginPath();
+        ctx.ellipse(-10 + hash(i + 90) * 20, 10 + hash(i + 91) * 12, 1.6 + hash(i + 92), 1.2 + hash(i + 93) * .8, hash(i + 94) * 3, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
   /** Desenha tudo; `ctx` ja esta no centro do jogador, escalado pelo facing. */
   function draw(ctx, player, time, juveniles = []) {
-    const { c, cx, cy } = step(player, time);
+    const { c, r, cx, cy } = step(player, time);
     drawWorldBits(ctx, player, cx, cy);
+    drawRhizoctonia(ctx, r, time);
     drawHyphae(ctx, c, time);
     const carried = juveniles.filter(j => j.alive && j.carriedByPlayer);
     carried.slice(0, 2).forEach((j, i) => drawLatchedJ2(ctx, j.carrySlot ?? i, time, (j.carryTime || 0) > 5.5));
