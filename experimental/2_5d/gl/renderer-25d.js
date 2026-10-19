@@ -1631,6 +1631,7 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
   const tick = now => { frames++; if (now - since >= 500) { fps = Math.round(frames * 1000 / (now - since)); frames = 0; since = now; } requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
   const stats = panel.querySelector('.stats');
+  stats.style.whiteSpace = 'pre-line';
   const gpu = panel.querySelector('.gpu');
   const integrated = /intel|uhd|iris|arc\(tm\) graphics|microsoft basic|swiftshader|llvmpipe/i.test(renderer25D.gpuName);
   gpu.innerHTML = `GPU do navegador: ${renderer25D.gpuName.replace(/^ANGLE \((.*)\)$/, '$1')}` +
@@ -1641,6 +1642,9 @@ export function mount25DPanel({ renderer25D, isActive, setActive }) {
       ? `${fps} fps (2,5D${renderer25D.settings.native ? ' nativo' : ''}) · CPU ${s.ms.toFixed(1)} ms · ${s.lights} luzes · ${s.sprites} sprites`
         + (renderer25D.settings.native && s.nativeTerrain ? ` · GPU: ${s.nativeBg.quads + s.nativeTerrain.quads} imagens, ${s.nativeBg.segmentsUsed + s.nativeTerrain.segmentsUsed} camadas de vetor, ${s.uploads} envios` : '')
       : `${fps} fps (2D original)`;
+    // diagnostico do biofilme deslocado (temporario)
+    const probe = globalThis.miguelitoBiofilmProbe?.();
+    if (probe) stats.textContent += `\n${probe}`;
   }, 500);
   if (new URLSearchParams(location.search).get('painel') === '0') panel.hidden = true;
   return panel;

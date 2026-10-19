@@ -1882,6 +1882,30 @@ function saveVisualReport() {
   return report;
 }
 window.miguelitoVisualReport = saveVisualReport;
+// Linha de diagnostico no painel de modos (onde aparece o FPS): o biofilme mais
+// perto do Miguelito, com a altura de mundo, a plataforma onde se apoiou e a
+// matriz do desenho comparada com a da camera.
+window.miguelitoBiofilmProbe = () => {
+  const st = sim.state;
+  const px = st.player.x + st.player.w / 2;
+  let best = null;
+  for (const e of biofilmDrawLog.values()) {
+    if (Math.abs((e.time ?? 0) - st.time) > .5) continue;
+    if (!best || Math.abs(e.surface.x - px) < Math.abs(best.surface.x - px)) best = e;
+  }
+  if (!best) return 'biofilme: nenhum desenhado';
+  const z = st.cameraZoom || 1;
+  const t = best.transform || [];
+  const tipo = best.source.colony ? 'colonia' : best.source.film?.checkpoint ? 'checkpoint' : 'filme';
+  const h = best.platform;
+  const exF = -(st.cameraY || 0) * z;
+  const telaY = t.length ? Math.round(t[3] * best.surface.y + t[5]) : null;
+  const esperadoY = Math.round(z * (best.surface.y - (st.cameraY || 0)));
+  return `biofilme ${tipo}${best.gl ? ' GL' : ' 2D'} · y mundo ${Math.round(best.surface.y)}`
+    + ` · apoio ${h ? `${h.type} y${Math.round(h.y)} #${h.logicIndex}${h.resolvedByDistance ? ' (perto)' : ''}` : 'nenhum'}`
+    + ` · cam y${Math.round(st.cameraY || 0)} z${z.toFixed(2)} · matriz f ${t.length ? Math.round(t[5]) : '?'} (cam ${Math.round(exF)})`
+    + ` · tela y ${telaY} (esperado ${esperadoY}) · Miguelito y${Math.round(st.player.y)}`;
+};
 document.querySelector('[data-pause-action="visual-report"]')?.addEventListener('click', event => {
   event.preventDefault();
   saveVisualReport();
@@ -2693,6 +2717,7 @@ function loop(now) {
         + `${optionalDetourVariant ? ` | modo ?v=${optionalDetourVariant}` : ' | modo padrao'}`
         + `\nCAMPANHA: ${campaign.seed} | Fase ${campaign.phase} — ${profile.title} [${profile.theme}]\nSEED: ${seed} [R=nova campanha | Tab=debug]\nTrecho ${Math.max(0, logicIndex + 1)}/${levelData.debugInfo.length}`
         + (info ? ` | ${info.primitive} | ${info.logic.difficultyTarget} | vão ${info.gap}px` : '')
+        + `\n${window.miguelitoBiofilmProbe?.() || ''}`
         + `\nPoderes: salto ${campaign.unlocks.doubleJump ? '✓' : '—'} / dash ${campaign.unlocks.dash ? '✓' : '—'} / solubilizacao P ${campaign.unlocks.phosphateSolubilization ? '✓' : '—'} / pontes AM ${campaign.unlocks.mycorrhizaStructures ? '✓' : '—'} / raízes Azo ${campaign.unlocks.azospirillumRoots ? '✓' : '—'}`
         + `\nCâmera: ${cameraView.zoom.toFixed(2)}× [roda ou +/− | 0=restaurar]`
         + `\n${spriteDiagnostico()}`

@@ -234,6 +234,7 @@ export function drawBacillusBiofilm(ctx, { entry = null, colony = entry?.colony,
       logicIndex: h.logicIndex, rootBaseY: h.rootBaseY, supportOffset: h.supportOffset,
       resolvedByDistance: !platform, flags: Object.keys(h).filter(k => h[k] === true).slice(0, 20) }))(platform || surface.host) : null,
     canvas: [ctx.canvas?.width, ctx.canvas?.height],
+    gl: typeof ctx.__glBiofilm === 'function',
   });
   if (transform && ctx.canvas?.width > 0 && ctx.canvas?.height > 0) {
     const corners = [[bounds.x, bounds.y], [bounds.x + bounds.w, bounds.y],
