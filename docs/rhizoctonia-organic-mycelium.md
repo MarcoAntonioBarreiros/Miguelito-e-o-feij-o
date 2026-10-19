@@ -73,16 +73,48 @@ pela API real de Trichoderma, compara desenho ligado/desligado: colonização,
 ataques, dano, vigor, contato/lise, eliminação, áudio, RNG e objetivos são iguais.
 Esse harness isolado não substitui a validação do loop completo no navegador.
 
-## Limitação biológica preexistente
+## Correção do bloqueio de crescimento, autorizada pelo usuário
 
-Na configuração atual há dois escritores de colonização: o controle específico
-e `physics.updateRhizoctonia`. O controle específico fixa `stun=999` para manter
-o foco aderido; o caminho legado da física interpreta esse valor como uma
-causa de regressão. Assim, no loop completo, o foco pode regredir naturalmente
-em vez de avançar, mesmo sem Bacillus ou Pseudomonas. O visual respeita essa
-queda e não inventa expansão com um temporizador.
+O loop completo tinha dois escritores de colonização. O controlador moderno
+fixava `stun=999` para manter o foco aderido; a física legada interpretava esse
+stun como uma causa de regressão, subtraindo `.025/s` e aplicando um piso `.12`.
+A queda superava o avanço natural e impedia validar expansão espontânea.
 
-A captura de um estado avançado preparado para inspeção visual deve ser
-identificada como tal; não equivale a demonstrar progressão espontânea na
-partida. Corrigir essa concorrência altera a dinâmica biológica e precisa ser
-tratado explicitamente, em vez de ser escondido nesta troca gráfica.
+Após explicar o conflito, o usuário autorizou corrigir esse bloqueio nesta
+branch. O controlador marca os focos que gerencia com `rhizoctoniaManaged`.
+Somente para eles, a física não aplica sua atualização legada de colonização.
+As taxas modernas, os danos e os tempos de ataque não foram rebalanceados.
+Inimigos legados sem esse marcador mantêm crescimento/regressão anteriores.
+
+Dois testes específicos percorrem `sim.step` junto ao controle moderno e
+verificam essa separação, além do comportamento legado com e sem stun. O teste
+visual isolado de 600 passos continua sendo descrito como harness isolado.
+A validação no navegador usa crescimento natural, coleta e inoculação reais.
+Eliminar o fungo não representa cura instantânea: a cicatriz continua visível
+quando `rootDamage/rootHealth` ainda indicam lesão. Não alteramos a recuperação
+para fazer a raiz parecer saudável antes da simulação.
+
+## Resultado registrado em 19/10/2026
+
+Foram aprovados 150 testes direcionados no lote final (zero falhas), incluindo
+a guarda na física. O arquivo novo completo tem 13 testes aprovados.
+O ensaio integrado no Chrome percorreu crescimento natural, coleta, recrutamento,
+inoculação, contato, enovelamento, lise e eliminação, sem erros de JavaScript,
+console ou requisições. A colonização passou por 16,7%, 40,3%, 76,4% e 90,2%;
+depois regrediu para 39,2% durante lise e chegou a 6% com eliminação, sem hifas
+íntegras restantes. Também foi conferida a troca para Canvas 2D.
+
+As [sete capturas e o relatório da simulação](evidence/rhizoctonia-mycelium/README.md)
+estão versionados. A galeria pode ser aberta no servidor local em
+`/docs/evidence/rhizoctonia-mycelium/`. O ensaio reproduzível fica em
+`scripts/validate-rhizoctonia-phase6.cjs`, com caminhos de Playwright/Chrome
+configuráveis por ambiente. Ver o [guia de continuidade](../CLAUDE_CONTINUAR_RHIZOCTONIA.md).
+
+A execução final do smoke global terminou em timeout do Chrome (exit 124),
+portanto não há aprovação da suíte global. O desenho agrupa traços, faz culling
+e limita a geometria; não foi medido FPS comparativo em aparelhos móveis.
+
+Esta validação usa a base `0471e82`. A main avançou para `e1a84c2` durante o
+trabalho; esses commits novos não foram incorporados ao experimento. É preciso
+integrar em branch a partir da main mais nova, preservar as mudanças dela,
+regenerar dist e repetir a validação antes de publicar.

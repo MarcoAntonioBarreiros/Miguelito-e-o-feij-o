@@ -205,48 +205,68 @@ function drawNecrosis(ctx, enemy, model) {
 }
 
 export function drawRhizoctoniaMycelium(ctx, enemy, state) {
-  const model = syncRhizoctoniaMycelium(enemy);
-  if (!model) return;
-  const host = enemy.hostPlatform, rect = visibleRootRect(host);
+  const host = enemy.hostPlatform;
+  if (!host) return;
+  const rect = visibleRootRect(host);
   const transform = ctx.getTransform?.();
   if (transform && ctx.canvas?.width > 0) {
     const left = transform.a * host.x + transform.e, right = transform.a * (host.x + host.w) + transform.e;
     const y = transform.d * host.y + transform.f;
     if (Math.max(left, right) < -24 || Math.min(left, right) > ctx.canvas.width + 24 || y < -40 || y > ctx.canvas.height + 40) return;
   }
+  const model = syncRhizoctoniaMycelium(enemy);
+  if (!model) return;
   ctx.save(); drawNecrosis(ctx, enemy, model);
   ctx.beginPath(); ctx.rect(host.x + 3, host.y - 1, host.w - 6, rect.h + 3); ctx.clip();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   model.tips.forEach((tip, branch) => {
     if (tip.points.length < 2) return;
-    const width = (1.8 - tip.depth * .30) * (.85 + noise(model.seed, branch + 400) * .25);
+    const width = (1.40 - tip.depth * .23) * (.85 + noise(model.seed, branch + 400) * .25);
     const points = tip.points.map(p => worldPoint(enemy, model, p));
-    for (let i = 1; i < points.length; i++) {
-      const health = integrity(model, tip.points[i], branch);
-      if (health < .025) continue;
-      const a = points[i - 1], b = points[i];
-      const old = 1 - model.biology.activity;
-      // A restrained wet sheath supplies local volume to the existing WebGL
-      // FX material. No emissive halo or new particles are needed.
-      ctx.globalAlpha = health * (.38 + model.biology.activity * .40);
-      ctx.strokeStyle = old > .6 ? '#8d8170' : '#aa9070'; ctx.lineWidth = width + .9;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.strokeStyle = old > .6 ? '#b2a797' : '#e4d5af'; ctx.lineWidth = Math.max(.42, width * .57);
-      ctx.beginPath(); ctx.moveTo(a.x, a.y - .15); ctx.lineTo(b.x, b.y - .15); ctx.stroke();
-      // Sparse septa/constrictions near the fork, not dotted outlines.
-      if (i === 2 && tip.depth > 0) {
-        const len = Math.max(.01, Math.hypot(b.x - a.x, b.y - a.y));
-        const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
-        ctx.strokeStyle = '#79664e'; ctx.lineWidth = .55;
-        ctx.beginPath(); ctx.moveTo(b.x - nx * width, b.y - ny * width); ctx.lineTo(b.x + nx * width, b.y + ny * width); ctx.stroke();
+    // Short continuous runs preserve local lysis gaps while bounding Canvas
+    // stroke calls. This avoids one pair of strokes per stored vertex.
+    const inactive = 1 - model.biology.activity;
+    for (let start = 1; start < points.length; start += 6) {
+      const end = Math.min(points.length, start + 6);
+      let run = [], healthSum = 0;
+      const paintRun = () => {
+        if (run.length < 2) { run = []; healthSum = 0; return; }
+        const health = healthSum / (run.length - 1);
+        ctx.globalAlpha = health * (.28 + model.biology.activity * .34);
+        const stroke = (color, thickness) => {
+          ctx.strokeStyle = color; ctx.lineWidth = thickness;
+          ctx.beginPath(); ctx.moveTo(run[0].x, run[0].y);
+          for (let k = 1; k < run.length - 1; k++) {
+            ctx.quadraticCurveTo(run[k].x, run[k].y,
+              (run[k].x + run[k + 1].x) / 2, (run[k].y + run[k + 1].y) / 2);
+          }
+          ctx.lineTo(run[run.length - 1].x, run[run.length - 1].y); ctx.stroke();
+        };
+        stroke(inactive > .6 ? '#786f60' : '#806e51', width + .65);
+        stroke(inactive > .6 ? '#a69c88' : '#bdb197', Math.max(.40, width * .55));
+        run = []; healthSum = 0;
+      };
+      for (let i = start; i < end; i++) {
+        const health = integrity(model, tip.points[i], branch);
+        if (health < .025) { paintRun(); continue; }
+        if (!run.length) run.push(points[i - 1]);
+        run.push(points[i]); healthSum += health;
       }
+      paintRun();
+    }
+    if (tip.depth > 0 && points.length > 2) {
+      const a = points[1], b = points[2], len = Math.max(.01, Math.hypot(b.x - a.x, b.y - a.y));
+      const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
+      ctx.globalAlpha = integrity(model, tip.points[2], branch) * .55;
+      ctx.strokeStyle = '#79664e'; ctx.lineWidth = .45;
+      ctx.beginPath(); ctx.moveTo(b.x - nx * width, b.y - ny * width); ctx.lineTo(b.x + nx * width, b.y + ny * width); ctx.stroke();
     }
     const endpoint = tip.points[tip.points.length - 1];
     const health = integrity(model, endpoint, branch);
     if (health > .1 && model.biology.activity > .05) {
       const p = points[points.length - 1];
-      ctx.globalAlpha = health * model.biology.activity * .6;
-      ctx.fillStyle = '#f0e3c4'; ctx.beginPath(); ctx.ellipse(p.x, p.y, .8 + width * .25, .65, tip.angle, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = health * model.biology.activity * .40;
+      ctx.fillStyle = '#cfc3a6'; ctx.beginPath(); ctx.ellipse(p.x, p.y, .8 + width * .25, .65, tip.angle, 0, Math.PI * 2); ctx.fill();
     }
   });
   ctx.restore();

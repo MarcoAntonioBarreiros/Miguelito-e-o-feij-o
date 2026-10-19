@@ -17,6 +17,7 @@ import { createTrichodermaColonies } from '../src/procgen/trichoderma-colonies.j
 import { createTrichodermaRhizoctoniaControl } from '../src/procgen/trichoderma-rhizoctonia-control.js';
 import { createCampaignObjectiveEvaluator } from '../src/procgen/campaign-objectives.js';
 import { getPhaseManifest } from '../src/procgen/campaign-manifest.js';
+import { createSimulator } from '../src/procgen/simulator.js';
 
 function focus(colonization = .16, options = {}) {
   const hostPlatform = { type: 'root', x: 120, y: 458, w: 240, h: 68,
@@ -308,4 +309,45 @@ test('600 passos da biologia real mantêm combate, dano, vigor, áudio, RNG e ob
   assert.ok(control.hits.length > 0, 'o teste também percorreu a hifa de ataque do patógeno');
   assert.ok(control.audio.some(event => event[0] === 'play' && event[1] === 'trichodermaControlComplete'));
   assert.deepEqual(rendered, control);
+});
+
+function completeLoopFixture() {
+  const sim = createSimulator();
+  const enemy = focus(.16, { enemy: { maxHp: 3, hp: 3, vx: 0, phase: .7, attackCooldown: 5 } });
+  Object.assign(sim.state.level, { platforms: [enemy.hostPlatform], enemies: [enemy], endX: 2000 });
+  sim.state.campaign = { phase: 6, seed: 'managed-physics-regression', unlocks: {} };
+  Object.assign(sim.state.player, { x: 125, y: enemy.hostPlatform.y - sim.state.player.h,
+    vx: 0, vy: 0, onGround: true, supportPlatform: enemy.hostPlatform });
+  return { sim, enemy };
+}
+
+test('loop completo deixa a colonização gerenciada para o controlador moderno, sem consumir biomassa pelo stun de posicionamento', () => {
+  const { sim, enemy } = completeLoopFixture();
+  const rhizo = createRhizoctoniaControl({ state: sim.state, entities: sim.entities,
+    pseudomonas: sim.pseudomonasSiderophores });
+  let expected = enemy.colonization;
+  for (let frame = 0; frame < 60; frame++) {
+    rhizo.prepare();
+    const beforePhysics = enemy.colonization;
+    sim.step(1 / 60);
+    assert.equal(enemy.rhizoctoniaManaged, true);
+    assert.equal(enemy.colonization, beforePhysics, 'a física não pode aplicar outra taxa nem outro piso');
+    rhizo.update(1 / 60);
+    expected += (1 / 60) * (.012 + expected * .012) * 1.175;
+    assert.ok(Math.abs(enemy.colonization - expected) < 1e-12);
+  }
+  assert.ok(enemy.colonization > .176, 'o foco sem controle cresce naturalmente');
+  assert.ok(enemy.stun > 900, 'o foco continua fixado, sem reativar o combate legado');
+});
+
+test('Rhizoctonia legada sem controlador mantém regressão por stun e crescimento quando não atordoada', () => {
+  const stunned = completeLoopFixture();
+  stunned.enemy.colonization = .4; stunned.enemy.stun = 1;
+  stunned.sim.step(.1);
+  assert.ok(Math.abs(stunned.enemy.colonization - (.4 - .1 * .025)) < 1e-12);
+  assert.equal(stunned.enemy.rhizoctoniaManaged, undefined);
+  const unstunned = completeLoopFixture();
+  unstunned.enemy.colonization = .4; unstunned.enemy.stun = 0;
+  unstunned.sim.step(.1);
+  assert.ok(Math.abs(unstunned.enemy.colonization - (.4 + .1 * .018)) < 1e-12);
 });

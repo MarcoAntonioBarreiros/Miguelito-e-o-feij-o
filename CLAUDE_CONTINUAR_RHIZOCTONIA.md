@@ -1,5 +1,9 @@
 # Continuidade: micélio orgânico de Rhizoctonia
 
+Registro final de 19/10/2026. Implementação e validação experimental concluídas.
+Primeiro checkpoint enviado: `6598012`; consultar `git log -1` para o commit
+final. Nenhuma alteração desta entrega foi publicada na main.
+
 ## Pedido e autorização
 
 O usuário pediu uma implementação integrada ao jogo real, na fase 6, em branch
@@ -19,8 +23,11 @@ autorização para rebalancear outras regras.
 - Branch: `experiment/rhizoctonia-organic-mycelium`.
 - Base publicada ao iniciar: `0471e82` (biofilme de Bacillus já aprovado).
 - Checkout Windows: `C:/Users/marco/Documents/Codex/2026-10-17/acesse-o-reposit-rio-https-github/work/miguelito-rhizoctonia-mycelium`.
-- Não misturar a branch antiga `fix/phase9-ralstonia-softlock` nem o checkout
-  `miguelito-webgl-fixes` com esta entrega.
+- Na conferência final, main já estava em **`e1a84c246b6a885ddecb894811e6e44c6d7cb88a`**.
+  Os novos commits de nódulos, radar, túneis, diretor da fase 10 e fases 11+
+  **não estão nesta branch experimental**. A correção da fase 9 (`624b7c8`)
+  agora já está na main; não reaplicar essa branch separadamente.
+- Não misturar o checkout antigo `miguelito-webgl-fixes` com esta entrega.
 - Servidor local: `node scripts/preview-rhizoctonia.cjs`.
 - Jogo integrado, fase 6: <http://127.0.0.1:4186/experiments/rhizoctonia-mycelium/>.
 
@@ -49,31 +56,50 @@ legada que altera colonização é ignorada para esse marcador. As taxas moderna
 cooldowns, dano, carga/lunge, recompensas e objetivos não foram rebalanceados;
 inimigos legados sem marcador continuam com seu comportamento anterior.
 
-## Evidências e pendências no momento deste registro
+## Evidências concluídas e limites da validação
 
-- 119 testes existentes direcionados passaram antes da última guarda na física.
-- 11 testes novos do modelo/integração foram preparados em
-  `tests/rhizoctonia-mycelium.test.js`. Reexecutar no estado final.
-- O harness de 600 passos compara os dois controles com/sem desenho (RNG,
-  colonização, combate, dano, vigor, áudio e objetivo). É um harness isolado,
-  não deve ser descrito como 600 frames do jogo completo.
-- Após a correção autorizada, o navegador já observou crescimento natural:
-  colonização 16,2% → 40,2% → 76,4%, sem alterar taxas/estoques/estatísticas.
-  A coleta, recrutamento e inoculação reais de Trichoderma produziram contato
-  51,7%, lise 56,3%, regressão para 38,8% e eliminação a 6%.
-- Capturas e logs locais: `work/rhizoctonia-qa/`; não são versionados.
-  Script usado: `work/rhizoctonia-qa/playthrough.cjs`.
-- Esse ensaio parou numa **asserção incorreta do script**: exigia dano final
-  menor que o dano ANTES da intervenção. A raiz continuou sofrendo lesão durante
-  a busca/contato. Eliminar o fungo não obriga cura instantânea. Não modificar
-  `root-health-gameplay.js` para fazer essa asserção passar. Comparar a biomassa
-  e os valores reais; conservar a cicatriz enquanto o dano real existir.
+- **150 testes direcionados aprovados no lote final** (zero falhas, 22 s),
+  incluindo a guarda da física. O arquivo `tests/rhizoctonia-mycelium.test.js`
+  completo tem **13 testes aprovados**, incluindo loop com `sim.step` e comportamento
+  legado com e sem stun. Não afirmar que a suíte global inteira passou.
+- O harness isolado de 600 passos compara os dois controles com/sem desenho
+  (RNG, colonização, combate, dano, vigor, áudio e objetivos). Não apresentar
+  isso como 600 frames do jogo completo.
+- **Ensaio completo da fase 6 passou no Chrome**, WebGL e troca para Canvas.
+  Colonização natural: 16,7% → 40,3% → 76,4% → 90,2%; contato/enovelamento;
+  lise 57,2% / colonização 39,2%; eliminação em 6%, rede restante zero.
+  Coleta, recrutamento e inoculação com E reais; atalhos mudaram apenas a posição
+  de Miguelito, sem editar HP, estoques, dano, taxas ou objetivos. Zero mortes.
+- JSON do ensaio: **zero erros JS, de console, HTTP ou de requisição**.
+- Sete capturas e JSON versionados em
+  [docs/evidence/rhizoctonia-mycelium](docs/evidence/rhizoctonia-mycelium/README.md).
+  Galeria: `docs/evidence/rhizoctonia-mycelium/index.html`.
+- Script reproduzível: `scripts/validate-rhizoctonia-phase6.cjs`.
+  Logs brutos locais: `work/rhizoctonia-qa/` (ignorados no Git).
+- Renderer final faz culling antes de construir o modelo e agrupa traços em
+  lotes de seis segmentos; mantém limites de geometria. Não houve benchmark
+  comparativo de FPS em hardware móvel.
+- Smoke global final: **timeout do Chrome, exit 124**. Houve também registro
+  anterior de falha do fixture Bacillus descrito abaixo. Não declarar aprovação
+  global; repetir depois da integração com a main mais nova.
 
-Antes de integrar: concluir o ensaio com relatório JSON, conferir os quatro
-momentos visualmente, comparar 2D/WebGL e testar a guarda da física num loop
-completo (gerenciado cresce, legado com stun mantém regressão). Conferir custo
-de pintura em colonização alta; agrupar traços se necessário, sem mudar biologia.
-Atualizar este registro e `docs/rhizoctonia-organic-mycelium.md` com os resultados.
+Uma asserção incorreta do script exigia dano final menor que o dano ANTES da
+intervenção. Foi corrigida e o ensaio terminou, sem alterar a biologia para passar.
+A lesão pode crescer durante busca/contato e continuar após eliminar o fungo.
+No jogo existente, root-health-gameplay pode republicar dano residual depois
+da redução imediata pelo controle específico. Isso não foi alterado: o visual
+acompanha os valores reais e não finge cura instantânea.
+
+Para reproduzir, iniciar o servidor acima e executar (requer Playwright):
+
+```powershell
+$env:PLAYWRIGHT_MODULE = 'C:/Users/marco/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'
+$env:CHROME_PATH = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+node scripts/validate-rhizoctonia-phase6.cjs
+```
+
+Saída nova: `outputs/rhizoctonia-phase6/`, ignorada no Git.
+Não usar `RHIZO_LOW_LOAD=1` para validar expansão avançada.
 
 ## Validação e integração no main
 
@@ -84,12 +110,21 @@ há falha preexistente em `source: queued Bacillus card should open after stable
 support`; registrar se continuar, não declarar suíte global aprovada nem mexer
 no tutorial geral para contornar isso.
 
-Após testes, revisar `git diff origin/main...HEAD` e conferir que sprites,
-texturas, objetivos e demais sistemas não foram alterados. Fazer commit e push
-da branch. Para integrar, atualizar origin/main e verificar se é ancestral do
-commit aprovado. Se main avançou, preservar as alterações novas e resolver a
-integração em branch; nunca usar force-push. Main aciona automaticamente
+**Próxima etapa pendente: integrar a main mais nova e testar essa integração.**
+Criar branch de integração a partir da main atual e mesclar esta branch
+experimental inteira. Preservar novos hunks de `app.js`, `physics.js`,
+`package.json` e demais sistemas; não copiar arquivos inteiros sobre main.
+Resolver conflitos de dist regenerando com `npm run build`. Repetir os testes
+relacionados, o smoke e o ensaio real da fase 6. A validação acima refere-se à
+base `0471e82`, não aos commits posteriores que chegaram à main.
+
+Revisar o diff relativo à main atual e conferir sprites, texturas, objetivos,
+dificuldade e sistemas novos. Fazer commit da integração e publicar por push
+normal apenas depois da validação; nunca force-push/reset nem substituir main
+pela base antiga. Main aciona automaticamente
 `.github/workflows/deploy-pages.yml`; acompanhar o run até success e conferir
 o jogo público com `?render=25d&v=<sha>` e o buildstamp correspondente.
 
 Não publicar uma versão com teste/QA pendente sem deixar essa situação explícita.
+Se precisar reverter depois da publicação, reverter somente o commit de
+integração desta entrega. Não voltar main até `0471e82`.
