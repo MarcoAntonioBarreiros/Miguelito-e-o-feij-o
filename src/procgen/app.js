@@ -70,6 +70,7 @@ import { prepareRalstoniaTeachingEncounters } from './ralstonia-teaching.js';
 import { preparePathogenFocusRooms } from './pathogen-focus-rooms.js';
 import { narrate } from './narrator.js';
 import { createPauseMenu } from './pause-menu.js';
+import { biofilmDrawLog } from '../render/bacillus-biofilm.js';
 import { FEATURE_LABELS, NARRATION } from './narration-catalog.js';
 import { drawWorldLabel } from './world-label.js';
 import {
@@ -1838,6 +1839,54 @@ const pauseMenu = createPauseMenu({
     sim.setInputs({});
   },
 });
+// Diagnostico de falha visual (menu de pausa): salva um print da tela e um
+// JSON com a camera e, para cada biofilme desenhado no ultimo quadro, a matriz
+// usada, a matriz esperada pela camera, a superficie e a plataforma de apoio.
+function saveVisualReport() {
+  const st = sim.state;
+  const zoom = st.cameraZoom || 1;
+  const expected = [zoom, 0, 0, zoom, -(st.cameraX || 0) * zoom, -(st.cameraY || 0) * zoom];
+  const near = (x, y) => (st.level.platforms || [])
+    .filter(p => Math.abs(p.x + p.w / 2 - x) < 450 && Math.abs(p.y - y) < 400)
+    .map(p => ({ x: Math.round(p.x), y: Math.round(p.y), w: Math.round(p.w), h: Math.round(p.h), type: p.type,
+      logicIndex: p.logicIndex, flags: Object.keys(p).filter(k => p[k] === true).slice(0, 24) }));
+  const films = [...biofilmDrawLog.values()].filter(e => Math.abs((e.time ?? 0) - st.time) < 1.5).map(e => ({
+    ...e,
+    transformOffBy: e.transform ? e.transform.map((v, i) => +(v - expected[i]).toFixed(3)) : null,
+    nearbyPlatforms: near(e.surface.x, e.surface.y),
+  }));
+  const report = {
+    when: new Date().toISOString(),
+    phase: displayPhaseNumber(campaign), seed, renderMode: render25DActive ? '2.5D' : '2D', lighting: lightingEnabled, parallax: biologicalParallaxEnabled,
+    time: st.time,
+    camera: { x: st.cameraX, y: st.cameraY, zoom, visibleW: st.visibleWorldWidth, visibleH: st.visibleWorldHeight,
+      canvas: [canvas.width, canvas.height], cssCanvas: [canvas.clientWidth, canvas.clientHeight], dpr: window.devicePixelRatio },
+    expectedTransform: expected,
+    player: { x: st.player.x, y: st.player.y },
+    films,
+    colonies: (st.level.beneficialColonies || []).filter(c => c.type === 'bacillus')
+      .map(c => ({ id: c.id, x: c.x, y: c.y, mode: c.bacillusState?.mode, platform: c.platform ? { x: c.platform.x, y: c.platform.y, w: c.platform.w, type: c.platform.type } : null })),
+    checkpoints: (st.level.checkpoints || []).map(c => ({ x: c.x, y: c.y, active: c.active })),
+  };
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const save = (href, name) => {
+    const a = document.createElement('a');
+    a.href = href; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+  try { save(canvas.toDataURL('image/png'), `miguelito-falha-${stamp}.png`); } catch (_) {}
+  const blob = new Blob([JSON.stringify(report, null, 1)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  save(url, `miguelito-falha-${stamp}.json`);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return report;
+}
+window.miguelitoVisualReport = saveVisualReport;
+document.querySelector('[data-pause-action="visual-report"]')?.addEventListener('click', event => {
+  event.preventDefault();
+  saveVisualReport();
+});
+
 window.addEventListener('keydown', event => {
   if (event.code === 'Escape' && !event.repeat && !window.miguelitoTutorial?.isOpen) {
     event.preventDefault();

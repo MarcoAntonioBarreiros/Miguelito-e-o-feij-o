@@ -7,6 +7,9 @@ const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
 const smooth = (lo, hi, value) => { const t = clamp((value - lo) / (hi - lo)); return t * t * (3 - 2 * t); };
 const noise = (seed, i) => { const n = Math.sin(seed * .173 + i * 127.1) * 43758.5453; return n - Math.floor(n); };
 const cache = new WeakMap();
+// Diagnostico (menu de pausa > Registrar falha visual): como cada biofilme foi
+// desenhado no ultimo quadro. So leitura; nao muda o desenho.
+export const biofilmDrawLog = new Map();
 const TAU = Math.PI * 2;
 
 export function biofilmVisualState({ entry = null, colony = entry?.colony, film = entry?.film, progress = null } = {}) {
@@ -49,7 +52,7 @@ export function biofilmSurface({ film, colony, entry, platform = colony?.platfor
   const right = rect ? rect.x + rect.w - 6 : x + 90;
   const center = clamp(x, left + 2, right - 2);
   const seed = Math.round(x * 13 + y * 7 + (platform?.logicIndex || 0) * 83);
-  return { x: center, y: rect?.y ?? y + 7, left, right, band: clamp(rect?.h || 18, 14, 24), seed };
+  return { x: center, y: rect?.y ?? y + 7, left, right, band: clamp(rect?.h || 18, 14, 24), seed, host: platform || null };
 }
 
 export function buildBiofilmProfile(surface, visual, time = 0) {
@@ -219,6 +222,19 @@ export function drawBacillusBiofilm(ctx, { entry = null, colony = entry?.colony,
   const x1 = Math.min(surface.right + 2, surface.x + reach);
   const bounds = { x: x0, y: surface.y - 34, w: Math.max(4, x1 - x0), h: 53 };
   const transform = ctx.getTransform?.();
+  if (biofilmDrawLog.size > 64) biofilmDrawLog.clear();
+  biofilmDrawLog.set(key, {
+    time,
+    transform: transform ? [transform.a, transform.b, transform.c, transform.d, transform.e, transform.f] : null,
+    bounds,
+    surface: { x: surface.x, y: surface.y, left: surface.left, right: surface.right },
+    source: { colony: colony ? { id: colony.id, x: colony.x, y: colony.y } : null,
+      film: film ? { x: film.x, y: film.y, checkpoint: Boolean(film.checkpoint), natural: Boolean(film.natural) } : null },
+    platform: (platform || surface.host) ? (h => ({ x: h.x, y: h.y, w: h.w, h: h.h, type: h.type,
+      logicIndex: h.logicIndex, rootBaseY: h.rootBaseY, supportOffset: h.supportOffset,
+      resolvedByDistance: !platform, flags: Object.keys(h).filter(k => h[k] === true).slice(0, 20) }))(platform || surface.host) : null,
+    canvas: [ctx.canvas?.width, ctx.canvas?.height],
+  });
   if (transform && ctx.canvas?.width > 0 && ctx.canvas?.height > 0) {
     const corners = [[bounds.x, bounds.y], [bounds.x + bounds.w, bounds.y],
       [bounds.x, bounds.y + bounds.h], [bounds.x + bounds.w, bounds.y + bounds.h]]
