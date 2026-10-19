@@ -407,14 +407,6 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     ctx.restore();
   }
 
-  function drawStatus(ctx, attack) {
-    if (attack.state === 'search' || attack.completed || attack.aborted) return;
-    const target = targetPosition(attack.target, attack.type);
-    const width = attack.type === 'egg' ? 82 : 62;
-    const y = target.y - (attack.type === 'egg' ? 31 : 25);
-    ctx.restore();
-  }
-
   function render(ctx) {
     ctx.save();
     ctx.translate(-state.cameraX, 0);
@@ -422,7 +414,6 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
       ctx.globalAlpha = attack.completed || attack.aborted ? clamp(1 - attack.fading, 0, 1) : 1;
       drawHypha(ctx, attack);
       drawContact(ctx, attack);
-      drawStatus(ctx, attack);
     }
     ctx.globalAlpha = 1;
     ctx.restore();

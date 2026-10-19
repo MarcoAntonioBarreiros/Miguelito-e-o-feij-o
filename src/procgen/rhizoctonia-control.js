@@ -1,6 +1,7 @@
 import { organismSprites } from '../render/organism-sprites.js';
 import { publishControlSignal } from './biological-audio-signals.js';
 import { narrate } from './narrator.js';
+import { drawRhizoctoniaMycelium, forgetRhizoctoniaMycelium, rhizoctoniaContactPaths, rhizoctoniaMyceliumSnapshot } from '../render/rhizoctonia-mycelium.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
@@ -71,6 +72,9 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     const host = enemy.hostPlatform || nearestHostRoot(state, enemy);
     if (!host) return null;
     enemy.type = 'rhizoctonia';
+    // This controller owns colonization; the physics stun only keeps its host
+    // fixed. It must not trigger a second, legacy biological update.
+    enemy.rhizoctoniaManaged = true;
     enemy.hostPlatform = host;
     enemy.maxHp = enemy.maxHp || 3;
     enemy.hp = Number.isFinite(enemy.hp) ? enemy.hp : enemy.maxHp;
@@ -287,69 +291,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
   }
 
   function drawColonizedRoot(ctx, enemy, index) {
-    const host = enemy.hostPlatform;
-    if (!host) return;
-    const colonization = clamp(enemy.colonization || 0, 0, 1);
-    const span = clamp(40 + host.w * colonization * .86, 40, host.w - 18);
-    const left = clamp(enemy.infectionX - span / 2, host.x + 8, host.x + host.w - span - 8);
-    const top = host.y - 4;
-    const control = clamp((enemy.bacillusControl || 0) * .74 + (enemy.ironLimitation || 0) * .34, 0, 1);
-
-    ctx.save();
-    const patch = ctx.createLinearGradient(left, 0, left + span, 0);
-    patch.addColorStop(0, 'rgba(88,34,55,0)');
-    patch.addColorStop(.18, `rgba(106,38,58,${.2 + colonization * .22})`);
-    patch.addColorStop(.5, `rgba(48,18,31,${.36 + colonization * .32})`);
-    patch.addColorStop(.82, `rgba(106,38,58,${.2 + colonization * .22})`);
-    patch.addColorStop(1, 'rgba(88,34,55,0)');
-    ctx.fillStyle = patch;
-    ctx.fillRect(left, top, span, 13 + colonization * 13);
-
-    const strandCount = 5 + Math.floor(colonization * 13);
-    for (let i = 0; i < strandCount; i++) {
-      const t = strandCount <= 1 ? .5 : i / (strandCount - 1);
-      const x0 = enemy.infectionX;
-      const x1 = left + span * t;
-      const wave = Math.sin(index * 1.7 + i * 2.1) * (5 + colonization * 7);
-      ctx.strokeStyle = enemy.contained ? 'rgba(151,126,116,.45)' : `rgba(255,91,124,${.25 + colonization * .42})`;
-      ctx.lineWidth = 1 + colonization * 1.6;
-      ctx.beginPath();
-      ctx.moveTo(x0, top + 5 + (i % 3));
-      ctx.bezierCurveTo(
-        x0 + (x1 - x0) * .34,
-        top + wave,
-        x0 + (x1 - x0) * .72,
-        top + 5 - wave * .45,
-        x1,
-        top + 5 + (i % 4),
-      );
-      ctx.stroke();
-    }
-
-    const cushions = Math.floor(colonization * 4.2);
-    for (let i = 0; i < cushions; i++) {
-      const x = left + span * ((i + 1) / (cushions + 1));
-      const r = 4 + colonization * 5 + (i % 2) * 2;
-      ctx.fillStyle = enemy.contained ? 'rgba(126,99,94,.64)' : 'rgba(136,49,72,.82)';
-      ctx.strokeStyle = enemy.contained ? '#9effdf' : '#ff8297';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.ellipse(x, top + 5, r, r * .48, 0, 0, TAU);
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    if (control > .05) {
-      ctx.strokeStyle = control > .55 ? 'rgba(158,255,223,.75)' : 'rgba(213,255,109,.62)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 5]);
-      ctx.beginPath();
-      ctx.moveTo(left, top - 4);
-      ctx.lineTo(left + span, top - 4);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    ctx.restore();
+    drawRhizoctoniaMycelium(ctx, enemy, state);
   }
 
   function drawStatus(ctx, enemy) {
@@ -418,29 +360,39 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       phase: enemy.phase || 0,
       charge: Math.max(charge, lunging ? .8 : 0),
     });
+    const anchor = rhizoctoniaContactPaths(enemy)?.anchor;
     ctx.save();
     ctx.globalAlpha = .3 + Math.max(charge, lunging ? .8 : 0) * .65;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Mesma linguagem das hifas de ataque do Trichoderma: bainha neon,
-    // núcleo fino, crescimento orgânico e pequenas ramificações laterais.
-    ctx.shadowColor = '#ff416d';
-    ctx.shadowBlur = 14;
-    ctx.strokeStyle = 'rgba(255,65,109,.32)';
-    ctx.lineWidth = 6.4;
+    // The existing attack still reaches its exact combat endpoint. A short
+    // attached peduncle connects its base to the persistent surface network.
+    const drawAttachment = () => {
+      if (!anchor) return;
+      ctx.beginPath(); ctx.moveTo(anchor.x, anchor.y);
+      ctx.bezierCurveTo(anchor.x - enemy.rhizoAttackDirection * 4, anchor.y - 4,
+        startX - enemy.rhizoAttackDirection * 5, startY + 5, startX, startY);
+      ctx.stroke();
+    };
+    ctx.shadowColor = '#b9855f';
+    ctx.shadowBlur = 3;
+    ctx.strokeStyle = 'rgba(167,111,76,.30)';
+    ctx.lineWidth = 4.2;
+    drawAttachment();
     traceAttackHypha(ctx, points);
     drawAttackBranches(ctx, points, enemy, true);
 
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = '#ffdbe3';
+    ctx.strokeStyle = '#ead8b7';
     ctx.lineWidth = 2.15;
+    drawAttachment();
     traceAttackHypha(ctx, points);
     drawAttackBranches(ctx, points, enemy, false);
 
-    ctx.shadowColor = '#ff416d';
-    ctx.shadowBlur = 15;
-    ctx.fillStyle = '#fff4f7';
+    ctx.shadowColor = '#b9855f';
+    ctx.shadowBlur = 3;
+    ctx.fillStyle = '#f4e5c8';
     ctx.beginPath();
     ctx.arc(endX, endY, 2.7 + Math.sin(state.time * 5 + (enemy.phase || 0)) * .6, 0, TAU);
     ctx.fill();
@@ -465,8 +417,12 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     (state.level.enemies || []).forEach((enemy, index) => {
-      if (!enemy.alive || !ensure(enemy, index)) return;
+      if (enemy.alive && !ensure(enemy, index)) return;
+      if (!enemy.hostPlatform) return;
+      // A dead focus can leave damaged tissue. Healing still follows rootDamage;
+      // no living network or sprite is retained after biological elimination.
       drawColonizedRoot(ctx, enemy, index);
+      if (!enemy.alive) return;
       drawAttack(ctx, enemy);
       // A sheet fecha a composição na frente da hifa. Se estiver desativada,
       // o fallback procedural já foi desenhado pelo renderer principal.
@@ -477,6 +433,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
   }
 
   function reset() {
+    for (const enemy of memory.keys()) forgetRhizoctoniaMycelium(enemy);
     memory.clear();
     controlledCount = 0;
     activeCount = 0;
@@ -485,6 +442,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
   return {
     get activeCount() { return activeCount; },
     get controlledCount() { return controlledCount; },
+    visualSnapshot(enemy) { return rhizoctoniaMyceliumSnapshot(enemy); },
     prepare,
     update,
     render,

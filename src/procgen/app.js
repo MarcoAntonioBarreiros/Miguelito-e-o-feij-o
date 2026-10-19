@@ -839,6 +839,9 @@ const rhizoctoniaControl = createRhizoctoniaControl({
   entities: sim.entities,
   pseudomonas: sim.pseudomonasSiderophores,
 });
+// Read-only visual diagnostics share the controller used by the actual game.
+// The test page never needs to substitute its simulation or growth rates.
+sim.rhizoctoniaControl = rhizoctoniaControl;
 const trichodermaMeloidogyneControl = createTrichodermaMeloidogyneControl({
   state: sim.state,
   entities: sim.entities,

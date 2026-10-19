@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="../../"><title>Miguelito · micélio de Rhizoctonia · fase 6</title>
+  <link rel="icon" href="data:,"><link rel="stylesheet" href="experiments/rhizoctonia-mycelium/preview.css">
+</head>
+<body>
+  <header><div><span class="eyebrow">MIGUELITO · BRANCH EXPERIMENTAL</span><h1>Micélio de Rhizoctonia · fase 6</h1></div><p id="status" role="status">Carregando o jogo real…</p></header>
+  <main>
+    <form id="configuration" class="toolbar" aria-label="Configuração da partida">
+      <label>Seed <input id="seed" value="rhizoctonia-organic-6" maxlength="100" aria-label="Seed procedural"></label>
+      <button id="restart" type="submit" disabled>Reiniciar fase 6</button><button id="mode" type="button" disabled>Comparar em 2D</button><button id="fullscreen" type="button">Tela cheia</button>
+    </form>
+    <nav class="shortcuts" aria-label="Atalhos de deslocamento">
+      <button id="exudate" disabled>Ir ao exsudato</button><button id="trichoderma" disabled>Ir ao Trichoderma</button><button id="bacillus" disabled>Ir ao Bacillus</button><button id="pseudomonas" disabled>Ir à Pseudomonas</button><button id="root" disabled>Ir ao foco</button>
+      <span>Os atalhos movem Miguelito. Estoques e tratamentos continuam reais.</span>
+    </nav>
+    <div class="game-wrap"><iframe id="game" title="Miguelito — fase 6 real" allow="fullscreen" allowfullscreen></iframe></div>
+    <p class="hint">Observe o foco crescer. Colete exsudatos, selecione exsudato com ↓ e use E perto de Trichoderma para recrutá-lo. Vá ao foco, selecione Trichoderma com ↓ e inocule com E. Exsudato próximo à colônia sustenta seu vigor. Esc fecha cartões e G alterna 2D/WebGL.</p>
+    <section class="diagnostics" aria-labelledby="diagnostics-title"><h2 id="diagnostics-title">Biologia ao vivo</h2><p id="progress">Aguardando…</p><div id="colonies"></div><p class="hint">Leituras da simulação: colonização, dano do tecido, antibiose e contato/lise. Esta página não modifica taxas, saúde, dano, recursos ou objetivos. Bacillus e Pseudomonas só aparecem nos atalhos se existirem naturalmente nesta seed.</p></section>
+  </main>
+  <script type="module" src="experiments/rhizoctonia-mycelium/preview.js"></script>
+</body></html>

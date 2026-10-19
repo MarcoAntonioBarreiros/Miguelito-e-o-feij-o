@@ -7,6 +7,7 @@ const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
 const smooth = (lo, hi, value) => { const t = clamp((value - lo) / (hi - lo)); return t * t * (3 - 2 * t); };
 const noise = (seed, i) => { const n = Math.sin(seed * .173 + i * 127.1) * 43758.5453; return n - Math.floor(n); };
 const cache = new WeakMap();
+
 const TAU = Math.PI * 2;
 
 export function biofilmVisualState({ entry = null, colony = entry?.colony, film = entry?.film, progress = null } = {}) {
