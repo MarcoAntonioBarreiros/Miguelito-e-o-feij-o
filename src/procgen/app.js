@@ -86,6 +86,8 @@ import { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } fro
 import { celebrationCycleSeconds, resolvePlayerSkin } from '../render/player-skins.js';
 import {
   advanceCampaignPhase,
+  advanceToExtraPhase,
+  displayPhaseNumber,
   campaignPhaseSeed,
   // `campaignManifest` completo: o preload precisa da união das fases já
   // alcançadas, não só da atual.
@@ -1479,11 +1481,11 @@ function initGame({ announce = false } = {}) {
     sim.state.introFall = {
       stage: 'title',
       surface,
-      card: () => showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText()),
+      card: () => showPhaseCard(`Fase ${displayPhaseNumber(campaign)}`, profile.title, phaseIntroText()),
     };
     cameraView.resetTracking();
     showTitleScreen();
-  } else if (announce) showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText());
+  } else if (announce) showPhaseCard(`Fase ${displayPhaseNumber(campaign)}`, profile.title, phaseIntroText());
 }
 
 let phaseCardTimer = null;
@@ -1504,7 +1506,41 @@ function showPhaseCard(eyebrow, title, subtitle) {
   }, 3400);
 }
 
+// Fim da campanha (e de cada fase depois dela): painel com "Proxima fase".
+const campaignEndDiv = document.getElementById('campaign-end');
+const campaignEndTitle = document.getElementById('campaign-end-title');
+const campaignEndText = document.getElementById('campaign-end-text');
+const campaignEndButton = campaignEndDiv?.querySelector('[data-end-action="next-phase"]');
+let campaignEndTimer = 0;
+function showCampaignEnd() {
+  if (!campaignEndDiv || sim.state.gameState !== 'end' || phaseLab.enabled) return;
+  const done = displayPhaseNumber(campaign);
+  const next = done + 1;
+  campaignEndTitle.textContent = done > campaign.phase ? `Fase ${done} concluída` : 'Campanha concluída';
+  campaignEndText.textContent = done > campaign.phase
+    ? 'A rizosfera continua. A próxima fase é gerada agora, diferente desta.'
+    : 'Você completou as fases da campanha. A rizosfera continua: cada nova fase é gerada na hora, com todas as habilidades.';
+  campaignEndButton.textContent = `Próxima fase (Fase ${next})`;
+  campaignEndDiv.hidden = false;
+  campaignEndButton.focus({ preventScroll: true });
+}
+function hideCampaignEnd() {
+  clearTimeout(campaignEndTimer);
+  if (campaignEndDiv) campaignEndDiv.hidden = true;
+}
+function startExtraPhase() {
+  hideCampaignEnd();
+  if (!advanceToExtraPhase(campaign)) return;
+  gameAudio.endPhaseVictory();
+  biologicalAudio.stopAll({ fade: .20, clearPending: true });
+  prepareLevel();
+  initGame({ announce: true });
+}
+campaignEndButton?.addEventListener('click', startExtraPhase);
+window.miguelitoCampaignEnd = { show: showCampaignEnd, next: startExtraPhase };
+
 function startNewCampaign() {
+  hideCampaignEnd();
   if (phaseLab.enabled) {
     phaseLab.configureCampaign(campaign);
     for (const cardId of campaign.tutorialBootstrapSeen || []) {
@@ -1697,7 +1733,13 @@ function maybeAdvanceCampaign() {
   if (!advanceCampaignPhase(campaign)) {
     campaign.transitionRequested = false;
     sim.state.gameState = 'end';
-    sim.state.mission = 'Campanha concluída';
+    sim.state.mission = displayPhaseNumber(campaign) > campaign.phase
+      ? `Fase ${displayPhaseNumber(campaign)} concluída`
+      : 'Campanha concluída';
+    // A fase 10 e procedural: depois dela o jogo segue com fases 11, 12...
+    // (a 10 com semente nova), a partir do botao "Proxima fase".
+    clearTimeout(campaignEndTimer);
+    campaignEndTimer = setTimeout(showCampaignEnd, 1800);
     // Fim de campanha: o resultado longo entra sozinho, nunca junto do curto.
     gameAudio.stopStinger(.5);
     gameAudio.beginPhaseVictory({ campaign: true });
@@ -2480,7 +2522,7 @@ function loop(now) {
     if (sim.state.mission) {
       missionDiv.textContent = sim.state.gameState === 'end'
         ? sim.state.mission
-        : `Fase ${campaign.phase}`;
+        : `Fase ${displayPhaseNumber(campaign)}`;
     }
 
     // Mesmo com o jogo pausado: um cartão que acabou de abrir cobre a

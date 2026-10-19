@@ -591,7 +591,19 @@
       backdrop-filter: blur(3px);
     }
     #pause-menu[hidden] { display: none; }
-    #pause-menu .pause-panel {
+    /* Fim da campanha / fases 11+: mesmo painel do menu de pausa. */
+    #campaign-end {
+      position: fixed;
+      inset: 0;
+      z-index: 91;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      background: rgba(1,10,14,.45);
+    }
+    #campaign-end[hidden] { display: none; }
+    #campaign-end p { margin: 0 0 14px; font-size: 14px; line-height: 1.45; color: rgba(233,255,251,.82); }
+    #pause-menu .pause-panel, #campaign-end .pause-panel {
       width: min(360px, 100%);
       max-height: calc(100dvh - 32px);
       overflow: auto;
@@ -602,8 +614,8 @@
       color: #e9fffb;
       font-family: Inter, system-ui, sans-serif;
     }
-    #pause-menu h2 { margin: 0 0 12px; font-size: 20px; font-weight: 800; }
-    #pause-menu .pause-resume {
+    #pause-menu h2, #campaign-end h2 { margin: 0 0 12px; font-size: 20px; font-weight: 800; }
+    #pause-menu .pause-resume, #campaign-end .pause-resume {
       width: 100%;
       min-height: 42px;
       margin-bottom: 12px;
@@ -872,6 +884,13 @@
     <button class="mobile-tool zoom-step" data-camera-action="in" aria-label="Aproximar câmera">+</button>
   </div>
 
+  <div id="campaign-end" hidden role="dialog" aria-modal="true" aria-labelledby="campaign-end-title">
+    <div class="pause-panel">
+      <h2 id="campaign-end-title">Campanha concluída</h2>
+      <p id="campaign-end-text"></p>
+      <button type="button" class="pause-resume" data-end-action="next-phase">Próxima fase</button>
+    </div>
+  </div>
   <div id="pause-menu" hidden role="dialog" aria-modal="true" aria-labelledby="pause-menu-title">
     <div class="pause-panel">
       <h2 id="pause-menu-title">Pausa</h2>

@@ -64,6 +64,8 @@ function blankCampaign(seed) {
   return {
     seed,
     phase: DEFAULT_START_PHASE,
+    // Fases depois da 10: a 10 de novo com semente nova (11, 12, 13...).
+    extraPhase: 0,
     unlocks: blankUnlocks(),
     totalScore: 0,
     history: [],
@@ -98,6 +100,7 @@ export function campaignSnapshot(campaign) {
   return {
     seed: String(campaign.seed || randomCampaignSeed()),
     phase: validPhase(campaign.phase),
+    extraPhase: validExtraPhase(campaign.extraPhase),
     unlocks: blankUnlocks(campaign.unlocks),
     totalScore: Number.isFinite(campaign.totalScore) ? campaign.totalScore : 0,
     history: Array.isArray(campaign.history) ? campaign.history : [],
@@ -122,6 +125,7 @@ export function createCampaign(seed = randomCampaignSeed(), { storage = null } =
   const campaign = blankCampaign(saved?.seed ? String(saved.seed) : seed);
   if (saved) {
     campaign.phase = validPhase(saved.phase);
+    campaign.extraPhase = validExtraPhase(saved.extraPhase);
     campaign.unlocks = blankUnlocks(saved.unlocks);
     campaign.unlocks.jetpack = migrateJetpackUnlock(saved.unlocks, saved.phase);
     campaign.totalScore = Number.isFinite(saved.totalScore) ? saved.totalScore : 0;
@@ -273,8 +277,35 @@ export function prepareCampaignGeneration(campaign) {
   return profile;
 }
 
+function validExtraPhase(value) {
+  return Number.isInteger(value) && value > 0 ? value : 0;
+}
+
+/** Numero mostrado ao jogador: 1-10 na campanha; 11, 12... depois dela. */
+export function displayPhaseNumber(campaign) {
+  return campaign.phase + validExtraPhase(campaign.extraPhase);
+}
+
+// A fase 11 em diante e a 10 (mesmas regras e habilidades) com semente nova.
 export function campaignPhaseSeed(campaign) {
-  return `${campaign.seed}:fase-${campaign.phase}`;
+  return `${campaign.seed}:fase-${displayPhaseNumber(campaign)}`;
+}
+
+/** Depois da ultima fase da campanha: monta a proxima fase procedural. */
+export function advanceToExtraPhase(campaign) {
+  const last = campaignManifest[campaignManifest.length - 1];
+  if (!last || campaign.phase !== last.phase) return false;
+  campaign.extraPhase = validExtraPhase(campaign.extraPhase) + 1;
+  ensureCampaignUnlockShape(campaign);
+  campaign.transitionRequested = false;
+  campaign.transitionAt = 0;
+  campaign.waitingForVictoryAudio = false;
+  campaign.victoryAudioFinished = false;
+  campaign.victoryAudioDeadline = 0;
+  campaign.transitionCaptured = false;
+  campaign.pendingReport = null;
+  persistCampaign(campaign);
+  return true;
 }
 
 // Só o nome: o desbloqueio é narrado pelo catálogo (`unlock.<feature>`) e
