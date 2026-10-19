@@ -1108,7 +1108,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"83d26cd","subject":"Fase 10+: focos de patogeno do diretor - Ralstonia ja vascular (contenca","builtAt":"2026-10-19 14:13"};
+window.__BEANS_BUILD__ = {"commit":"5617381","subject":"Remove o diagnostico temporario do biofilme (linha no painel, botao da p","builtAt":"2026-10-19 15:21"};
 (() => {
 'use strict';
 const __modules = {
@@ -1916,6 +1916,9 @@ const rhizoctoniaControl = createRhizoctoniaControl({
   entities: sim.entities,
   pseudomonas: sim.pseudomonasSiderophores,
 });
+// Read-only visual diagnostics share the controller used by the actual game.
+// The test page never needs to substitute its simulation or growth rates.
+sim.rhizoctoniaControl = rhizoctoniaControl;
 const trichodermaMeloidogyneControl = createTrichodermaMeloidogyneControl({
   state: sim.state,
   entities: sim.entities,
@@ -8430,7 +8433,12 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
     const verticalDistance = Math.abs((player.y + player.h) - host.y);
     const playerOnHostLevel = verticalDistance < 105;
 
-    enemy.colonization = clamp(enemy.colonization + dt * (enemy.stun > 0 ? -.025 : .018), .12, 1);
+    // Campaign Rhizoctonia has its own colonization/biocontrol lifecycle. Its
+    // permanent positioning stun is not an injury and cannot consume biomass.
+    // Standalone legacy enemies retain their existing stun/growth behaviour.
+    if (!enemy.rhizoctoniaManaged) {
+      enemy.colonization = clamp(enemy.colonization + dt * (enemy.stun > 0 ? -.025 : .018), .12, 1);
+    }
     host.rhizoctoniaPressure = Math.max(
       host.rhizoctoniaPressure || 0,
       clamp(.12 + enemy.colonization * .58 + (enemy.mode === 'charging' ? .12 : 0), 0, 1),
@@ -14247,13 +14255,13 @@ const HYPHAL_PROFILES = {
   },
 };
 
-function createHyphalTip({ x, y, angle, depth = 0, seed = Math.random() * TAU, mode = 'search', parentId = null }) {
+function createHyphalTip({ x, y, angle, depth = 0, seed = Math.random() * TAU, mode = 'search', parentId = null, random = Math.random }) {
   return {
-    id: `${Math.round(seed * 100000)}:${Math.random().toString(36).slice(2, 8)}`,
+    id: `${Math.round(seed * 100000)}:${random().toString(36).slice(2, 8)}`,
     points: [{ x, y }], x, y, angle, depth, seed, mode, parentId,
     active: true, age: 0, totalDistance: 0, distanceSincePoint: 0,
-    nextBranch: 42 + Math.random() * 65, contact: false, targetId: null,
-    orbitSide: Math.random() < .5 ? -1 : 1, coilTurns: 0,
+    nextBranch: 42 + random() * 65, contact: false, targetId: null,
+    orbitSide: random() < .5 ? -1 : 1, coilTurns: 0,
   };
 }
 
@@ -19520,6 +19528,7 @@ const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
 const smooth = (lo, hi, value) => { const t = clamp((value - lo) / (hi - lo)); return t * t * (3 - 2 * t); };
 const noise = (seed, i) => { const n = Math.sin(seed * .173 + i * 127.1) * 43758.5453; return n - Math.floor(n); };
 const cache = new WeakMap();
+
 const TAU = Math.PI * 2;
 
 function biofilmVisualState({ entry = null, colony = entry?.colony, film = entry?.film, progress = null } = {}) {
@@ -49619,6 +49628,7 @@ Object.assign(__exports, { MAXIMUM_STEP_SPACING, TOP_STEP_TO_DESTINATION, azospi
 const { organismSprites } = __require("src/render/organism-sprites.js");
 const { publishControlSignal } = __require("src/procgen/biological-audio-signals.js");
 const { narrate } = __require("src/procgen/narrator.js");
+const { drawRhizoctoniaMycelium, forgetRhizoctoniaMycelium, rhizoctoniaContactPaths, rhizoctoniaMyceliumSnapshot } = __require("src/render/rhizoctonia-mycelium.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
 
@@ -49688,6 +49698,9 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     const host = enemy.hostPlatform || nearestHostRoot(state, enemy);
     if (!host) return null;
     enemy.type = 'rhizoctonia';
+    // This controller owns colonization; the physics stun only keeps its host
+    // fixed. It must not trigger a second, legacy biological update.
+    enemy.rhizoctoniaManaged = true;
     enemy.hostPlatform = host;
     enemy.maxHp = enemy.maxHp || 3;
     enemy.hp = Number.isFinite(enemy.hp) ? enemy.hp : enemy.maxHp;
@@ -49904,69 +49917,7 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
   }
 
   function drawColonizedRoot(ctx, enemy, index) {
-    const host = enemy.hostPlatform;
-    if (!host) return;
-    const colonization = clamp(enemy.colonization || 0, 0, 1);
-    const span = clamp(40 + host.w * colonization * .86, 40, host.w - 18);
-    const left = clamp(enemy.infectionX - span / 2, host.x + 8, host.x + host.w - span - 8);
-    const top = host.y - 4;
-    const control = clamp((enemy.bacillusControl || 0) * .74 + (enemy.ironLimitation || 0) * .34, 0, 1);
-
-    ctx.save();
-    const patch = ctx.createLinearGradient(left, 0, left + span, 0);
-    patch.addColorStop(0, 'rgba(88,34,55,0)');
-    patch.addColorStop(.18, `rgba(106,38,58,${.2 + colonization * .22})`);
-    patch.addColorStop(.5, `rgba(48,18,31,${.36 + colonization * .32})`);
-    patch.addColorStop(.82, `rgba(106,38,58,${.2 + colonization * .22})`);
-    patch.addColorStop(1, 'rgba(88,34,55,0)');
-    ctx.fillStyle = patch;
-    ctx.fillRect(left, top, span, 13 + colonization * 13);
-
-    const strandCount = 5 + Math.floor(colonization * 13);
-    for (let i = 0; i < strandCount; i++) {
-      const t = strandCount <= 1 ? .5 : i / (strandCount - 1);
-      const x0 = enemy.infectionX;
-      const x1 = left + span * t;
-      const wave = Math.sin(index * 1.7 + i * 2.1) * (5 + colonization * 7);
-      ctx.strokeStyle = enemy.contained ? 'rgba(151,126,116,.45)' : `rgba(255,91,124,${.25 + colonization * .42})`;
-      ctx.lineWidth = 1 + colonization * 1.6;
-      ctx.beginPath();
-      ctx.moveTo(x0, top + 5 + (i % 3));
-      ctx.bezierCurveTo(
-        x0 + (x1 - x0) * .34,
-        top + wave,
-        x0 + (x1 - x0) * .72,
-        top + 5 - wave * .45,
-        x1,
-        top + 5 + (i % 4),
-      );
-      ctx.stroke();
-    }
-
-    const cushions = Math.floor(colonization * 4.2);
-    for (let i = 0; i < cushions; i++) {
-      const x = left + span * ((i + 1) / (cushions + 1));
-      const r = 4 + colonization * 5 + (i % 2) * 2;
-      ctx.fillStyle = enemy.contained ? 'rgba(126,99,94,.64)' : 'rgba(136,49,72,.82)';
-      ctx.strokeStyle = enemy.contained ? '#9effdf' : '#ff8297';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.ellipse(x, top + 5, r, r * .48, 0, 0, TAU);
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    if (control > .05) {
-      ctx.strokeStyle = control > .55 ? 'rgba(158,255,223,.75)' : 'rgba(213,255,109,.62)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 5]);
-      ctx.beginPath();
-      ctx.moveTo(left, top - 4);
-      ctx.lineTo(left + span, top - 4);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    ctx.restore();
+    drawRhizoctoniaMycelium(ctx, enemy, state);
   }
 
   function drawStatus(ctx, enemy) {
@@ -50035,29 +49986,39 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       phase: enemy.phase || 0,
       charge: Math.max(charge, lunging ? .8 : 0),
     });
+    const anchor = rhizoctoniaContactPaths(enemy)?.anchor;
     ctx.save();
     ctx.globalAlpha = .3 + Math.max(charge, lunging ? .8 : 0) * .65;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Mesma linguagem das hifas de ataque do Trichoderma: bainha neon,
-    // núcleo fino, crescimento orgânico e pequenas ramificações laterais.
-    ctx.shadowColor = '#ff416d';
-    ctx.shadowBlur = 14;
-    ctx.strokeStyle = 'rgba(255,65,109,.32)';
-    ctx.lineWidth = 6.4;
+    // The existing attack still reaches its exact combat endpoint. A short
+    // attached peduncle connects its base to the persistent surface network.
+    const drawAttachment = () => {
+      if (!anchor) return;
+      ctx.beginPath(); ctx.moveTo(anchor.x, anchor.y);
+      ctx.bezierCurveTo(anchor.x - enemy.rhizoAttackDirection * 4, anchor.y - 4,
+        startX - enemy.rhizoAttackDirection * 5, startY + 5, startX, startY);
+      ctx.stroke();
+    };
+    ctx.shadowColor = '#b9855f';
+    ctx.shadowBlur = 3;
+    ctx.strokeStyle = 'rgba(167,111,76,.30)';
+    ctx.lineWidth = 4.2;
+    drawAttachment();
     traceAttackHypha(ctx, points);
     drawAttackBranches(ctx, points, enemy, true);
 
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = '#ffdbe3';
+    ctx.strokeStyle = '#ead8b7';
     ctx.lineWidth = 2.15;
+    drawAttachment();
     traceAttackHypha(ctx, points);
     drawAttackBranches(ctx, points, enemy, false);
 
-    ctx.shadowColor = '#ff416d';
-    ctx.shadowBlur = 15;
-    ctx.fillStyle = '#fff4f7';
+    ctx.shadowColor = '#b9855f';
+    ctx.shadowBlur = 3;
+    ctx.fillStyle = '#f4e5c8';
     ctx.beginPath();
     ctx.arc(endX, endY, 2.7 + Math.sin(state.time * 5 + (enemy.phase || 0)) * .6, 0, TAU);
     ctx.fill();
@@ -50082,8 +50043,12 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     (state.level.enemies || []).forEach((enemy, index) => {
-      if (!enemy.alive || !ensure(enemy, index)) return;
+      if (enemy.alive && !ensure(enemy, index)) return;
+      if (!enemy.hostPlatform) return;
+      // A dead focus can leave damaged tissue. Healing still follows rootDamage;
+      // no living network or sprite is retained after biological elimination.
       drawColonizedRoot(ctx, enemy, index);
+      if (!enemy.alive) return;
       drawAttack(ctx, enemy);
       // A sheet fecha a composição na frente da hifa. Se estiver desativada,
       // o fallback procedural já foi desenhado pelo renderer principal.
@@ -50094,6 +50059,7 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
   }
 
   function reset() {
+    for (const enemy of memory.keys()) forgetRhizoctoniaMycelium(enemy);
     memory.clear();
     controlledCount = 0;
     activeCount = 0;
@@ -50102,6 +50068,7 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
   return {
     get activeCount() { return activeCount; },
     get controlledCount() { return controlledCount; },
+    visualSnapshot(enemy) { return rhizoctoniaMyceliumSnapshot(enemy); },
     prepare,
     update,
     render,
@@ -50109,6 +50076,281 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
   };
 }
 Object.assign(__exports, { createRhizoctoniaAttackHyphaPath, createRhizoctoniaControl });
+},
+"src/render/rhizoctonia-mycelium.js": (__exports, __require) => {
+// A read-only, persistent surface network. Colonization pays for apical
+// extension; the rendering clock cannot grow or heal a root on its own.
+const { angleDelta, createHyphalTip, smoothHyphalNoise } = __require("src/procgen/hyphal-growth.js");
+const { visibleRootRect } = __require("src/render/rhizosphere-geometry.js");
+const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
+const smooth = (lo, hi, n) => { const t = clamp((n - lo) / (hi - lo)); return t * t * (3 - 2 * t); };
+const noise = (seed, k) => { const n = Math.sin(seed * .173 + k * 127.1) * 43758.5453; return n - Math.floor(n); };
+const models = new WeakMap();
+const POINT_SPACING = 2.6;
+const RHIZOCTONIA_VISUAL_LIMITS = Object.freeze({ points: 720, branches: 34 });
+
+function randomFor(seed) {
+  let n = seed >>> 0;
+  return () => { n += 0x6D2B79F5; let t = n; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+
+function rhizoctoniaVisualBiology(enemy) {
+  const root = enemy.hostPlatform;
+  const bacillus = clamp(enemy.bacillusControl || 0);
+  const iron = clamp(enemy.ironLimitation || 0);
+  const suppression = clamp(enemy.trichodermaSuppression || 0);
+  return {
+    colonization: clamp(enemy.colonization || 0),
+    damage: clamp(Math.max(root?.rootDamage || 0, 1 - (root?.rootHealth ?? 1))),
+    contact: clamp(enemy.trichodermaContact || 0),
+    lysis: clamp(enemy.trichodermaLysis || 0),
+    control: clamp(bacillus * .74 + iron * .34),
+    activity: enemy.alive === false ? 0 : (enemy.contained ? .035 : 1)
+      * (1 - clamp(bacillus * .74 + iron * .34)) * (1 - suppression * .96),
+  };
+}
+
+function addTip(model, x, y, angle, depth, parent = null) {
+  const tip = createHyphalTip({ x, y, angle, depth, mode: 'root-surface',
+    seed: model.seed + model.tips.length * 2.731, parentId: parent?.id || null, random: model.random });
+  tip.id = `surface-${model.tips.length}`;
+  tip.side = Math.cos(angle) < 0 ? -1 : 1;
+  tip.nextBranch = 15 + model.random() * 15;
+  tip.initialAngle = angle;
+  tip.parentAngle = parent?.angle ?? null;
+  tip.points[0].level = model.currentC;
+  tip.points[0].order = model.points;
+  model.tips.push(tip);
+  return tip;
+}
+
+function createModel(enemy) {
+  const host = enemy.hostPlatform;
+  const rect = visibleRootRect(host);
+  const seed = Math.round((enemy.infectionX || host.x) * 127 + host.y * 17 + (host.logicIndex || 0) * 8191);
+  const model = { seed, random: randomFor(seed), width: host.w, band: clamp(rect.h, 14, 24),
+    origin: clamp((enemy.infectionX ?? enemy.x + enemy.w / 2) - host.x, 8, host.w - 8),
+    maxC: 0, currentC: 0, length: 0, points: 0, cursor: 0, tips: [],
+    capacity: Math.min(1780, host.w * 6.7 + 80), biology: null };
+  addTip(model, model.origin, model.band * .37, .08, 0);
+  addTip(model, model.origin, model.band * .37, Math.PI - .12, 0);
+  models.set(enemy, model);
+  return model;
+}
+
+function extend(model, c) {
+  const target = 5 + model.capacity * Math.pow(c, 1.25);
+  const reach = 8 + model.width * c * .51;
+  const left = Math.max(5, model.origin - reach), right = Math.min(model.width - 5, model.origin + reach);
+  for (const tip of model.tips) {
+    if (tip.blocked && tip.x > left + POINT_SPACING && tip.x < right - POINT_SPACING) {
+      tip.active = true; tip.blocked = false;
+    }
+  }
+  let attempts = 0;
+  while (model.length + POINT_SPACING <= target && model.points < RHIZOCTONIA_VISUAL_LIMITS.points && attempts++ < 4000) {
+    const tip = model.tips[model.cursor++ % model.tips.length];
+    if (!tip.active) {
+      if (!model.tips.some(t => t.active)) break;
+      continue;
+    }
+    // The first daughter segment retains the near-right-angle fork. It then
+    // bends into the host's long axis instead of drawing a suspended bridge.
+    if (tip.totalDistance >= POINT_SPACING * 1.5 || tip.depth === 0) {
+      const inward = (model.band * .47 - tip.y) * .16;
+      const wave = smoothHyphalNoise(tip.x, tip.y, 0, tip.seed);
+      const desired = Math.atan2(inward, tip.side * 9) + wave * .32 + Math.sin(tip.totalDistance * .14 + tip.seed) * .22;
+      tip.angle += angleDelta(tip.angle, desired) * .29;
+    }
+    let x = tip.x + Math.cos(tip.angle) * POINT_SPACING;
+    let y = tip.y + Math.sin(tip.angle) * POINT_SPACING;
+    if (x < left || x > right) { tip.active = false; tip.blocked = true; continue; }
+    if (y < 1 || y > model.band - .8) {
+      // Turn inward before appending. Older vertices are never repositioned.
+      tip.angle = Math.atan2(model.band * .47 - tip.y, tip.side * 6);
+      x = tip.x + Math.cos(tip.angle) * POINT_SPACING;
+      y = tip.y + Math.sin(tip.angle) * POINT_SPACING;
+      if (x < left || x > right) { tip.active = false; tip.blocked = true; continue; }
+    }
+    tip.x = x; tip.y = clamp(y, .6, model.band - .6);
+    tip.totalDistance += POINT_SPACING;
+    model.length += POINT_SPACING; model.points++;
+    const level = Math.pow(Math.max(0, model.length - 5) / model.capacity, 1 / 1.25);
+    tip.points.push({ x: tip.x, y: tip.y, level, order: model.points });
+    if (tip.totalDistance >= tip.nextBranch && tip.depth < 3 && model.tips.length < RHIZOCTONIA_VISUAL_LIMITS.branches) {
+      tip.nextBranch += 20 + model.random() * 18;
+      const side = tip.y < model.band * .45 ? 1 : -1;
+      const angle = tip.angle + side * (Math.PI / 2 + (model.random() - .5) * .20);
+      const child = addTip(model, tip.x, tip.y, angle, tip.depth + 1, tip);
+      child.side = model.random() < .5 ? -1 : 1;
+    }
+  }
+}
+
+function syncRhizoctoniaMycelium(enemy) {
+  if (!enemy.hostPlatform) return null;
+  const model = models.get(enemy) || createModel(enemy);
+  const biology = rhizoctoniaVisualBiology(enemy);
+  model.currentC = biology.colonization;
+  // Fixed biology means fixed geometry, regardless of render rate or time.
+  if (biology.colonization > model.maxC) {
+    extend(model, biology.colonization);
+    model.maxC = biology.colonization;
+  }
+  model.biology = biology;
+  return model;
+}
+
+function worldPoint(enemy, model, point) {
+  const root = enemy.hostPlatform, rect = visibleRootRect(root);
+  return { x: root.x + point.x * root.w / model.width,
+    y: root.y + point.y * clamp(rect.h, 14, 24) / model.band };
+}
+
+function integrity(model, point, branch) {
+  const b = model.biology;
+  if (b.lysis >= .999 || b.activity === 0 && b.colonization <= .061) return 0;
+  const load = smooth(point.level - .11, point.level + .015, b.colonization);
+  // Lysis opens stable gaps in the existing hypha, rather than making a whole
+  // cloud dissolve uniformly or inventing spores. The scarring is separate.
+  const erosionAt = .10 + noise(model.seed, point.order * .29 + branch * 13) * .70;
+  const erosion = smooth(erosionAt, Math.min(1, erosionAt + .21), b.lysis);
+  return load * (1 - erosion) * (1 - b.lysis * .24);
+}
+
+function rhizoctoniaMyceliumSnapshot(enemy) {
+  const model = syncRhizoctoniaMycelium(enemy);
+  if (!model) return null;
+  let remaining = 0;
+  model.tips.forEach((tip, index) => tip.points.slice(1).forEach(p => { remaining += integrity(model, p, index) * POINT_SPACING; }));
+  return { ...model.biology, peakColonization: model.maxC, points: model.points,
+    branches: model.tips.length, totalLength: model.length, remainingLength: remaining,
+    activeTips: model.tips.filter((tip, index) => tip.points.length > 1 && model.biology.activity > .08
+      && integrity(model, tip.points[tip.points.length - 1], index) > .2).length,
+    forks: model.tips.filter(tip => tip.parentId).map(tip => Math.abs(angleDelta(tip.parentAngle, tip.initialAngle))),
+  };
+}
+
+function rhizoctoniaContactPaths(enemy) {
+  const model = syncRhizoctoniaMycelium(enemy);
+  if (!model) return null;
+  const paths = model.tips.filter(tip => tip.points.length > 3)
+    .sort((a, b) => a.depth - b.depth || b.points.length - a.points.length).slice(0, 3)
+    .map(tip => ({ points: tip.points.slice(0, Math.min(13, tip.points.length)).map(p => worldPoint(enemy, model, p)),
+      width: 1.6 - tip.depth * .26,
+      integrity: tip.points.slice(1, 8).reduce((sum, p) => sum + integrity(model, p, model.tips.indexOf(tip)), 0) / Math.max(1, Math.min(7, tip.points.length - 1)),
+    }));
+  return { anchor: worldPoint(enemy, model, { x: model.origin, y: model.band * .37 }), paths,
+    colonization: model.biology.colonization, damage: model.biology.damage };
+}
+
+function forgetRhizoctoniaMycelium(enemy) { models.delete(enemy); }
+
+function drawNecrosis(ctx, enemy, model) {
+  const host = enemy.hostPlatform, rect = visibleRootRect(host), damage = model.biology.damage;
+  if (damage <= .012) return;
+  const reach = 12 + host.w * model.maxC * .55;
+  const origin = host.x + model.origin * host.w / model.width;
+  const left = Math.max(host.x + 4, origin - reach), right = Math.min(host.x + host.w - 4, origin + reach);
+  const columns = Math.min(64, Math.max(5, Math.ceil(host.w / 9)));
+  ctx.save(); ctx.beginPath(); ctx.rect(host.x + 3, host.y, host.w - 6, rect.h); ctx.clip();
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < columns; col++) {
+      const k = row * 71 + col;
+      const x = host.x + (col + .5 + (noise(model.seed, k + 31) - .5) * .65) / columns * host.w;
+      if (x < left || x > right) continue;
+      const y = host.y + (row + .5) / 3 * rect.h;
+      const near = clamp(1 - Math.abs(x - origin) / Math.max(1, reach));
+      const onset = noise(model.seed, k + 90) * .43 + (1 - near) * .13;
+      const severity = smooth(onset, onset + .19, damage) * (.4 + near * .6) * smooth(0, .18, near);
+      if (severity < .012) continue;
+      const rx = 4 + severity * 6 + noise(model.seed, k + 150) * 4;
+      const ry = 1.5 + severity * 2.5 + noise(model.seed, k + 180) * 2;
+      ctx.beginPath();
+      for (let j = 0; j < 8; j++) {
+        const a = j * Math.PI / 4, r = .75 + noise(model.seed, k * 11 + j + 220) * .32;
+        const px = x + Math.cos(a) * rx * r, py = y + Math.sin(a) * ry * r;
+        if (j) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fillStyle = `rgba(66,43,29,${severity * (.18 + damage * .38)})`; ctx.fill();
+      ctx.strokeStyle = `rgba(121,80,39,${severity * .25})`; ctx.lineWidth = .6; ctx.stroke();
+      // Short cortical grain follows the original tissue; no replacement root.
+      ctx.strokeStyle = `rgba(38,28,23,${severity * damage * .28})`;
+      ctx.beginPath(); ctx.moveTo(x - rx * .55, y); ctx.quadraticCurveTo(x, y + .8, x + rx * .45, y - .4); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawRhizoctoniaMycelium(ctx, enemy, state) {
+  const host = enemy.hostPlatform;
+  if (!host) return;
+  const rect = visibleRootRect(host);
+  const transform = ctx.getTransform?.();
+  if (transform && ctx.canvas?.width > 0) {
+    const left = transform.a * host.x + transform.e, right = transform.a * (host.x + host.w) + transform.e;
+    const y = transform.d * host.y + transform.f;
+    if (Math.max(left, right) < -24 || Math.min(left, right) > ctx.canvas.width + 24 || y < -40 || y > ctx.canvas.height + 40) return;
+  }
+  const model = syncRhizoctoniaMycelium(enemy);
+  if (!model) return;
+  ctx.save(); drawNecrosis(ctx, enemy, model);
+  ctx.beginPath(); ctx.rect(host.x + 3, host.y - 1, host.w - 6, rect.h + 3); ctx.clip();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  model.tips.forEach((tip, branch) => {
+    if (tip.points.length < 2) return;
+    const width = (1.40 - tip.depth * .23) * (.85 + noise(model.seed, branch + 400) * .25);
+    const points = tip.points.map(p => worldPoint(enemy, model, p));
+    // Short continuous runs preserve local lysis gaps while bounding Canvas
+    // stroke calls. This avoids one pair of strokes per stored vertex.
+    const inactive = 1 - model.biology.activity;
+    for (let start = 1; start < points.length; start += 6) {
+      const end = Math.min(points.length, start + 6);
+      let run = [], healthSum = 0;
+      const paintRun = () => {
+        if (run.length < 2) { run = []; healthSum = 0; return; }
+        const health = healthSum / (run.length - 1);
+        ctx.globalAlpha = health * (.28 + model.biology.activity * .34);
+        const stroke = (color, thickness) => {
+          ctx.strokeStyle = color; ctx.lineWidth = thickness;
+          ctx.beginPath(); ctx.moveTo(run[0].x, run[0].y);
+          for (let k = 1; k < run.length - 1; k++) {
+            ctx.quadraticCurveTo(run[k].x, run[k].y,
+              (run[k].x + run[k + 1].x) / 2, (run[k].y + run[k + 1].y) / 2);
+          }
+          ctx.lineTo(run[run.length - 1].x, run[run.length - 1].y); ctx.stroke();
+        };
+        stroke(inactive > .6 ? '#786f60' : '#806e51', width + .65);
+        stroke(inactive > .6 ? '#a69c88' : '#bdb197', Math.max(.40, width * .55));
+        run = []; healthSum = 0;
+      };
+      for (let i = start; i < end; i++) {
+        const health = integrity(model, tip.points[i], branch);
+        if (health < .025) { paintRun(); continue; }
+        if (!run.length) run.push(points[i - 1]);
+        run.push(points[i]); healthSum += health;
+      }
+      paintRun();
+    }
+    if (tip.depth > 0 && points.length > 2) {
+      const a = points[1], b = points[2], len = Math.max(.01, Math.hypot(b.x - a.x, b.y - a.y));
+      const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
+      ctx.globalAlpha = integrity(model, tip.points[2], branch) * .55;
+      ctx.strokeStyle = '#79664e'; ctx.lineWidth = .45;
+      ctx.beginPath(); ctx.moveTo(b.x - nx * width, b.y - ny * width); ctx.lineTo(b.x + nx * width, b.y + ny * width); ctx.stroke();
+    }
+    const endpoint = tip.points[tip.points.length - 1];
+    const health = integrity(model, endpoint, branch);
+    if (health > .1 && model.biology.activity > .05) {
+      const p = points[points.length - 1];
+      ctx.globalAlpha = health * model.biology.activity * .40;
+      ctx.fillStyle = '#cfc3a6'; ctx.beginPath(); ctx.ellipse(p.x, p.y, .8 + width * .25, .65, tip.angle, 0, Math.PI * 2); ctx.fill();
+    }
+  });
+  ctx.restore();
+}
+Object.assign(__exports, { RHIZOCTONIA_VISUAL_LIMITS, rhizoctoniaVisualBiology, syncRhizoctoniaMycelium, rhizoctoniaMyceliumSnapshot, rhizoctoniaContactPaths, forgetRhizoctoniaMycelium, drawRhizoctoniaMycelium });
 },
 "src/procgen/trichoderma-meloidogyne-control.js": (__exports, __require) => {
 const { fxLanded } = __require("src/game-audio.js");
@@ -50519,14 +50761,6 @@ function createTrichodermaMeloidogyneControl({ state, entities, colonies, lifecy
     ctx.restore();
   }
 
-  function drawStatus(ctx, attack) {
-    if (attack.state === 'search' || attack.completed || attack.aborted) return;
-    const target = targetPosition(attack.target, attack.type);
-    const width = attack.type === 'egg' ? 82 : 62;
-    const y = target.y - (attack.type === 'egg' ? 31 : 25);
-    ctx.restore();
-  }
-
   function render(ctx) {
     ctx.save();
     ctx.translate(-state.cameraX, 0);
@@ -50534,7 +50768,6 @@ function createTrichodermaMeloidogyneControl({ state, entities, colonies, lifecy
       ctx.globalAlpha = attack.completed || attack.aborted ? clamp(1 - attack.fading, 0, 1) : 1;
       drawHypha(ctx, attack);
       drawContact(ctx, attack);
-      drawStatus(ctx, attack);
     }
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -50576,6 +50809,8 @@ Object.assign(__exports, { createTrichodermaMeloidogyneControl });
 "src/procgen/trichoderma-rhizoctonia-control.js": (__exports, __require) => {
 const { fxLanded } = __require("src/game-audio.js");
 const { narrate } = __require("src/procgen/narrator.js");
+const { rhizoctoniaContactPaths } = __require("src/render/rhizoctonia-mycelium.js");
+const { drawTrichodermaRhizoctoniaContact } = __require("src/render/rhizoctonia-mycoparasitism.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
 
@@ -50932,21 +51167,29 @@ function createTrichodermaRhizoctoniaControl({ state, entities, colonies }) {
 
   function drawHypha(ctx, attack) {
     const a = { x: attack.colony.x, y: attack.colony.y };
-    const b = targetPosition(attack.enemy);
+    // Presentation reaches the actual mycelial attachment on the existing
+    // root. Detection, distance, contact timing and targetPosition above keep
+    // their original biological and combat meanings.
+    const b = rhizoctoniaContactPaths(attack.enemy)?.anchor || targetPosition(attack.enemy);
     const visible = attack.state === 'search' ? attack.search : 1;
     const points = 32;
+    const hyphaPoint = t => {
+      const point = quadraticPoint(a, attack.curve, b, t);
+      const wave = Math.sin(t * Math.PI * 8 + attack.phase) * (2.2 + t * 3.6) * Math.sin(t * Math.PI);
+      return { x: point.x, y: point.y + wave };
+    };
     ctx.save();
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = '#8df0a8';
-    ctx.strokeStyle = attack.aborted ? 'rgba(141,240,168,.28)' : '#8df0a8';
-    ctx.lineWidth = 2.25;
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = attack.aborted ? 'rgba(133,153,102,.28)' : '#a9bb80';
+    ctx.lineWidth = 1.9;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.beginPath();
     for (let i = 0; i <= points; i++) {
       const t = i / points * visible;
-      const point = quadraticPoint(a, attack.curve, b, t);
-      const wave = Math.sin(t * Math.PI * 8 + state.time * 2.1 + attack.phase) * (2.2 + t * 3.6);
+      const point = hyphaPoint(t);
       const x = point.x;
-      const y = point.y + wave;
+      const y = point.y;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
@@ -50956,71 +51199,27 @@ function createTrichodermaRhizoctoniaControl({ state, entities, colonies }) {
     const branchCount = Math.floor(visible * 7);
     for (let i = 1; i <= branchCount; i++) {
       const t = i / 8 * visible;
-      const point = quadraticPoint(a, attack.curve, b, t);
+      const point = hyphaPoint(t);
       const direction = i % 2 ? -1 : 1;
       const length = 10 + t * 16;
-      ctx.strokeStyle = 'rgba(184,255,198,.6)';
-      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = 'rgba(190,206,149,.58)';
+      ctx.lineWidth = .95;
       ctx.beginPath();
       ctx.moveTo(point.x, point.y);
-      ctx.quadraticCurveTo(point.x + direction * length * .45, point.y - 7, point.x + direction * length, point.y - 2 + Math.sin(i + state.time) * 3);
+      ctx.quadraticCurveTo(point.x + direction * length * .45, point.y - 7, point.x + direction * length, point.y - 2 + Math.sin(i + attack.phase) * 3);
       ctx.stroke();
     }
 
-    const tip = quadraticPoint(a, attack.curve, b, visible);
-    ctx.fillStyle = '#effff5';
+    const tip = hyphaPoint(visible);
+    ctx.fillStyle = '#d4dda9';
     ctx.beginPath();
-    ctx.arc(tip.x, tip.y, 3.4, 0, TAU);
+    ctx.arc(tip.x, tip.y, 2.1, 0, TAU);
     ctx.fill();
     ctx.restore();
   }
 
   function drawContact(ctx, attack) {
-    if (attack.state === 'search') return;
-    const target = targetPosition(attack.enemy);
-    const contact = clamp(attack.contact, 0, 1);
-    const lysis = clamp(attack.lysis, 0, 1);
-    const radiusBase = 15 + attack.initialColonization * 13;
-    const coils = 3 + Math.floor(contact * 8);
-    ctx.save();
-    for (let i = 0; i < coils; i++) {
-      const angle = state.time * (2.1 + i * .06) + attack.phase + i / coils * TAU;
-      const radius = radiusBase + i * 2.2;
-      ctx.strokeStyle = `rgba(141,240,168,${.22 + contact * .64})`;
-      ctx.lineWidth = 1.2 + lysis * .65;
-      ctx.beginPath();
-      ctx.ellipse(
-        target.x + Math.cos(angle) * 3,
-        target.y + Math.sin(angle) * 1.8,
-        radius,
-        radius * .46,
-        angle * .13,
-        angle,
-        angle + Math.PI * 1.62,
-      );
-      ctx.stroke();
-    }
-
-    const droplets = 4 + Math.floor(lysis * 11);
-    for (let i = 0; i < droplets; i++) {
-      const angle = attack.phase + i * TAU / droplets + state.time * .42;
-      const radius = 8 + (i % 5) * 5;
-      ctx.fillStyle = i % 3 ? '#d6ff94' : '#8df0a8';
-      ctx.globalAlpha = .38 + lysis * .5;
-      ctx.beginPath();
-      ctx.arc(target.x + Math.cos(angle) * radius, target.y + Math.sin(angle) * radius * .48, 1.5 + lysis * 1.2, 0, TAU);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    ctx.restore();
-  }
-
-  function drawStatus(ctx, attack) {
-    if (attack.state === 'search' || attack.completed || attack.aborted) return;
-    const target = targetPosition(attack.enemy);
-    const width = 106;
-    const y = target.y - 42;
-    ctx.restore();
+    drawTrichodermaRhizoctoniaContact(ctx, attack, state);
   }
 
   function render(ctx) {
@@ -51030,7 +51229,6 @@ function createTrichodermaRhizoctoniaControl({ state, entities, colonies }) {
       ctx.globalAlpha = attack.completed || attack.aborted ? clamp(1 - attack.fading, 0, 1) : 1;
       drawHypha(ctx, attack);
       drawContact(ctx, attack);
-      drawStatus(ctx, attack);
     }
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -51058,6 +51256,109 @@ function createTrichodermaRhizoctoniaControl({ state, entities, colonies }) {
   };
 }
 Object.assign(__exports, { createTrichodermaRhizoctoniaControl });
+},
+"src/render/rhizoctonia-mycoparasitism.js": (__exports, __require) => {
+// Read-only presentation of the existing Trichoderma contact/lysis lifecycle.
+// Each coil is supported by a real persistent pathogenic hypha; no ring or
+// independently moving particle substitutes for the biological interaction.
+const { rhizoctoniaContactPaths } = __require("src/render/rhizoctonia-mycelium.js");
+const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
+const TAU = Math.PI * 2;
+
+function measuredPath(points) {
+  const distances = [0];
+  for (let i = 1; i < points.length; i++) {
+    distances.push(distances[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
+  }
+  return { points, distances, length: distances[distances.length - 1] || 0 };
+}
+
+function atDistance(path, distance) {
+  let end = 1;
+  while (end < path.distances.length - 1 && path.distances[end] < distance) end++;
+  const a = path.points[end - 1];
+  const b = path.points[end];
+  const span = Math.max(.001, path.distances[end] - path.distances[end - 1]);
+  const t = clamp((distance - path.distances[end - 1]) / span);
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const norm = Math.max(.001, Math.hypot(dx, dy));
+  return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / norm, ny: dx / norm };
+}
+
+/** Geometry is derived from contact, never from elapsed animation time. */
+function buildRhizoctoniaCoils(network, contact, phase = 0, lysis = 0) {
+  if (!network?.paths?.length || !(contact > 0)) return [];
+  const coils = [];
+  // A small fixed budget keeps the interaction legible on a 14–20 px root
+  // band. The pathogenic network itself supplies all remaining fine branches.
+  const paths = network.paths.filter(path => path.points?.length > 1).slice(0, 12);
+  for (let i = 0; i < paths.length; i++) {
+    const substrate = paths[i];
+    const path = measuredPath(substrate.points);
+    if (path.length < 2) continue;
+    const extension = clamp(contact * 1.36 - i * .031);
+    const visibleLength = path.length * extension;
+    if (visibleLength < .35) continue;
+    const radius = .75 + clamp(substrate.width || 1, .5, 3) * .45;
+    const period = 10.5 + (i % 4) * 1.45;
+    const stepCount = Math.min(110, Math.max(2, Math.ceil(visibleLength / 1.7)));
+    const points = [];
+    for (let k = 0; k <= stepCount; k++) {
+      const distance = visibleLength * k / stepCount;
+      const p = atDistance(path, distance);
+      const turn = distance / period * TAU + phase + i * 1.73;
+      // A fine helix wraps the existing hypha in projection. Its alternating
+      // front/back shading supplies volume without an orbit around the sprite.
+      const endTaper = Math.min(1, distance / 3, (visibleLength - distance + 1.5) / 3);
+      const offset = Math.sin(turn) * radius * endTaper;
+      points.push({ x: p.x + p.nx * offset, y: p.y + p.ny * offset, front: Math.cos(turn) > 0 });
+    }
+    coils.push({ points, width: .8 + clamp(substrate.width || 1, .5, 3) * .12,
+      opacity: (.36 + contact * .39) * (1 - clamp(lysis) * .12), integrity: clamp(substrate.integrity ?? 1) });
+  }
+  return coils;
+}
+
+function drawTrichodermaRhizoctoniaContact(ctx, attack, state) {
+  if (attack.state === 'search') return;
+  const network = rhizoctoniaContactPaths(attack.enemy);
+  const contact = clamp(attack.contact || 0);
+  const lysis = clamp(attack.lysis || 0);
+  const coils = buildRhizoctoniaCoils(network, contact, attack.phase || 0, lysis);
+  if (!coils.length) return;
+  const inheritedAlpha = ctx.globalAlpha;
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const coil of coils) {
+    // The underside remains a quiet olive thread; the upper turns catch a
+    // restrained moist highlight as lysis loosens the pathogenic substrate.
+    ctx.globalAlpha = inheritedAlpha * coil.opacity;
+    ctx.strokeStyle = lysis > .5 ? '#839366' : '#718957';
+    ctx.lineWidth = coil.width + .75;
+    ctx.beginPath();
+    coil.points.forEach((point, i) => i ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+    ctx.stroke();
+    ctx.strokeStyle = '#c8d8a1';
+    ctx.lineWidth = coil.width;
+    ctx.beginPath();
+    let drawing = false;
+    for (let i = 0; i < coil.points.length; i++) {
+      const point = coil.points[i];
+      if (!point.front) { drawing = false; continue; }
+      if (!drawing) {
+        const previous = coil.points[Math.max(0, i - 1)];
+        ctx.moveTo(previous.x, previous.y);
+        drawing = true;
+      }
+      ctx.lineTo(point.x, point.y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+Object.assign(__exports, { buildRhizoctoniaCoils, drawTrichodermaRhizoctoniaContact });
 },
 "src/procgen/ralstonia-vascular-wilt.js": (__exports, __require) => {
 // Runtime da murcha vascular (Ralstonia solanacearum)

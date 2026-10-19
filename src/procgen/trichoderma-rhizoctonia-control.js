@@ -1,5 +1,7 @@
 import { fxLanded } from '../game-audio.js';
 import { narrate } from './narrator.js';
+import { rhizoctoniaContactPaths } from '../render/rhizoctonia-mycelium.js';
+import { drawTrichodermaRhizoctoniaContact } from '../render/rhizoctonia-mycoparasitism.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
@@ -357,21 +359,29 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
 
   function drawHypha(ctx, attack) {
     const a = { x: attack.colony.x, y: attack.colony.y };
-    const b = targetPosition(attack.enemy);
+    // Presentation reaches the actual mycelial attachment on the existing
+    // root. Detection, distance, contact timing and targetPosition above keep
+    // their original biological and combat meanings.
+    const b = rhizoctoniaContactPaths(attack.enemy)?.anchor || targetPosition(attack.enemy);
     const visible = attack.state === 'search' ? attack.search : 1;
     const points = 32;
+    const hyphaPoint = t => {
+      const point = quadraticPoint(a, attack.curve, b, t);
+      const wave = Math.sin(t * Math.PI * 8 + attack.phase) * (2.2 + t * 3.6) * Math.sin(t * Math.PI);
+      return { x: point.x, y: point.y + wave };
+    };
     ctx.save();
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = '#8df0a8';
-    ctx.strokeStyle = attack.aborted ? 'rgba(141,240,168,.28)' : '#8df0a8';
-    ctx.lineWidth = 2.25;
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = attack.aborted ? 'rgba(133,153,102,.28)' : '#a9bb80';
+    ctx.lineWidth = 1.9;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.beginPath();
     for (let i = 0; i <= points; i++) {
       const t = i / points * visible;
-      const point = quadraticPoint(a, attack.curve, b, t);
-      const wave = Math.sin(t * Math.PI * 8 + state.time * 2.1 + attack.phase) * (2.2 + t * 3.6);
+      const point = hyphaPoint(t);
       const x = point.x;
-      const y = point.y + wave;
+      const y = point.y;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
@@ -381,63 +391,27 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
     const branchCount = Math.floor(visible * 7);
     for (let i = 1; i <= branchCount; i++) {
       const t = i / 8 * visible;
-      const point = quadraticPoint(a, attack.curve, b, t);
+      const point = hyphaPoint(t);
       const direction = i % 2 ? -1 : 1;
       const length = 10 + t * 16;
-      ctx.strokeStyle = 'rgba(184,255,198,.6)';
-      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = 'rgba(190,206,149,.58)';
+      ctx.lineWidth = .95;
       ctx.beginPath();
       ctx.moveTo(point.x, point.y);
-      ctx.quadraticCurveTo(point.x + direction * length * .45, point.y - 7, point.x + direction * length, point.y - 2 + Math.sin(i + state.time) * 3);
+      ctx.quadraticCurveTo(point.x + direction * length * .45, point.y - 7, point.x + direction * length, point.y - 2 + Math.sin(i + attack.phase) * 3);
       ctx.stroke();
     }
 
-    const tip = quadraticPoint(a, attack.curve, b, visible);
-    ctx.fillStyle = '#effff5';
+    const tip = hyphaPoint(visible);
+    ctx.fillStyle = '#d4dda9';
     ctx.beginPath();
-    ctx.arc(tip.x, tip.y, 3.4, 0, TAU);
+    ctx.arc(tip.x, tip.y, 2.1, 0, TAU);
     ctx.fill();
     ctx.restore();
   }
 
   function drawContact(ctx, attack) {
-    if (attack.state === 'search') return;
-    const target = targetPosition(attack.enemy);
-    const contact = clamp(attack.contact, 0, 1);
-    const lysis = clamp(attack.lysis, 0, 1);
-    const radiusBase = 15 + attack.initialColonization * 13;
-    const coils = 3 + Math.floor(contact * 8);
-    ctx.save();
-    for (let i = 0; i < coils; i++) {
-      const angle = state.time * (2.1 + i * .06) + attack.phase + i / coils * TAU;
-      const radius = radiusBase + i * 2.2;
-      ctx.strokeStyle = `rgba(141,240,168,${.22 + contact * .64})`;
-      ctx.lineWidth = 1.2 + lysis * .65;
-      ctx.beginPath();
-      ctx.ellipse(
-        target.x + Math.cos(angle) * 3,
-        target.y + Math.sin(angle) * 1.8,
-        radius,
-        radius * .46,
-        angle * .13,
-        angle,
-        angle + Math.PI * 1.62,
-      );
-      ctx.stroke();
-    }
-
-    const droplets = 4 + Math.floor(lysis * 11);
-    for (let i = 0; i < droplets; i++) {
-      const angle = attack.phase + i * TAU / droplets + state.time * .42;
-      const radius = 8 + (i % 5) * 5;
-      ctx.fillStyle = i % 3 ? '#d6ff94' : '#8df0a8';
-      ctx.globalAlpha = .38 + lysis * .5;
-      ctx.beginPath();
-      ctx.arc(target.x + Math.cos(angle) * radius, target.y + Math.sin(angle) * radius * .48, 1.5 + lysis * 1.2, 0, TAU);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    ctx.restore();
+    drawTrichodermaRhizoctoniaContact(ctx, attack, state);
   }
 
   function render(ctx) {
