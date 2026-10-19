@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"6cc7a32","subject":"Nodulacao: durante o zoom do primeiro nodulo, a explicacao de cada etapa","builtAt":"2026-10-18 23:44"};
+window.__BEANS_BUILD__ = {"commit":"d86c2eb","subject":"Radar de patogenos: sinais na borda da tela para Ralstonia (chegada e fo","builtAt":"2026-10-19 01:37"};
 (() => {
 'use strict';
 const __modules = {
@@ -1148,6 +1148,7 @@ const { rhizosphereSurfaceY } = __require("src/render/rhizosphere-geometry.js");
 const { GEOMETRY_ENABLED } = __require("src/render/geometry-preference.js");
 const { vfxParticles } = __require("src/render/vfx-particles.js");
 const { drawThreatRadar } = __require("src/render/threat-radar.js");
+const { installLowTunnels, lowTunnelDiagnostics } = __require("src/procgen/low-tunnels.js");
 const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
 const { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } = __require("src/render/final-root-visual.js");
 const { celebrationCycleSeconds, resolvePlayerSkin } = __require("src/render/player-skins.js");
@@ -2315,6 +2316,11 @@ function prepareLevel() {
   installFinalGoal(levelData);
   applyInitialRootHealth(levelData, campaign.phase);
   synchronizeWorldBounds(levelData);
+  // Tunel baixo (Dash/propulsor): so sobre pares que ja tem o vao certo, depois
+  // de TODA a geometria (ancoras, objetivo final, limites do mundo); nao move plataforma nenhuma.
+  installLowTunnels(levelData, { phase: campaign.phase, seedValue: seed });
+  window.miguelitoLowTunnels = () => lowTunnelDiagnostics(levelData, campaign.phase);
+  traceGeometry('installLowTunnels');
   // CAPACIDADE MINERAL DA FASE, uma vez, no fim.
   //
   // Depois de TUDO que pode criar ou remover deposito: desafio autoral, portoes
@@ -3277,6 +3283,20 @@ function drawNoduleCaption(target) {
   target.restore();
 }
 
+// Dica do tunel baixo: ao se aproximar da entrada (o narrador garante uma vez
+// por campanha).
+function announceLowTunnel() {
+  const st = sim.state;
+  if (st.gameState !== 'play' || !st.player) return;
+  const px = st.player.x + st.player.w / 2;
+  for (const d of st.level?.ceilingDrops || []) {
+    if (px < d.entryX - 380 || px > d.entryX) continue;
+    if (Math.abs((st.player.y + st.player.h) - d.floorY) > 140) continue;
+    narrate(st, st.player.canJetpack ? 'tunnel.dash-jetpack' : 'tunnel.dash');
+    return;
+  }
+}
+
 // ---- Particulas de evento (vfx-particles.js) --------------------------------
 // Inoculacao e vigor vem da simulacao; a comemoracao do fim da fase e
 // disparada aqui, pelas etapas da cinematica.
@@ -3476,6 +3496,7 @@ function loop(now) {
     phaseFinale.update(dt);
     updateEventParticles(dt, pauseMenu.isOpen || Boolean(tutorialManager?.isOpen));
     updateNodulationShowcase(pauseMenu.isOpen || tutorialManager?.isOpen ? 0 : dt);
+    announceLowTunnel();
     renderWorld();
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);
@@ -8084,6 +8105,45 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
           player.x = p.x + p.w;
           player.vx = 0;
         }
+      }
+    }
+    // Chao criado pelo tunel baixo (beirada que completa o chao ate o vao):
+    // solido como um bloco comum.
+    for (const p of level.tunnelFloors || []) {
+      if (!rects(player, p)) continue;
+      if (prevY + player.h <= p.y + 10 && player.vy >= 0) {
+        player.y = p.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+      } else if (prevY >= p.y + p.h - 8 && player.vy < 0) {
+        player.y = p.y + p.h;
+        player.vy = 0;
+      } else if (player.vx > 0) {
+        player.x = p.x - player.w;
+        player.vx = 0;
+      } else if (player.vx < 0) {
+        player.x = p.x + p.w;
+        player.vx = 0;
+      }
+    }
+    // Tunel baixo: bloco de solo pendurado no teto sobre um vao (ver
+    // low-tunnels.js). Solido como um bloco comum, mas fora de
+    // `level.platforms`: nao e chao, raiz nem suporte de nada.
+    for (const d of level.ceilingDrops || []) {
+      if (!rects(player, d)) continue;
+      if (prevY >= d.y + d.h - 8 && player.vy < 0) {
+        player.y = d.y + d.h;
+        player.vy = 0;
+      } else if (prevY >= d.y + d.h - 12) {
+        // encostado por baixo (propulsor/dash rente ao teto): so empurra para baixo
+        player.y = d.y + d.h;
+        if (player.vy < 0) player.vy = 0;
+      } else if (player.vx > 0) {
+        player.x = d.x - player.w;
+        player.vx = 0;
+      } else if (player.vx < 0) {
+        player.x = d.x + d.w;
+        player.vx = 0;
       }
     }
     for (const c of level.crystals) {
@@ -14592,6 +14652,11 @@ const NARRATION = Object.freeze({
     text: 'Sem exsudatos: colete as gotas verdes' },
   'exudate.gradient': { kind: 'science', cardId: 'action-exudate',
     text: 'Exsudatos atraem micróbios móveis' },
+  // Tunel baixo (low-tunnels.js): uma vez por campanha, ao chegar no primeiro.
+  'tunnel.dash': { kind: 'hint', scope: 'campaign',
+    text: 'Túnel baixo: ande e use o Dash no vão' },
+  'tunnel.dash-jetpack': { kind: 'hint', scope: 'campaign',
+    text: 'Túnel baixo: Dash ou propulsor para cruzar o vão' },
   'route.high': { kind: 'hint', scope: 'campaign',
     text: 'Rotas altas escondem recursos extras' },
   ...unlockEntries,
@@ -19626,6 +19691,34 @@ function createRhizosphereGeometry({ state, painters }) {
 
   // Linha de baixo do teto em x. Depende só das plataformas (nunca da câmera),
   // então não "nada" quando a câmera anda.
+  // Tunel baixo (low-tunnels.js): o teto desce ate a base do bloco pendurado.
+  // Dentro do bloco a linha e exatamente a base (o que se ve e o que colide);
+  // nas pontas sobe suave em TUNNEL_RAMP px.
+  const TUNNEL_RAMP = 54;
+  function ceilingDrops() {
+    return state.level?.ceilingDrops || [];
+  }
+  function tunnelDepthAt(x, y) {
+    let out = y;
+    for (const d of ceilingDrops()) {
+      const left = d.x;
+      const right = d.x + d.w;
+      if (x < left - TUNNEL_RAMP || x > right + TUNNEL_RAMP) continue;
+      const bottom = d.y + d.h + Math.sin(x * .05) * 2;
+      const edge = x < left ? (x - (left - TUNNEL_RAMP)) / TUNNEL_RAMP
+        : x > right ? ((right + TUNNEL_RAMP) - x) / TUNNEL_RAMP : 1;
+      const k = edge * edge * (3 - 2 * edge);
+      out = Math.max(out, out + (bottom - out) * k);
+    }
+    return out;
+  }
+  function dropsKey(x0, x1) {
+    return ceilingDrops()
+      .filter(d => d.x + d.w + TUNNEL_RAMP > x0 && d.x - TUNNEL_RAMP < x1)
+      .map(d => `${Math.round(d.x)}x${Math.round(d.y + d.h)}`)
+      .join(',');
+  }
+
   function ceilingLineAt(x, platforms, clearance, topLimit) {
     let best = Infinity;
     let nearest = null;
@@ -19646,7 +19739,7 @@ function createRhizosphereGeometry({ state, painters }) {
     if (!Number.isFinite(best) && nearest) best = nearest.y - clearance - 66;
     if (!Number.isFinite(best)) return null;
     const bump = (pseudo(hash2(Math.floor(x / CEILING_STEP), 7), 3) - .5) * 14 + Math.sin(x * .013) * 9;
-    return Math.max(topLimit, best + bump);
+    return tunnelDepthAt(x, Math.max(topLimit, best + bump));
   }
 
   // A faixa vai da superfície (linha do colo) até a linha do teto. Acima da
@@ -19659,6 +19752,20 @@ function createRhizosphereGeometry({ state, painters }) {
       const x = i * CEILING_STEP;
       const y = ceilingLineAt(x, platforms, clearance, topLimit);
       if (y !== null) line.push([x, y]);
+    }
+    // quinas do tunel: pontos exatos nas bordas do bloco, para a face de baixo
+    // nao arredondar para dentro do vao
+    const extra = [];
+    for (const d of ceilingDrops()) {
+      for (const x of [d.x - TUNNEL_RAMP, d.x - TUNNEL_RAMP / 2, d.x, d.x + 8, d.x + d.w - 8, d.x + d.w, d.x + d.w + TUNNEL_RAMP / 2, d.x + d.w + TUNNEL_RAMP]) {
+        if (x < first * CEILING_STEP || x > last * CEILING_STEP) continue;
+        const y = ceilingLineAt(x, platforms, clearance, topLimit);
+        if (y !== null) extra.push([x, y]);
+      }
+    }
+    if (extra.length) {
+      line.push(...extra);
+      line.sort((a, b) => a[0] - b[0]);
     }
     return line;
   }
@@ -19774,12 +19881,81 @@ function createRhizosphereGeometry({ state, painters }) {
 
   const CEILING_CHUNK = 512;
 
+  // Beirada de solo do tunel baixo (low-tunnels.js): continua o chao do bloco
+  // de entrada ate a borda do vao. Mesma textura do solo; a ponta afina.
+  function drawTunnelFloors(ctx, view) {
+    for (const f of state.level?.tunnelFloors || []) {
+      if (f.x + f.w < view.left - 40 || f.x > view.right + 40) continue;
+      if (f.y > view.bottom + 20 || f.y + f.h < view.top - 20) continue;
+      const box = { x: f.x - 6, y: f.y - 6, w: f.w + 12, h: f.h + 16 };
+      cached(ctx, `tunnelfloor:${Math.round(f.x)}:${Math.round(f.y)}:${Math.round(f.w)}`, box, g => {
+        const { x, y, w, h } = f;
+        g.save();
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x + w, y);
+        g.quadraticCurveTo(x + w + 3, y + h * .35, x + w - 6, y + h * .62);
+        g.quadraticCurveTo(x + w * .55, y + h * 1.05, x, y + h);
+        g.closePath();
+        g.fillStyle = soilPalette.base;
+        g.fill();
+        g.clip();
+        paintSoilTexture(g, hash2(Math.round(x), 41), x, y, w, h, h, false);
+        const shade = g.createLinearGradient(0, y + 8, 0, y + h);
+        shade.addColorStop(0, 'rgba(12,6,4,0)');
+        shade.addColorStop(1, 'rgba(12,6,4,.45)');
+        g.fillStyle = shade;
+        g.fillRect(x - 4, y, w + 8, h + 4);
+        g.restore();
+        g.save();
+        g.strokeStyle = soilPalette.outline;
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(x + w, y);
+        g.quadraticCurveTo(x + w + 3, y + h * .35, x + w - 6, y + h * .62);
+        g.quadraticCurveTo(x + w * .55, y + h * 1.05, x, y + h);
+        g.stroke();
+        g.restore();
+      });
+    }
+  }
+
+  function drawTunnelColumns(ctx, view, surface) {
+    for (const d of ceilingDrops()) {
+      const left = d.x - TUNNEL_RAMP;
+      const right = d.x + d.w + TUNNEL_RAMP;
+      if (right < view.left - 40 || left > view.right + 40) continue;
+      const bottom = d.y + d.h;
+      const line = [];
+      for (let x = left; x <= right + .1; x += 12) {
+        const edge = x < d.x ? (x - left) / TUNNEL_RAMP : x > d.x + d.w ? (right - x) / TUNNEL_RAMP : 1;
+        const k = Math.max(0, Math.min(1, edge));
+        const y = surface + (bottom + Math.sin(x * .05) * 2 - surface) * (k * k * (3 - 2 * k));
+        line.push([x, y]);
+      }
+      const box = { x: left - 4, y: surface - 4, w: right - left + 8, h: bottom - surface + 30 };
+      cached(ctx, `tunnelcol:${Math.round(d.x)}:${Math.round(bottom)}:${Math.round(surface)}`, box, g => {
+        g.save();
+        g.beginPath();
+        g.rect(box.x, box.y, box.w, box.h);
+        g.clip();
+        paintCeilingBand(g, line, surface);
+        g.restore();
+      });
+    }
+  }
+
   // A faixa vai da superfície (linha do colo) até a linha do teto. Acima da
   // superfície fica o céu da cinemática final, que ela nunca cobre.
   function drawCeiling(ctx, view, platforms, surface) {
     if (!platforms.length) return false;
     // Com propulsão o jogador voa até o limite do mundo: não há onde pôr teto.
-    if (state.campaign?.unlocks?.jetpack) return false;
+    // O tunel baixo continua existindo: vira uma coluna de solo pendurada da
+    // superficie ate a base do bloco.
+    if (state.campaign?.unlocks?.jetpack) {
+      drawTunnelColumns(ctx, view, surface);
+      return false;
+    }
     const clearance = ceilingClearance();
     const topLimit = surface + 40;
     const line = ceilingLine(view.left, view.right, platforms, clearance, topLimit);
@@ -19800,7 +19976,7 @@ function createRhizosphereGeometry({ state, painters }) {
       let chunkDeep = -Infinity;
       for (const point of chunkLine) chunkDeep = Math.max(chunkDeep, point[1]);
       const box = { x: x0, y: surface - 4, w: x1 - x0, h: chunkDeep - surface + 30 };
-      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}:${Math.round(burrowX() ?? -1)}`, box, g => {
+      cached(ctx, `ceil:${chunk}:${Math.round(surface)}:${clearance}:${Math.round(burrowX() ?? -1)}:${dropsKey(x0, x1)}`, box, g => {
         g.save();
         g.beginPath();
         g.rect(x0, surface - 4, x1 - x0, box.h);
@@ -20550,6 +20726,7 @@ function createRhizosphereGeometry({ state, painters }) {
       }
     }
     R('  terreno/teto', () => drawCeiling(ctx, view, platforms, surface));
+    R('  terreno/tunel', () => drawTunnelFloors(ctx, view));
     R('  terreno/chao', () => drawGround(ctx, view, surface));
     R('  terreno/plantas', () => { for (const plant of plants) {
       if (inX(plant.x - 120, plant.x + 120, 60)) drawPlant(ctx, plant, surface, view);
@@ -26751,6 +26928,14 @@ function createRootHealthGameplay({ state, entities }) {
     root.supportIntegrity += (targetSupport - root.supportIntegrity) * clamp(dt * 1.2, 0, 1);
 
     let targetOffset = 0;
+    // Chao de tunel baixo (low-tunnels.js) nao cede: a altura do vao sob o
+    // teto e o que torna o Dash necessario. A saude continua valendo.
+    if (root.lowTunnelAnchor) {
+      root.supportOffset = 0;
+      root.y = root.rootBaseY;
+      root.unstable = false;
+      return;
+    }
     if (root.rootState === 'stressed') targetOffset = 1.5 + (1 - root.supportIntegrity) * 3;
     else if (root.rootState === 'compromised') targetOffset = 6 + (1 - root.supportIntegrity) * 12;
     else if (root.rootState === 'collapse') {
@@ -52904,6 +53089,282 @@ function drawThreatRadar(ctx, state, canvas, time = 0, coarse = false) {
   return placed.length;
 }
 Object.assign(__exports, { drawThreatRadar });
+},
+"src/procgen/low-tunnels.js": (__exports, __require) => {
+// TUNEL BAIXO — obstaculo procedural de Dash (fase 4 em diante).
+//
+// Um tunel de verdade: chao e teto baixo dos dois lados, e no meio dele um vao
+// de zona hostil. A mecanica e ANDA -> DASH -> ANDA (ou anda -> propulsor ->
+// anda): o teto fica a 4 px da cabeca do Miguelito, entao dentro do tunel nao
+// ha pulo; o Dash, horizontal, cruza o vao; o propulsor encosta no teto e
+// desliza de lado.
+//
+// Calibrado na fisica do jogo (mesmo simulador), chao dos dois lados na mesma
+// altura ou a chegada ate 8 px mais baixa, teto 52 px acima do chao:
+//   - nenhum pulo atravessa vaos de 130-150 px (0 de 672 combinacoes de
+//     tempo de pulo e salto duplo);
+//   - o Dash disparado ANDANDO atravessa se apertado em qualquer ponto entre
+//     ~40-50 px antes da borda e 16 px depois dela (vao 136-140);
+//   - o propulsor atravessa (12 de 12).
+//
+// So blocos de terra (nunca raiz), como no prototipo. Vao conforme a altura da
+// chegada (tunnelGapFor). Se o par da rota tem um vao maior, os dois blocos
+// crescem em direcao ao vao (mesma altura; o lado de fora fica onde estava). O teto vive em
+// `level.ceilingDrops`; nenhum dos dois entra em `level.platforms` (nao sao
+// raiz, suporte de colonia nem alvo de patogeno).
+const { createRandom } = __require("src/procgen/random.js");
+const { getPhaseManifest, getSegmentAt } = __require("src/procgen/campaign-manifest.js");
+const { isIntentionalDynamicCrossing } = __require("src/procgen/generator.js");
+const LOW_TUNNEL = Object.freeze({
+  clearance: 52,          // da base do teto ao chao (Miguelito: 48)
+  gap: 136,               // vao dentro do tunel
+  minPairGap: 130,        // vao original minimo do par da rota
+  maxLedge: 200,          // maior beirada que o tunel pode criar
+  entryCover: 170,        // chao coberto antes do vao
+  minEntryCover: 100,
+  exitCover: 150,         // chao coberto depois do vao
+  minExitCover: 80,
+  landingZone: 60,        // chao livre no comeco do bloco de entrada (pouso)
+  exitRunway: 40,         // chao livre no fim do bloco de saida
+  maxRise: 6,             // chegada mais alta que a entrada (px)
+  maxDrop: 40,            // chegada mais baixa que a entrada (px)
+  ledgeDepth: 46,         // espessura desenhada/solida da beirada
+  blockHeight: 2400,      // sobe ate a superficie: nem o propulsor passa por cima
+  minChunkSpacing: 4,
+  maxPerPhase: 2,
+  firstPhase: 4,
+});
+
+function routePlatforms(level) {
+  return (level.platforms || [])
+    .filter(p => Number.isInteger(p.logicIndex) && p.logicIndex >= 0
+      && !p.recovery && !p.mycorrhizaStructure && !p.azospirillumStructure
+      && !p.final && !p.oneWay && !p.safetyStep)
+    .sort((a, b) => a.x - b.x);
+}
+
+// Altura de projeto do chao: raiz doente afunda em jogo (root-health), entao
+// vale a base, nao a altura do instante.
+function floorOf(p) {
+  return Number.isFinite(p.rootBaseY) ? p.rootBaseY : p.y;
+}
+
+function overlaps(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function pointIn(rect, x, y, pad = 0) {
+  return x > rect.x - pad && x < rect.x + rect.w + pad && y > rect.y - pad && y < rect.y + rect.h + pad;
+}
+
+// Em que trecho da fase o tunel pode nascer.
+function chunkAllowed(phase, chunk) {
+  const manifest = getPhaseManifest(phase);
+  const segment = getSegmentAt(phase, chunk);
+  if (!segment || segment.kind !== 'procedural') return false;
+  if (phase === LOW_TUNNEL.firstPhase) {
+    const dash = (manifest?.unlockEvents || []).find(e => e.feature === 'dash');
+    if (dash && chunk <= dash.eventChunk) return false;
+  }
+  return true;
+}
+
+// Vao dentro do tunel conforme a altura da chegada (dy > 0: mais baixa).
+// Calibrado: em cada faixa, 0 pulo atravessa (176 combinacoes) e o Dash
+// andando passa em 10-19 de 19 pontos de disparo; propulsor 6 de 6.
+function tunnelGapFor(dy) {
+  if (dy < -LOW_TUNNEL.maxRise) return null;
+  if (dy <= 2) return 136;
+  if (dy <= 8) return 144;
+  if (dy <= 16) return 152;
+  if (dy <= 24) return 160;
+  if (dy <= 32) return 170;
+  if (dy <= LOW_TUNNEL.maxDrop) return 180;
+  return null;
+}
+
+// Raiz comum pode virar bloco de terra para ser chao de tunel; raiz com papel
+// (portao, ponte, escada, objetivo, colonia, organismo, checkpoint) nao.
+const ROLE_KEY = /gate|host|objective|bridge|ladder|challenge|signature|detour|authored|nitrogen|structure|final|recovery/i;
+function referencedPlatforms(level) {
+  const set = new Set();
+  const add = p => { if (p && typeof p === 'object') set.add(p); };
+  for (const e of level.microbeEncounters || []) { add(e.platform); add(e.hostPlatform); add(e.root); }
+  for (const c of level.beneficialColonies || []) add(c.platform);
+  for (const f of level.biofilms || []) add(f.platform);
+  for (const c of level.checkpoints || []) add(c.platform);
+  for (const n of level.nitrogenRoots || []) { add(n.hostPlatform); add(n.targetPlatform); add(n.leftPlatform); add(n.rightPlatform); }
+  for (const x of level.crystals || []) add(x.platform);
+  for (const x of level.allies || []) add(x.platform);
+  return set;
+}
+function convertibleToSoil(p, referenced) {
+  if (p.type !== 'root') return true;
+  if (referenced.has(p)) return false;
+  return !Object.keys(p).some(k => ROLE_KEY.test(k) && p[k]);
+}
+
+// Geometria do tunel para o par (a -> b), ou null se nao cabe.
+function planFor(a, b) {
+  const aRight = a.x + a.w;
+  const pairGap = b.x - aRight;
+  const floorY = floorOf(a);
+  const dy = floorOf(b) - floorY;
+  const targetGap = tunnelGapFor(dy);
+  if (!targetGap || pairGap < targetGap - 4) return null;
+  const ledge = Math.max(0, pairGap - targetGap);
+  if (ledge > LOW_TUNNEL.maxLedge) return null;
+  // o chao que falta e dividido entre os dois blocos: cada um cresce em
+  // direcao ao vao (massa unica, sem emenda)
+  const growA = Math.round(ledge / 2);
+  const growB = ledge - growA;
+  const edgeX = aRight + growA;           // borda do vao (entrada)
+  const exitX = b.x - growB;              // borda do vao (saida)
+  // teto cobre `entryCover` de chao antes da borda, sem tomar o pouso de a
+  const entryStart = Math.max(edgeX - LOW_TUNNEL.entryCover, a.x + LOW_TUNNEL.landingZone);
+  if (edgeX - entryStart < LOW_TUNNEL.minEntryCover) return null;
+  const exitEnd = Math.min(exitX + LOW_TUNNEL.exitCover, b.x + b.w - LOW_TUNNEL.exitRunway);
+  if (exitEnd - exitX < LOW_TUNNEL.minExitCover) return null;
+  const bottom = Math.min(floorY, floorOf(b)) - LOW_TUNNEL.clearance;
+  return {
+    pairGap,
+    tunnelGap: pairGap - ledge,
+    growA,
+    growB,
+    edgeX,
+    exitX,
+    floorY,
+    block: { x: entryStart, y: bottom - LOW_TUNNEL.blockHeight, w: exitEnd - entryStart, h: LOW_TUNNEL.blockHeight },
+  };
+}
+
+/** Pares candidatos, em ordem de rota. Exportado para testes e diagnostico. */
+function lowTunnelCandidates(level, phase) {
+  if (!(phase >= LOW_TUNNEL.firstPhase)) return [];
+  const route = routePlatforms(level);
+  const all = level.platforms || [];
+  const referenced = referencedPlatforms(level);
+  const out = [];
+  for (let i = 0; i + 1 < route.length; i++) {
+    const a = route[i];
+    const b = route[i + 1];
+    const plan = planFor(a, b);
+    if (!plan) continue;
+    if (!convertibleToSoil(a, referenced) || !convertibleToSoil(b, referenced)) continue;
+    if (!chunkAllowed(phase, a.logicIndex) || !chunkAllowed(phase, b.logicIndex)) continue;
+    if (isIntentionalDynamicCrossing(level, a, b)) continue;
+    if (a.nitrogenGate || b.nitrogenGate || a.underdevelopedNitrogenRoot || b.underdevelopedNitrogenRoot) continue;
+    // portao de nitrogenio: a raiz subdesenvolvida cresce justamente sobre um
+    // vao assim. Nem o par, nem nada que encoste no vao.
+    const reserved = (level.nitrogenRoots || []).some(n => [n.hostPlatform, n.targetPlatform, n.leftPlatform, n.rightPlatform]
+      .some(q => q === a || q === b));
+    if (reserved) continue;
+    const { block } = plan;
+    // teto, corredor e beirada livres de qualquer outra plataforma
+    const corridor = { x: block.x, y: block.y, w: block.w, h: block.h + LOW_TUNNEL.clearance + LOW_TUNNEL.ledgeDepth + 30 };
+    if (all.some(p => p !== a && p !== b && overlaps(corridor, p))) continue;
+    // nada que precise ser alcancado preso na parte baixa do teto (o bloco
+    // sobe ate a superficie; o que voa la em cima nao conta)
+    const lowBand = { x: block.x, y: block.y + block.h - 160, w: block.w, h: 160 };
+    const blocked = [
+      ...(level.allies || []),
+      ...(level.checkpoints || []),
+      ...(level.crystals || []),
+    ].some(o => Number.isFinite(o?.x) && Number.isFinite(o?.y) && pointIn(lowBand, o.x, o.y, 24));
+    if (blocked) continue;
+    out.push({ a, b, gap: Math.round(plan.pairGap), chunk: a.logicIndex, converts: (a.type === 'root') + (b.type === 'root'), ...plan });
+  }
+  return out;
+}
+
+/**
+ * Escolhe e instala os tuneis da fase. Deterministico pela semente. Devolve a
+ * lista instalada (tambem em `level.ceilingDrops`).
+ */
+function installLowTunnels(level, { phase, seedValue = '' } = {}) {
+  level.ceilingDrops = [];
+  level.tunnelFloors = [];
+  const candidates = lowTunnelCandidates(level, phase);
+  if (!candidates.length) return level.ceilingDrops;
+  const rnd = createRandom(`${seedValue}:low-tunnel:${phase}`);
+  const chosen = [];
+
+  if (phase === LOW_TUNNEL.firstPhase) {
+    // o que ensina: o primeiro par depois do Dash (de preferencia ja de terra)
+    const teach = candidates.find(c => !c.converts) || candidates[0];
+    chosen.push({ ...teach, teaching: true });
+  }
+  const pool = candidates.filter(c => !chosen.some(k => k.a === c.a));
+  while (chosen.length < LOW_TUNNEL.maxPerPhase && pool.length) {
+    const pick = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
+    if (chosen.some(k => Math.abs(k.chunk - pick.chunk) < LOW_TUNNEL.minChunkSpacing)) continue;
+    chosen.push(pick);
+  }
+  chosen.sort((m, n) => m.a.x - n.a.x);
+
+  for (const c of chosen) {
+    const drop = {
+      ...c.block,
+      id: `low-tunnel-${c.chunk}`,
+      lowTunnel: true,
+      teaching: Boolean(c.teaching),
+      gap: Math.round(c.tunnelGap),
+      pairGap: c.gap,
+      entryX: c.edgeX,
+      exitX: c.exitX,
+      floorY: c.floorY,
+      logicIndex: c.chunk,
+      entryPlatform: c.a,
+      exitPlatform: c.b,
+    };
+    // chao de tunel e bloco de terra (como no prototipo)
+    for (const p of [c.a, c.b]) {
+      if (p.type === 'root') { p.type = 'soil'; p.lowTunnelConvertedFromRoot = true; }
+    }
+    // os dois blocos de terra crescem ate as bordas do vao (mesma altura;
+    // o lado de fora de cada um fica onde estava)
+    if (c.growA) { c.a.w += c.growA; c.a.lowTunnelExtension = c.growA; }
+    if (c.growB) { c.b.x -= c.growB; c.b.w += c.growB; c.b.lowTunnelExtension = c.growB; }
+    level.ceilingDrops.push(drop);
+    // os dois chaos do tunel nao cedem com a saude da raiz
+    for (const p of [c.a, c.b]) {
+      p.lowTunnelAnchor = true;
+      if (Number.isFinite(p.rootBaseY)) { p.y = p.rootBaseY; p.supportOffset = 0; }
+    }
+    // exsudato que caiu dentro do bloco desce para baixo dele
+    for (const e of level.exudates || []) {
+      if (pointIn(drop, e.x, e.y, 6)) e.y = drop.y + drop.h + 22;
+    }
+  }
+  return level.ceilingDrops;
+}
+
+/** Diagnostico: por que cada par da rota foi recusado. */
+function lowTunnelDiagnostics(level, phase) {
+  const route = routePlatforms(level);
+  const reasons = {};
+  const pairs = [];
+  const hit = r => { reasons[r] = (reasons[r] || 0) + 1; };
+  for (let i = 0; i + 1 < route.length; i++) {
+    const a = route[i], b = route[i + 1];
+    const gap = Math.round(b.x - (a.x + a.w));
+    const dy = Math.round(floorOf(b) - floorOf(a));
+    if (!chunkAllowed(phase, a.logicIndex) || !chunkAllowed(phase, b.logicIndex)) { hit('trecho'); continue; }
+    pairs.push(`${gap}/${dy}/${Math.round(a.w)}-${Math.round(b.w)}`);
+    if (isIntentionalDynamicCrossing(level, a, b)) { hit('intencional'); continue; }
+    const plan = planFor(a, b);
+    if (!plan) {
+      const dyy = floorOf(b) - floorOf(a);
+      hit(gap < 130 ? 'vao<130' : !tunnelGapFor(dyy) ? 'altura' : (dyy < -LOW_TUNNEL.maxRise || dyy > LOW_TUNNEL.maxDrop) ? 'altura' : gap - 136 > LOW_TUNNEL.maxLedge ? 'vao>336' : 'largura');
+      continue;
+    }
+    const corridor = { x: plan.block.x, y: plan.block.y, w: plan.block.w, h: plan.block.h + LOW_TUNNEL.clearance + LOW_TUNNEL.ledgeDepth + 30 };
+    if ((level.platforms || []).some(p => p !== a && p !== b && overlaps(corridor, p))) { hit('obstruido'); continue; }
+    hit('ok');
+  }
+  return { reasons, pairs };
+}
+Object.assign(__exports, { LOW_TUNNEL, tunnelGapFor, lowTunnelCandidates, installLowTunnels, lowTunnelDiagnostics });
 },
 "src/procgen/mobile-controls.js": (__exports, __require) => {
 const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");

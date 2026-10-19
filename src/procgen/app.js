@@ -79,6 +79,7 @@ import { rhizosphereSurfaceY } from '../render/rhizosphere-geometry.js';
 import { GEOMETRY_ENABLED } from '../render/geometry-preference.js';
 import { vfxParticles } from '../render/vfx-particles.js';
 import { drawThreatRadar } from '../render/threat-radar.js';
+import { installLowTunnels, lowTunnelDiagnostics } from './low-tunnels.js';
 const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
 import { FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_SCALE, FINAL_ROOT_COLLAR_OFFSET } from '../render/final-root-visual.js';
 import { celebrationCycleSeconds, resolvePlayerSkin } from '../render/player-skins.js';
@@ -1255,6 +1256,11 @@ function prepareLevel() {
   installFinalGoal(levelData);
   applyInitialRootHealth(levelData, campaign.phase);
   synchronizeWorldBounds(levelData);
+  // Tunel baixo (Dash/propulsor): so sobre pares que ja tem o vao certo, depois
+  // de TODA a geometria (ancoras, objetivo final, limites do mundo); nao move plataforma nenhuma.
+  installLowTunnels(levelData, { phase: campaign.phase, seedValue: seed });
+  window.miguelitoLowTunnels = () => lowTunnelDiagnostics(levelData, campaign.phase);
+  traceGeometry('installLowTunnels');
   // CAPACIDADE MINERAL DA FASE, uma vez, no fim.
   //
   // Depois de TUDO que pode criar ou remover deposito: desafio autoral, portoes
@@ -2217,6 +2223,20 @@ function drawNoduleCaption(target) {
   target.restore();
 }
 
+// Dica do tunel baixo: ao se aproximar da entrada (o narrador garante uma vez
+// por campanha).
+function announceLowTunnel() {
+  const st = sim.state;
+  if (st.gameState !== 'play' || !st.player) return;
+  const px = st.player.x + st.player.w / 2;
+  for (const d of st.level?.ceilingDrops || []) {
+    if (px < d.entryX - 380 || px > d.entryX) continue;
+    if (Math.abs((st.player.y + st.player.h) - d.floorY) > 140) continue;
+    narrate(st, st.player.canJetpack ? 'tunnel.dash-jetpack' : 'tunnel.dash');
+    return;
+  }
+}
+
 // ---- Particulas de evento (vfx-particles.js) --------------------------------
 // Inoculacao e vigor vem da simulacao; a comemoracao do fim da fase e
 // disparada aqui, pelas etapas da cinematica.
@@ -2416,6 +2436,7 @@ function loop(now) {
     phaseFinale.update(dt);
     updateEventParticles(dt, pauseMenu.isOpen || Boolean(tutorialManager?.isOpen));
     updateNodulationShowcase(pauseMenu.isOpen || tutorialManager?.isOpen ? 0 : dt);
+    announceLowTunnel();
     renderWorld();
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
     phaseFinale.renderOverlay(ctx);

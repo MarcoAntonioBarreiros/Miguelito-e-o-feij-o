@@ -48,6 +48,11 @@ export const NARRATION = Object.freeze({
     text: 'Sem exsudatos: colete as gotas verdes' },
   'exudate.gradient': { kind: 'science', cardId: 'action-exudate',
     text: 'Exsudatos atraem micróbios móveis' },
+  // Tunel baixo (low-tunnels.js): uma vez por campanha, ao chegar no primeiro.
+  'tunnel.dash': { kind: 'hint', scope: 'campaign',
+    text: 'Túnel baixo: ande e use o Dash no vão' },
+  'tunnel.dash-jetpack': { kind: 'hint', scope: 'campaign',
+    text: 'Túnel baixo: Dash ou propulsor para cruzar o vão' },
   'route.high': { kind: 'hint', scope: 'campaign',
     text: 'Rotas altas escondem recursos extras' },
   ...unlockEntries,

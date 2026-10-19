@@ -412,6 +412,45 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
         }
       }
     }
+    // Chao criado pelo tunel baixo (beirada que completa o chao ate o vao):
+    // solido como um bloco comum.
+    for (const p of level.tunnelFloors || []) {
+      if (!rects(player, p)) continue;
+      if (prevY + player.h <= p.y + 10 && player.vy >= 0) {
+        player.y = p.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+      } else if (prevY >= p.y + p.h - 8 && player.vy < 0) {
+        player.y = p.y + p.h;
+        player.vy = 0;
+      } else if (player.vx > 0) {
+        player.x = p.x - player.w;
+        player.vx = 0;
+      } else if (player.vx < 0) {
+        player.x = p.x + p.w;
+        player.vx = 0;
+      }
+    }
+    // Tunel baixo: bloco de solo pendurado no teto sobre um vao (ver
+    // low-tunnels.js). Solido como um bloco comum, mas fora de
+    // `level.platforms`: nao e chao, raiz nem suporte de nada.
+    for (const d of level.ceilingDrops || []) {
+      if (!rects(player, d)) continue;
+      if (prevY >= d.y + d.h - 8 && player.vy < 0) {
+        player.y = d.y + d.h;
+        player.vy = 0;
+      } else if (prevY >= d.y + d.h - 12) {
+        // encostado por baixo (propulsor/dash rente ao teto): so empurra para baixo
+        player.y = d.y + d.h;
+        if (player.vy < 0) player.vy = 0;
+      } else if (player.vx > 0) {
+        player.x = d.x - player.w;
+        player.vx = 0;
+      } else if (player.vx < 0) {
+        player.x = d.x + d.w;
+        player.vx = 0;
+      }
+    }
     for (const c of level.crystals) {
       if (!c.broken && rects(player, c)) {
         if (player.vx > 0) {

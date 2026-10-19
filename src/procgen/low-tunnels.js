@@ -1,0 +1,275 @@
+// TUNEL BAIXO — obstaculo procedural de Dash (fase 4 em diante).
+//
+// Um tunel de verdade: chao e teto baixo dos dois lados, e no meio dele um vao
+// de zona hostil. A mecanica e ANDA -> DASH -> ANDA (ou anda -> propulsor ->
+// anda): o teto fica a 4 px da cabeca do Miguelito, entao dentro do tunel nao
+// ha pulo; o Dash, horizontal, cruza o vao; o propulsor encosta no teto e
+// desliza de lado.
+//
+// Calibrado na fisica do jogo (mesmo simulador), chao dos dois lados na mesma
+// altura ou a chegada ate 8 px mais baixa, teto 52 px acima do chao:
+//   - nenhum pulo atravessa vaos de 130-150 px (0 de 672 combinacoes de
+//     tempo de pulo e salto duplo);
+//   - o Dash disparado ANDANDO atravessa se apertado em qualquer ponto entre
+//     ~40-50 px antes da borda e 16 px depois dela (vao 136-140);
+//   - o propulsor atravessa (12 de 12).
+//
+// So blocos de terra (nunca raiz), como no prototipo. Vao conforme a altura da
+// chegada (tunnelGapFor). Se o par da rota tem um vao maior, os dois blocos
+// crescem em direcao ao vao (mesma altura; o lado de fora fica onde estava). O teto vive em
+// `level.ceilingDrops`; nenhum dos dois entra em `level.platforms` (nao sao
+// raiz, suporte de colonia nem alvo de patogeno).
+
+import { createRandom } from './random.js';
+import { getPhaseManifest, getSegmentAt } from './campaign-manifest.js';
+import { isIntentionalDynamicCrossing } from './generator.js';
+
+export const LOW_TUNNEL = Object.freeze({
+  clearance: 52,          // da base do teto ao chao (Miguelito: 48)
+  gap: 136,               // vao dentro do tunel
+  minPairGap: 130,        // vao original minimo do par da rota
+  maxLedge: 200,          // maior beirada que o tunel pode criar
+  entryCover: 170,        // chao coberto antes do vao
+  minEntryCover: 100,
+  exitCover: 150,         // chao coberto depois do vao
+  minExitCover: 80,
+  landingZone: 60,        // chao livre no comeco do bloco de entrada (pouso)
+  exitRunway: 40,         // chao livre no fim do bloco de saida
+  maxRise: 6,             // chegada mais alta que a entrada (px)
+  maxDrop: 40,            // chegada mais baixa que a entrada (px)
+  ledgeDepth: 46,         // espessura desenhada/solida da beirada
+  blockHeight: 2400,      // sobe ate a superficie: nem o propulsor passa por cima
+  minChunkSpacing: 4,
+  maxPerPhase: 2,
+  firstPhase: 4,
+});
+
+function routePlatforms(level) {
+  return (level.platforms || [])
+    .filter(p => Number.isInteger(p.logicIndex) && p.logicIndex >= 0
+      && !p.recovery && !p.mycorrhizaStructure && !p.azospirillumStructure
+      && !p.final && !p.oneWay && !p.safetyStep)
+    .sort((a, b) => a.x - b.x);
+}
+
+// Altura de projeto do chao: raiz doente afunda em jogo (root-health), entao
+// vale a base, nao a altura do instante.
+function floorOf(p) {
+  return Number.isFinite(p.rootBaseY) ? p.rootBaseY : p.y;
+}
+
+function overlaps(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function pointIn(rect, x, y, pad = 0) {
+  return x > rect.x - pad && x < rect.x + rect.w + pad && y > rect.y - pad && y < rect.y + rect.h + pad;
+}
+
+// Em que trecho da fase o tunel pode nascer.
+function chunkAllowed(phase, chunk) {
+  const manifest = getPhaseManifest(phase);
+  const segment = getSegmentAt(phase, chunk);
+  if (!segment || segment.kind !== 'procedural') return false;
+  if (phase === LOW_TUNNEL.firstPhase) {
+    const dash = (manifest?.unlockEvents || []).find(e => e.feature === 'dash');
+    if (dash && chunk <= dash.eventChunk) return false;
+  }
+  return true;
+}
+
+// Vao dentro do tunel conforme a altura da chegada (dy > 0: mais baixa).
+// Calibrado: em cada faixa, 0 pulo atravessa (176 combinacoes) e o Dash
+// andando passa em 10-19 de 19 pontos de disparo; propulsor 6 de 6.
+export function tunnelGapFor(dy) {
+  if (dy < -LOW_TUNNEL.maxRise) return null;
+  if (dy <= 2) return 136;
+  if (dy <= 8) return 144;
+  if (dy <= 16) return 152;
+  if (dy <= 24) return 160;
+  if (dy <= 32) return 170;
+  if (dy <= LOW_TUNNEL.maxDrop) return 180;
+  return null;
+}
+
+// Raiz comum pode virar bloco de terra para ser chao de tunel; raiz com papel
+// (portao, ponte, escada, objetivo, colonia, organismo, checkpoint) nao.
+const ROLE_KEY = /gate|host|objective|bridge|ladder|challenge|signature|detour|authored|nitrogen|structure|final|recovery/i;
+function referencedPlatforms(level) {
+  const set = new Set();
+  const add = p => { if (p && typeof p === 'object') set.add(p); };
+  for (const e of level.microbeEncounters || []) { add(e.platform); add(e.hostPlatform); add(e.root); }
+  for (const c of level.beneficialColonies || []) add(c.platform);
+  for (const f of level.biofilms || []) add(f.platform);
+  for (const c of level.checkpoints || []) add(c.platform);
+  for (const n of level.nitrogenRoots || []) { add(n.hostPlatform); add(n.targetPlatform); add(n.leftPlatform); add(n.rightPlatform); }
+  for (const x of level.crystals || []) add(x.platform);
+  for (const x of level.allies || []) add(x.platform);
+  return set;
+}
+function convertibleToSoil(p, referenced) {
+  if (p.type !== 'root') return true;
+  if (referenced.has(p)) return false;
+  return !Object.keys(p).some(k => ROLE_KEY.test(k) && p[k]);
+}
+
+// Geometria do tunel para o par (a -> b), ou null se nao cabe.
+function planFor(a, b) {
+  const aRight = a.x + a.w;
+  const pairGap = b.x - aRight;
+  const floorY = floorOf(a);
+  const dy = floorOf(b) - floorY;
+  const targetGap = tunnelGapFor(dy);
+  if (!targetGap || pairGap < targetGap - 4) return null;
+  const ledge = Math.max(0, pairGap - targetGap);
+  if (ledge > LOW_TUNNEL.maxLedge) return null;
+  // o chao que falta e dividido entre os dois blocos: cada um cresce em
+  // direcao ao vao (massa unica, sem emenda)
+  const growA = Math.round(ledge / 2);
+  const growB = ledge - growA;
+  const edgeX = aRight + growA;           // borda do vao (entrada)
+  const exitX = b.x - growB;              // borda do vao (saida)
+  // teto cobre `entryCover` de chao antes da borda, sem tomar o pouso de a
+  const entryStart = Math.max(edgeX - LOW_TUNNEL.entryCover, a.x + LOW_TUNNEL.landingZone);
+  if (edgeX - entryStart < LOW_TUNNEL.minEntryCover) return null;
+  const exitEnd = Math.min(exitX + LOW_TUNNEL.exitCover, b.x + b.w - LOW_TUNNEL.exitRunway);
+  if (exitEnd - exitX < LOW_TUNNEL.minExitCover) return null;
+  const bottom = Math.min(floorY, floorOf(b)) - LOW_TUNNEL.clearance;
+  return {
+    pairGap,
+    tunnelGap: pairGap - ledge,
+    growA,
+    growB,
+    edgeX,
+    exitX,
+    floorY,
+    block: { x: entryStart, y: bottom - LOW_TUNNEL.blockHeight, w: exitEnd - entryStart, h: LOW_TUNNEL.blockHeight },
+  };
+}
+
+/** Pares candidatos, em ordem de rota. Exportado para testes e diagnostico. */
+export function lowTunnelCandidates(level, phase) {
+  if (!(phase >= LOW_TUNNEL.firstPhase)) return [];
+  const route = routePlatforms(level);
+  const all = level.platforms || [];
+  const referenced = referencedPlatforms(level);
+  const out = [];
+  for (let i = 0; i + 1 < route.length; i++) {
+    const a = route[i];
+    const b = route[i + 1];
+    const plan = planFor(a, b);
+    if (!plan) continue;
+    if (!convertibleToSoil(a, referenced) || !convertibleToSoil(b, referenced)) continue;
+    if (!chunkAllowed(phase, a.logicIndex) || !chunkAllowed(phase, b.logicIndex)) continue;
+    if (isIntentionalDynamicCrossing(level, a, b)) continue;
+    if (a.nitrogenGate || b.nitrogenGate || a.underdevelopedNitrogenRoot || b.underdevelopedNitrogenRoot) continue;
+    // portao de nitrogenio: a raiz subdesenvolvida cresce justamente sobre um
+    // vao assim. Nem o par, nem nada que encoste no vao.
+    const reserved = (level.nitrogenRoots || []).some(n => [n.hostPlatform, n.targetPlatform, n.leftPlatform, n.rightPlatform]
+      .some(q => q === a || q === b));
+    if (reserved) continue;
+    const { block } = plan;
+    // teto, corredor e beirada livres de qualquer outra plataforma
+    const corridor = { x: block.x, y: block.y, w: block.w, h: block.h + LOW_TUNNEL.clearance + LOW_TUNNEL.ledgeDepth + 30 };
+    if (all.some(p => p !== a && p !== b && overlaps(corridor, p))) continue;
+    // nada que precise ser alcancado preso na parte baixa do teto (o bloco
+    // sobe ate a superficie; o que voa la em cima nao conta)
+    const lowBand = { x: block.x, y: block.y + block.h - 160, w: block.w, h: 160 };
+    const blocked = [
+      ...(level.allies || []),
+      ...(level.checkpoints || []),
+      ...(level.crystals || []),
+    ].some(o => Number.isFinite(o?.x) && Number.isFinite(o?.y) && pointIn(lowBand, o.x, o.y, 24));
+    if (blocked) continue;
+    out.push({ a, b, gap: Math.round(plan.pairGap), chunk: a.logicIndex, converts: (a.type === 'root') + (b.type === 'root'), ...plan });
+  }
+  return out;
+}
+
+/**
+ * Escolhe e instala os tuneis da fase. Deterministico pela semente. Devolve a
+ * lista instalada (tambem em `level.ceilingDrops`).
+ */
+export function installLowTunnels(level, { phase, seedValue = '' } = {}) {
+  level.ceilingDrops = [];
+  level.tunnelFloors = [];
+  const candidates = lowTunnelCandidates(level, phase);
+  if (!candidates.length) return level.ceilingDrops;
+  const rnd = createRandom(`${seedValue}:low-tunnel:${phase}`);
+  const chosen = [];
+
+  if (phase === LOW_TUNNEL.firstPhase) {
+    // o que ensina: o primeiro par depois do Dash (de preferencia ja de terra)
+    const teach = candidates.find(c => !c.converts) || candidates[0];
+    chosen.push({ ...teach, teaching: true });
+  }
+  const pool = candidates.filter(c => !chosen.some(k => k.a === c.a));
+  while (chosen.length < LOW_TUNNEL.maxPerPhase && pool.length) {
+    const pick = pool.splice(Math.floor(rnd() * pool.length), 1)[0];
+    if (chosen.some(k => Math.abs(k.chunk - pick.chunk) < LOW_TUNNEL.minChunkSpacing)) continue;
+    chosen.push(pick);
+  }
+  chosen.sort((m, n) => m.a.x - n.a.x);
+
+  for (const c of chosen) {
+    const drop = {
+      ...c.block,
+      id: `low-tunnel-${c.chunk}`,
+      lowTunnel: true,
+      teaching: Boolean(c.teaching),
+      gap: Math.round(c.tunnelGap),
+      pairGap: c.gap,
+      entryX: c.edgeX,
+      exitX: c.exitX,
+      floorY: c.floorY,
+      logicIndex: c.chunk,
+      entryPlatform: c.a,
+      exitPlatform: c.b,
+    };
+    // chao de tunel e bloco de terra (como no prototipo)
+    for (const p of [c.a, c.b]) {
+      if (p.type === 'root') { p.type = 'soil'; p.lowTunnelConvertedFromRoot = true; }
+    }
+    // os dois blocos de terra crescem ate as bordas do vao (mesma altura;
+    // o lado de fora de cada um fica onde estava)
+    if (c.growA) { c.a.w += c.growA; c.a.lowTunnelExtension = c.growA; }
+    if (c.growB) { c.b.x -= c.growB; c.b.w += c.growB; c.b.lowTunnelExtension = c.growB; }
+    level.ceilingDrops.push(drop);
+    // os dois chaos do tunel nao cedem com a saude da raiz
+    for (const p of [c.a, c.b]) {
+      p.lowTunnelAnchor = true;
+      if (Number.isFinite(p.rootBaseY)) { p.y = p.rootBaseY; p.supportOffset = 0; }
+    }
+    // exsudato que caiu dentro do bloco desce para baixo dele
+    for (const e of level.exudates || []) {
+      if (pointIn(drop, e.x, e.y, 6)) e.y = drop.y + drop.h + 22;
+    }
+  }
+  return level.ceilingDrops;
+}
+
+/** Diagnostico: por que cada par da rota foi recusado. */
+export function lowTunnelDiagnostics(level, phase) {
+  const route = routePlatforms(level);
+  const reasons = {};
+  const pairs = [];
+  const hit = r => { reasons[r] = (reasons[r] || 0) + 1; };
+  for (let i = 0; i + 1 < route.length; i++) {
+    const a = route[i], b = route[i + 1];
+    const gap = Math.round(b.x - (a.x + a.w));
+    const dy = Math.round(floorOf(b) - floorOf(a));
+    if (!chunkAllowed(phase, a.logicIndex) || !chunkAllowed(phase, b.logicIndex)) { hit('trecho'); continue; }
+    pairs.push(`${gap}/${dy}/${Math.round(a.w)}-${Math.round(b.w)}`);
+    if (isIntentionalDynamicCrossing(level, a, b)) { hit('intencional'); continue; }
+    const plan = planFor(a, b);
+    if (!plan) {
+      const dyy = floorOf(b) - floorOf(a);
+      hit(gap < 130 ? 'vao<130' : !tunnelGapFor(dyy) ? 'altura' : (dyy < -LOW_TUNNEL.maxRise || dyy > LOW_TUNNEL.maxDrop) ? 'altura' : gap - 136 > LOW_TUNNEL.maxLedge ? 'vao>336' : 'largura');
+      continue;
+    }
+    const corridor = { x: plan.block.x, y: plan.block.y, w: plan.block.w, h: plan.block.h + LOW_TUNNEL.clearance + LOW_TUNNEL.ledgeDepth + 30 };
+    if ((level.platforms || []).some(p => p !== a && p !== b && overlaps(corridor, p))) { hit('obstruido'); continue; }
+    hit('ok');
+  }
+  return { reasons, pairs };
+}
