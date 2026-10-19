@@ -685,7 +685,8 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       // still begin at V=0 and remain visible; protecting their target never
       // removes this independent opportunity to practice containment.
       const lesson = state.level.ralstoniaTeachingEncounters?.containment;
-      if (phaseNumber() === 9 && lesson?.root && desiredFocusCount() > 0) {
+      // fase 9 (curriculo) e fase 10+ (foco do diretor de salas)
+      if ((phaseNumber() === 9 || lesson?.directorRoom) && lesson?.root && desiredFocusCount() > 0) {
         const focus = createFocus({
           root: lesson.root, role: 'containment',
           surfaceLoad: CONFIG.containmentFocusSurfaceLoad,

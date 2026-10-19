@@ -192,3 +192,23 @@ export function prepareRalstoniaTeachingEncounters(level, { phaseManifest, seed 
   level.ralstoniaTeachingEncounters = plan;
   return level;
 }
+
+// Fase 10 em diante (diretor de salas): um foco de contencao ja vascular na
+// raiz escolhida pelo diretor, com Bacillus, Pseudomonas, exsudatos e ferro no
+// bloco anterior. Mesmo encontro de contencao da fase 9, sem a prevencao.
+export function prepareRalstoniaFocusRoom(level, { root, host, seed } = {}) {
+  if (!level || !root) return null;
+  const random = createRandom(`${seed ?? level.seed ?? 'phase-10'}:ralstonia-focus-room`);
+  const route = getPrimaryTraversalPlatforms(level);
+  level.microbeEncounters ||= [];
+  level.exudates ||= [];
+  level.ironDeposits ||= [];
+  const resourceRoot = host || resourceHost(route, root);
+  const encounters = ['bacillus', 'pseudomonas']
+    .map(organism => ensureEncounter(level, route, root, 'containment', organism, resourceRoot));
+  const exudates = ensureExudates(level, route, root, 'containment', encounters, 3, resourceRoot);
+  const iron = ensureIron(level, route, root, random);
+  const lesson = { root, role: 'containment', directorRoom: true, resources: { encounters, exudates, iron } };
+  level.ralstoniaTeachingEncounters = { ...(level.ralstoniaTeachingEncounters || {}), containment: lesson };
+  return lesson;
+}

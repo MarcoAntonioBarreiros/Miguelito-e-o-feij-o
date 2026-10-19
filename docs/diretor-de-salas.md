@@ -44,5 +44,20 @@ Medido em 60 sementes: 38 fases tiveram janela, e o desvio saiu em todas menos u
 Se o sorteio não trouxe um dos túneis, uma sala plana fora da janela vira o
 túnel que faltou.
 
-Etapa seguinte: patógenos como salas e dificuldade crescente nas fases depois
-da 10.
+## Focos de patógeno (Etapa 3)
+
+O diretor marca até 2 raízes já infectadas em blocos de ligação (perto de
+35% e 70% da fase), sem mudar a geometria. O bloco anterior recebe o
+organismo de controle (`src/procgen/pathogen-focus-rooms.js`):
+- **Ralstonia:** infecção vascular já instalada, o mesmo encontro de contenção da fase 9. Antes dela vêm Bacillus, Pseudomonas, 3 exsudatos e ferro.
+- **Meloidogyne:** massa de ovos na raiz, que só começa a eclodir quando o jogador chega a 560 px. Antes dela vêm Trichoderma e 2 exsudatos.
+
+As chegadas dinâmicas por pressão do solo continuam; os focos somam a elas.
+Nenhum bloqueia a saída da fase 10 (o teste final é pontuação + raiz final).
+O radar mostra os dois desde o começo da fase.
+
+## Fases 11, 12...
+
+Ao concluir a fase 10, um painel oferece "Próxima fase". O botão gera a
+fase 10 com semente nova (`campaign.extraPhase`, salvo), mostrada como
+Fase 11, 12...

@@ -963,6 +963,19 @@ export function generateLevel(seedString, {
       directorLevel = nextPlatform.y;
     }
 
+    // Foco de patogeno (diretor): raiz ja infectada e, no bloco anterior, o
+    // organismo de controle (ver pathogen-focus-rooms.js).
+    const focus = recipe?.pathogenFoci?.find(f => f.chunkIndex === i);
+    if (focus && !nextPlatform.ascentGate && !nextPlatform.bridgeGate && !nextPlatform.nitrogenGate
+      && !nextPlatform.encounterInstanceId && !prevPlatform.encounterInstanceId && prevPlatform.logicIndex >= 0) {
+      nextPlatform.type = 'root';
+      nextPlatform.w = Math.max(nextPlatform.w, 200);
+      nextPlatform.pathogenFocusRoom = focus.kind;
+      nextPlatform.pathogenFocusId = focus.id;
+      prevPlatform.pathogenPrepHost = focus.kind;
+      prevPlatform.pathogenFocusId = focus.id;
+    }
+
     // Lugar reservado do desvio opcional (diretor): partida e retorno de raiz,
     // largos, com ~3 telas entre eles e nada de tunel/subida no meio.
     if (recipe?.detour) {
@@ -1071,6 +1084,7 @@ export function generateLevel(seedString, {
       ? {
           rooms: recipe.rooms,
           combos: recipe.combos,
+          pathogenFoci: recipe.pathogenFoci,
           detour: recipe.detour
             ? { ...recipe.detour, start: detourStart?.logicIndex ?? null, rejoin: detourRejoin?.logicIndex ?? null }
             : null,

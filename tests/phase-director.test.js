@@ -106,3 +106,20 @@ test('diretor: combos e desvio no lugar reservado', () => {
   assert.ok(windows >= SEEDS.length / 2, `poucas janelas de desvio (${windows})`);
   assert.ok(detours >= windows - 1, `desvio falhou no lugar reservado (${detours}/${windows})`);
 });
+
+test('diretor: focos de patogeno marcados com o controle no bloco anterior', () => {
+  let foci = 0;
+  for (const seed of SEEDS) {
+    const { level } = phaseTen(seed);
+    for (const focus of level.directorRecipe.pathogenFoci) {
+      const root = level.platforms.find(p => p.pathogenFocusId === focus.id && p.pathogenFocusRoom);
+      const host = level.platforms.find(p => p.pathogenFocusId === focus.id && p.pathogenPrepHost);
+      assert.ok(root && host, `${seed}: ${focus.id} sem raiz/hospedeiro`);
+      assert.equal(root.type, 'root');
+      assert.ok(host.x < root.x, `${seed}: controle antes do foco`);
+      assert.ok(!root.tunnelRoomRole && !host.tunnelRoomRole, `${seed}: foco em sala de tunel`);
+      foci++;
+    }
+  }
+  assert.ok(foci >= SEEDS.length * 1.4, `poucos focos (${foci})`);
+});

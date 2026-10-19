@@ -51,6 +51,9 @@ export function isActiveMeloidogyneGall(gall) {
 // do percurso — medir a corda em vez da curva encurtaria a viagem.
 const ARRIVAL_PATH_SAMPLES = 18;
 
+// Distancia (px) em que a massa de ovos do foco do diretor comeca a eclodir.
+const EGG_FOCUS_WAKE_DISTANCE = 560;
+
 export function createMeloidogyneLifecycle({ state, entities }) {
   const eggs = [], juveniles = [], galls = [];
   const rootGameplay = createRootHealthGameplay({ state, entities });
@@ -152,6 +155,14 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     // para quem desligar as chegadas dinamicas — e para as fases que ainda
     // dependem dela.
     if (!state.level?.dynamicPathogenArrival) seedInfestation();
+    // Foco do diretor de salas (fase 10+): massa de ovos ja na raiz, que so
+    // comeca a eclodir quando o jogador chega perto.
+    for (const authored of state.level?.authoredEggMasses || []) {
+      if (!authored?.platform) continue;
+      const mass = addEggMass(authored.platform, authored.x, 0, null, true);
+      mass.awaitPlayer = true;
+      mass.focusRoomId = authored.id || null;
+    }
     rootGameplay.reset();
   }
 
@@ -480,6 +491,11 @@ export function createMeloidogyneLifecycle({ state, entities }) {
   function updateEggs(dt) {
     for (const m of eggs) {
       m.age += dt; m.y = m.platform.y - 7; m.x = clamp(m.x, m.platform.x + 20, m.platform.x + m.platform.w - 20);
+      if (m.awaitPlayer) {
+        const px = (state.player?.x ?? 0) + (state.player?.w ?? 0) / 2;
+        if (Math.abs(px - m.x) > EGG_FOCUS_WAKE_DISTANCE) continue;
+        m.awaitPlayer = false;
+      }
       const suppression = clamp(m.trichodermaSuppression || 0, 0, 1);
       if (m.neutralized) { m.eggs = 0; m.emptyAge += dt; continue; }
       if (m.eggs <= 0) { m.emptyAge += dt; continue; }
