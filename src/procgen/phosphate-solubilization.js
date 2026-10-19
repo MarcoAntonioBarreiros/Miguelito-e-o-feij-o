@@ -4,6 +4,8 @@ import { recordPhaseObjectiveAction } from './campaign-objective-progress.js';
 import { fxLanded } from '../game-audio.js';
 import { getPrimaryTraversalPlatforms } from './traversal-route.js';
 import { drawPhosphateCrystalCluster } from '../render/phosphate-crystals.js';
+import { drawPhosphateLaunchRing, drawPhosphateOrb, drawPhosphateTrail } from '../render/phosphate-orb.js';
+import { vfxParticles } from '../render/vfx-particles.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -574,6 +576,10 @@ export function createPhosphateSolubilization({
         state.level.availablePhosphatePools.push(pool);
       }
       pool.amount += amount;
+      // impacto da bola de luz: estilhacos violeta/dourados e um anel (so visual)
+      vfxParticles.emit('shatter', cx, cy, '#e9a8ff', 18, { priority: 'critical', pattern: 'radial', speedScale: .9, palette: ['#e9a8ff', '#ffd56f', '#ffffff'] });
+      vfxParticles.emit('bloom', cx, cy, '#ffd98a', 10, { priority: 'normal', pattern: 'ring', ringRadius: 10, sizeScale: .9 });
+      vfxParticles.ring(cx, cy, '#f3c9ff', 70, .45, 2.4);
       if (deposit.remainingPhosphate <= .0001) {
         // Transicao broken false -> true, uma vez. Sem cooldown: a conclusao
         // nao pode ser engolida pelo cooldown do impacto parcial.
@@ -679,6 +685,8 @@ export function createPhosphateSolubilization({
       dissolveWithShot(shot);
     }
     shots = shots.filter(shot => shot.distance < config.shotRange);
+    // o 2,5D acende uma luz em cada bola em voo
+    state.level.phosphateShots = shots;
     for (const particle of chargeParticles) particle.progress += dt * particle.speed;
     chargeParticles = chargeParticles.filter(particle => particle.progress < 1);
     updateTransport(dt);
@@ -723,36 +731,21 @@ export function createPhosphateSolubilization({
       ctx.globalAlpha = 1;
       ctx.shadowBlur = 0;
     }
-    // O disparo era um triangulo chapado do jogador ate a frente da onda. Agora
-    // e uma frente de acidos organicos: nucleo estreito que desvanece atras e
-    // gotas soltas na borda, sem aresta reta.
+    // O disparo e uma bola de luz (nucleo branco, anel violeta e dourado) com
+    // rastro de cometa e gotas de acidos organicos. A bola cresce no voo porque
+    // a area de acerto alarga com a distancia.
     for (const shot of shots) {
-      const width = 8 + shot.distance * (.05 + shot.charge * .05);
-      const tail = Math.max(shot.originX * shot.direction, (shot.x - shot.direction * 130) * shot.direction) * shot.direction;
-      const gradient = ctx.createLinearGradient(tail, shot.y, shot.x, shot.y);
-      gradient.addColorStop(0, 'rgba(223,145,255,0)');
-      gradient.addColorStop(1, 'rgba(240,190,255,.5)');
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.moveTo(tail, shot.y);
-      ctx.quadraticCurveTo((tail + shot.x) / 2, shot.y - width, shot.x, shot.y);
-      ctx.quadraticCurveTo((tail + shot.x) / 2, shot.y + width, tail, shot.y);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255,214,255,.7)';
-      for (let i = 0; i < 4; i++) {
-        const along = (i + 1) / 5;
-        const dx = tail + (shot.x - tail) * along;
-        const dy = shot.y + Math.sin(shot.distance * .05 + i * 1.9) * width * .7;
-        ctx.beginPath();
-        ctx.arc(dx, dy, 1.6 + (1 - along) * 1.4, 0, TAU);
-        ctx.fill();
-      }
+      const radius = 5 + shot.charge * 6 + shot.distance * .03;
+      drawPhosphateLaunchRing(ctx, shot);
+      drawPhosphateTrail(ctx, shot, radius, state.time);
+      drawPhosphateOrb(ctx, shot.x, shot.y, radius, state.time, { seed: shot.originX % 13 });
     }
+    // a carga converge para a bola que se forma na mao (mesmo ponto do disparo)
+    const handX = state.player.x + state.player.w / 2 + (state.player.facing || 1) * 18;
+    const handY = state.player.y + state.player.h * .45;
     for (const particle of chargeParticles) {
-      const px = state.player.x + state.player.w / 2;
-      const py = state.player.y + state.player.h * .45;
+      const px = handX;
+      const py = handY;
       const t = clamp(particle.progress, 0, 1);
       const x = particle.fromX + (px - particle.fromX) * t;
       const y = particle.fromY + (py - particle.fromY) * t
@@ -762,11 +755,12 @@ export function createPhosphateSolubilization({
       ctx.beginPath(); ctx.arc(x, y, 1.8 + t * 1.6, 0, TAU); ctx.fill();
     }
     if (charge > 0) {
-      const px = state.player.x + state.player.w / 2;
-      const py = state.player.y + state.player.h * .45;
-      ctx.strokeStyle = '#e6a2ff';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(px, py, 18 + charge * 18, -.5 * Math.PI, (-.5 + charge * 2) * Math.PI); ctx.stroke();
+      // bola se formando (carregando) ou pronta (armada), com o arco dourado
+      // de carga em volta
+      const max = Math.max(.001, settings().maximumCharge);
+      const armed = pulseState === PULSE_ARMED;
+      const r = 3 + (charge / max) * 7 + (armed ? Math.sin(state.time * 6) * .8 : 0);
+      drawPhosphateOrb(ctx, handX, handY, r, state.time, { fill: charge / max, droplets: armed ? 6 : 4 });
     }
     ctx.restore();
   }

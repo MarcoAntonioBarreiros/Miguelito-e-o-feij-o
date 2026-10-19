@@ -10,6 +10,7 @@ import { drawBacillusBiofilm } from './bacillus-biofilm.js';
 import { organismSprites } from './organism-sprites.js';
 import { createRhizosphereBackdrop } from './rhizosphere-backdrop.js';
 import { createRhizosphereParallax } from './rhizosphere-parallax.js';
+import { createPlayerAfflictions } from './player-afflictions.js';
 
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
@@ -59,6 +60,7 @@ export function createRenderer({
     storage: (() => { try { return window.localStorage; } catch (_) { return null; } })(),
   });
   const sprite = skin?.states ? createPlayerSprite(skin) : null;
+  const afflictions = createPlayerAfflictions();
 
   function roundedRect(x, y, w, h, r) {
     ctx.beginPath();
@@ -474,42 +476,6 @@ export function createRenderer({
     ctx.restore();
   }
 
-  function drawFungalAttachment(player, time) {
-    const infection = clamp(Math.max(player.infection || 0, player.fungalContamination || 0), 0, 1);
-    if (infection < .06) return;
-    const opportunisticContact = clamp(Math.max(
-      player.fungalAttachmentLevel || 0,
-      (player.fungalContamination || 0) * .82,
-    ), 0, 1);
-    const count = 2 + Math.floor((opportunisticContact || infection) * 7);
-    ctx.save();
-    ctx.globalAlpha = .24 + infection * .58;
-    ctx.strokeStyle = infection > .7 ? '#ff657f' : '#c86b85';
-    ctx.fillStyle = infection > .7 ? '#8e2949' : '#71334f';
-    ctx.lineWidth = .8 + infection * .9;
-    for (let i = 0; i < count; i++) {
-      const seed = i * 1.73;
-      const x = -9 + ((i * 7) % 19);
-      const y = -4 + ((i * 9) % 23);
-      const radius = .8 + (i % 3) * .4 + infection * .45;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      if (i % 2 === 0 && opportunisticContact > .04) {
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.quadraticCurveTo(
-          x + Math.sin(time * 2 + seed) * 4,
-          y - 3 - opportunisticContact * 4,
-          x + Math.cos(time + seed) * (5 + opportunisticContact * 5),
-          y + Math.sin(seed) * 4,
-        );
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-  }
-
   function drawPlayer() {
     const player = state.player;
     const time = state.time;
@@ -528,29 +494,19 @@ export function createRenderer({
     // astronauta, e precisa aparecer em qualquer personagem.
     if (!sprite?.draw(ctx, player, time, state.gameState)) drawAstronautBody(player);
 
-    drawFungalAttachment(player, time);
     // The WebGL bridge extracts the body into a later GPU pass. Keep equipment
     // painted after that body too, rather than hiding its gauge behind the bag.
-    if (typeof ctx.__glPlayerEquipment === 'function') {
-      ctx.__glPlayerEquipment(target => drawJetpack(player, time, target));
-    } else drawJetpack(player, time, ctx);
-
-    if (player.canPhosphateSolubilization) {
-      ctx.shadowBlur = 16;
-      ctx.shadowColor = '#df91ff';
-      ctx.fillStyle = '#df91ff';
-      ctx.beginPath();
-      ctx.arc(15, -2, 3 + (player.phosphateCharge || 0) * 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-
-    if ((player.nematodeLoad || 0) >= 2) {
-      ctx.fillStyle = '#ffd7a0';
-      ctx.font = '800 8px Inter,system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText('DASH BLOQUEADO', 0, -36);
-    }
+    // Hifas, J2 agarrado e o icone de dash bloqueado vao na MESMA passada: antes
+    // ficavam atras do corpo no 2,5D (so apareciam as pontinhas).
+    const juveniles = state.level?.nematodeJuveniles || [];
+    const overlay = target => {
+      drawJetpack(player, time, target);
+      afflictions.draw(target, player, time, juveniles);
+    };
+    if (typeof ctx.__glPlayerEquipment === 'function') ctx.__glPlayerEquipment(overlay);
+    else overlay(ctx);
+    // A bola de luz do pulso solubilizador (carga e disparo) e desenhada pelo
+    // sistema de fosfato, na mao do Miguelito.
     ctx.restore();
   }
 

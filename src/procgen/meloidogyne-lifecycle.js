@@ -773,6 +773,8 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     ctx.restore();
   }
   function drawJ2(ctx, j) {
+    // carregado pelo Miguelito: quem desenha e o jogador (J2 agarrado na perna)
+    if (j.carriedByPlayer) return;
     const caught = Boolean(j.trichodermaCaught);
     const embedded = j.state !== 'seeking', a = Math.atan2(j.vy || 0, j.vx || 1);
     const length = embedded ? 34 : 42;

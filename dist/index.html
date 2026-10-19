@@ -1108,7 +1108,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"63b511f","subject":"Calmaria: particulas da Ralstonia (o desenho usa uma copia nova do foco ","builtAt":"2026-10-19 20:22"};
+window.__BEANS_BUILD__ = {"commit":"3104f9d","subject":"Calmaria: poeira da GPU vira polen dourado/rosa/branco dentro do halo (f","builtAt":"2026-10-19 22:16"};
 (() => {
 'use strict';
 const __modules = {
@@ -28323,6 +28323,8 @@ function createMeloidogyneLifecycle({ state, entities }) {
     ctx.restore();
   }
   function drawJ2(ctx, j) {
+    // carregado pelo Miguelito: quem desenha e o jogador (J2 agarrado na perna)
+    if (j.carriedByPlayer) return;
     const caught = Boolean(j.trichodermaCaught);
     const embedded = j.state !== 'seeking', a = Math.atan2(j.vy || 0, j.vx || 1);
     const length = embedded ? 34 : 42;
@@ -30900,6 +30902,8 @@ const { recordPhaseObjectiveAction } = __require("src/procgen/campaign-objective
 const { fxLanded } = __require("src/game-audio.js");
 const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");
 const { drawPhosphateCrystalCluster } = __require("src/render/phosphate-crystals.js");
+const { drawPhosphateLaunchRing, drawPhosphateOrb, drawPhosphateTrail } = __require("src/render/phosphate-orb.js");
+const { vfxParticles } = __require("src/render/vfx-particles.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -31469,6 +31473,10 @@ function createPhosphateSolubilization({
         state.level.availablePhosphatePools.push(pool);
       }
       pool.amount += amount;
+      // impacto da bola de luz: estilhacos violeta/dourados e um anel (so visual)
+      vfxParticles.emit('shatter', cx, cy, '#e9a8ff', 18, { priority: 'critical', pattern: 'radial', speedScale: .9, palette: ['#e9a8ff', '#ffd56f', '#ffffff'] });
+      vfxParticles.emit('bloom', cx, cy, '#ffd98a', 10, { priority: 'normal', pattern: 'ring', ringRadius: 10, sizeScale: .9 });
+      vfxParticles.ring(cx, cy, '#f3c9ff', 70, .45, 2.4);
       if (deposit.remainingPhosphate <= .0001) {
         // Transicao broken false -> true, uma vez. Sem cooldown: a conclusao
         // nao pode ser engolida pelo cooldown do impacto parcial.
@@ -31574,6 +31582,8 @@ function createPhosphateSolubilization({
       dissolveWithShot(shot);
     }
     shots = shots.filter(shot => shot.distance < config.shotRange);
+    // o 2,5D acende uma luz em cada bola em voo
+    state.level.phosphateShots = shots;
     for (const particle of chargeParticles) particle.progress += dt * particle.speed;
     chargeParticles = chargeParticles.filter(particle => particle.progress < 1);
     updateTransport(dt);
@@ -31618,36 +31628,21 @@ function createPhosphateSolubilization({
       ctx.globalAlpha = 1;
       ctx.shadowBlur = 0;
     }
-    // O disparo era um triangulo chapado do jogador ate a frente da onda. Agora
-    // e uma frente de acidos organicos: nucleo estreito que desvanece atras e
-    // gotas soltas na borda, sem aresta reta.
+    // O disparo e uma bola de luz (nucleo branco, anel violeta e dourado) com
+    // rastro de cometa e gotas de acidos organicos. A bola cresce no voo porque
+    // a area de acerto alarga com a distancia.
     for (const shot of shots) {
-      const width = 8 + shot.distance * (.05 + shot.charge * .05);
-      const tail = Math.max(shot.originX * shot.direction, (shot.x - shot.direction * 130) * shot.direction) * shot.direction;
-      const gradient = ctx.createLinearGradient(tail, shot.y, shot.x, shot.y);
-      gradient.addColorStop(0, 'rgba(223,145,255,0)');
-      gradient.addColorStop(1, 'rgba(240,190,255,.5)');
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.moveTo(tail, shot.y);
-      ctx.quadraticCurveTo((tail + shot.x) / 2, shot.y - width, shot.x, shot.y);
-      ctx.quadraticCurveTo((tail + shot.x) / 2, shot.y + width, tail, shot.y);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255,214,255,.7)';
-      for (let i = 0; i < 4; i++) {
-        const along = (i + 1) / 5;
-        const dx = tail + (shot.x - tail) * along;
-        const dy = shot.y + Math.sin(shot.distance * .05 + i * 1.9) * width * .7;
-        ctx.beginPath();
-        ctx.arc(dx, dy, 1.6 + (1 - along) * 1.4, 0, TAU);
-        ctx.fill();
-      }
+      const radius = 5 + shot.charge * 6 + shot.distance * .03;
+      drawPhosphateLaunchRing(ctx, shot);
+      drawPhosphateTrail(ctx, shot, radius, state.time);
+      drawPhosphateOrb(ctx, shot.x, shot.y, radius, state.time, { seed: shot.originX % 13 });
     }
+    // a carga converge para a bola que se forma na mao (mesmo ponto do disparo)
+    const handX = state.player.x + state.player.w / 2 + (state.player.facing || 1) * 18;
+    const handY = state.player.y + state.player.h * .45;
     for (const particle of chargeParticles) {
-      const px = state.player.x + state.player.w / 2;
-      const py = state.player.y + state.player.h * .45;
+      const px = handX;
+      const py = handY;
       const t = clamp(particle.progress, 0, 1);
       const x = particle.fromX + (px - particle.fromX) * t;
       const y = particle.fromY + (py - particle.fromY) * t
@@ -31657,11 +31652,12 @@ function createPhosphateSolubilization({
       ctx.beginPath(); ctx.arc(x, y, 1.8 + t * 1.6, 0, TAU); ctx.fill();
     }
     if (charge > 0) {
-      const px = state.player.x + state.player.w / 2;
-      const py = state.player.y + state.player.h * .45;
-      ctx.strokeStyle = '#e6a2ff';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(px, py, 18 + charge * 18, -.5 * Math.PI, (-.5 + charge * 2) * Math.PI); ctx.stroke();
+      // bola se formando (carregando) ou pronta (armada), com o arco dourado
+      // de carga em volta
+      const max = Math.max(.001, settings().maximumCharge);
+      const armed = pulseState === PULSE_ARMED;
+      const r = 3 + (charge / max) * 7 + (armed ? Math.sin(state.time * 6) * .8 : 0);
+      drawPhosphateOrb(ctx, handX, handY, r, state.time, { fill: charge / max, droplets: armed ? 6 : 4 });
     }
     ctx.restore();
   }
@@ -31923,6 +31919,152 @@ function drawPhosphateCrystalCluster(ctx, deposit, time = 0, options = {}) {
   ctx.restore();
 }
 Object.assign(__exports, { createPhosphateCrystalGeometry, drawPhosphateCrystalCluster });
+},
+"src/render/phosphate-orb.js": (__exports, __require) => {
+// Pulso solubilizador como bola de luz: nucleo branco, anel violeta e dourado
+// (fosforo) e gotinhas de acidos organicos (citrato, gluconato) girando em
+// volta. So desenho: a carga, o alcance e a area de acerto continuam sendo os
+// do sistema de fosfato.
+
+const TAU = Math.PI * 2;
+const hash = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+const glowCache = new Map();
+
+function glow(color) {
+  let s = glowCache.get(color);
+  if (s || typeof document === 'undefined') return s || null;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const g = cv.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, color);
+  grd.addColorStop(.25, color);
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+  glowCache.set(color, cv);
+  return cv;
+}
+
+function blob(ctx, color, x, y, d, alpha) {
+  const s = glow(color);
+  if (!s || alpha <= 0) return;
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(s, x - d / 2, y - d / 2, d, d);
+}
+
+/**
+ * A bola em si. `radius` e o raio do nucleo luminoso; `time` anima; `fill`
+ * (0..1, opcional) desenha o arco dourado de carga em volta.
+ */
+function drawPhosphateOrb(ctx, x, y, radius, time, { fill = null, droplets = 6, crackle = true, seed = 0 } = {}) {
+  const r = Math.max(2, radius);
+  const pulse = 1 + Math.sin(time * 9 + seed) * .06;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  // halo largo violeta, anel dourado, nucleo branco
+  blob(ctx, '#b65cff', x, y, r * 7.5 * pulse, .55);
+  blob(ctx, '#ffcf66', x, y, r * 4.4 * pulse, .7);
+  blob(ctx, '#f3c9ff', x, y, r * 2.8, .9);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(x, y, r * .62, 0, TAU);
+  ctx.fill();
+
+  // gotinhas de acido girando em volta
+  for (let i = 0; i < droplets; i++) {
+    const a = time * (2.4 + (i % 3) * .5) + i * TAU / droplets + seed;
+    const orbit = r * (1.5 + (i % 2) * .45);
+    const dx = x + Math.cos(a) * orbit;
+    const dy = y + Math.sin(a) * orbit * .72;
+    blob(ctx, i % 2 ? '#ffd98a' : '#e9a8ff', dx, dy, 7 + r * .35, .85);
+    ctx.globalAlpha = .9;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(dx, dy, 1.1, 0, TAU);
+    ctx.fill();
+  }
+
+  // pequenos raios
+  if (crackle && r > 4) {
+    ctx.strokeStyle = '#fff1ff';
+    ctx.lineWidth = 1.1;
+    const step = Math.floor(time * 14);
+    for (let k = 0; k < 2; k++) {
+      const h = hash(step * 3.1 + k * 7 + seed);
+      if (h < .45) continue;
+      const a0 = hash(step + k * 11 + seed) * TAU;
+      ctx.globalAlpha = .8;
+      ctx.beginPath();
+      let px = x + Math.cos(a0) * r * .7;
+      let py = y + Math.sin(a0) * r * .7;
+      ctx.moveTo(px, py);
+      for (let j = 1; j <= 3; j++) {
+        const rr = r * (.7 + j * .45);
+        const jitter = (hash(step * 5 + j + k * 13 + seed) - .5) * .9;
+        px = x + Math.cos(a0 + jitter) * rr;
+        py = y + Math.sin(a0 + jitter) * rr;
+        ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // arco dourado de carga (substitui o circulo antigo em volta do Miguelito)
+  if (fill != null) {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = .9;
+    ctx.strokeStyle = '#ffd56f';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 2.3 + 3, -Math.PI / 2, -Math.PI / 2 + TAU * Math.max(0, Math.min(1, fill)));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Rastro de cometa e gotas soltas atras da bola em voo. */
+function drawPhosphateTrail(ctx, shot, radius, time) {
+  const dir = shot.direction || 1;
+  const travelled = Math.max(0, shot.x - shot.originX) * dir;
+  const length = Math.min(150, travelled);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const n = 9;
+  for (let i = 1; i <= n; i++) {
+    const t = i / n;
+    const along = t * length;
+    const wob = Math.sin(time * 12 + i * 1.7) * radius * .25 * t;
+    blob(ctx, i % 3 ? '#c06cff' : '#ffcf66', shot.x - dir * along, shot.y + wob, radius * (4.6 - t * 2.8), .62 * (1 - t));
+  }
+  // gotas de acido que se desprendem do rastro e caem
+  for (let i = 0; i < 6; i++) {
+    const seed = i * 3.7 + (shot.originX % 97);
+    const along = (hash(seed) * .8 + .1) * length;
+    const age = (time * 1.6 + hash(seed + 1)) % 1;
+    const dx = shot.x - dir * along;
+    const dy = shot.y + (hash(seed + 2) - .5) * radius * 2 + age * age * 26;
+    blob(ctx, hash(seed + 3) < .5 ? '#ffd98a' : '#f0b2ff', dx, dy, 8, .7 * (1 - age));
+  }
+  ctx.restore();
+}
+
+/** Anel de choque na saida do disparo (primeiros ~60 px de voo). */
+function drawPhosphateLaunchRing(ctx, shot) {
+  const t = Math.min(1, Math.max(0, (shot.distance || 0) / 70));
+  if (t >= 1) return;
+  ctx.save();
+  ctx.globalAlpha = (1 - t) * .85;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = '#d89bff';
+  ctx.lineWidth = 3 * (1 - t) + .5;
+  ctx.beginPath();
+  ctx.ellipse(shot.originX, shot.originY, 10 + t * 34, 14 + t * 44, 0, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
+}
+Object.assign(__exports, { drawPhosphateOrb, drawPhosphateTrail, drawPhosphateLaunchRing });
 },
 "src/procgen/geometry.js": (__exports, __require) => {
 function generateGeometry(logicChunk, prevPlatform, primitive, rnd, verticalBand = null) {
@@ -46370,6 +46512,7 @@ const { drawBacillusBiofilm } = __require("src/render/bacillus-biofilm.js");
 const { organismSprites } = __require("src/render/organism-sprites.js");
 const { createRhizosphereBackdrop } = __require("src/render/rhizosphere-backdrop.js");
 const { createRhizosphereParallax } = __require("src/render/rhizosphere-parallax.js");
+const { createPlayerAfflictions } = __require("src/render/player-afflictions.js");
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
   const parse = color => [
@@ -46418,6 +46561,7 @@ function createRenderer({
     storage: (() => { try { return window.localStorage; } catch (_) { return null; } })(),
   });
   const sprite = skin?.states ? createPlayerSprite(skin) : null;
+  const afflictions = createPlayerAfflictions();
 
   function roundedRect(x, y, w, h, r) {
     ctx.beginPath();
@@ -46833,42 +46977,6 @@ function createRenderer({
     ctx.restore();
   }
 
-  function drawFungalAttachment(player, time) {
-    const infection = clamp(Math.max(player.infection || 0, player.fungalContamination || 0), 0, 1);
-    if (infection < .06) return;
-    const opportunisticContact = clamp(Math.max(
-      player.fungalAttachmentLevel || 0,
-      (player.fungalContamination || 0) * .82,
-    ), 0, 1);
-    const count = 2 + Math.floor((opportunisticContact || infection) * 7);
-    ctx.save();
-    ctx.globalAlpha = .24 + infection * .58;
-    ctx.strokeStyle = infection > .7 ? '#ff657f' : '#c86b85';
-    ctx.fillStyle = infection > .7 ? '#8e2949' : '#71334f';
-    ctx.lineWidth = .8 + infection * .9;
-    for (let i = 0; i < count; i++) {
-      const seed = i * 1.73;
-      const x = -9 + ((i * 7) % 19);
-      const y = -4 + ((i * 9) % 23);
-      const radius = .8 + (i % 3) * .4 + infection * .45;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      if (i % 2 === 0 && opportunisticContact > .04) {
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.quadraticCurveTo(
-          x + Math.sin(time * 2 + seed) * 4,
-          y - 3 - opportunisticContact * 4,
-          x + Math.cos(time + seed) * (5 + opportunisticContact * 5),
-          y + Math.sin(seed) * 4,
-        );
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-  }
-
   function drawPlayer() {
     const player = state.player;
     const time = state.time;
@@ -46887,29 +46995,19 @@ function createRenderer({
     // astronauta, e precisa aparecer em qualquer personagem.
     if (!sprite?.draw(ctx, player, time, state.gameState)) drawAstronautBody(player);
 
-    drawFungalAttachment(player, time);
     // The WebGL bridge extracts the body into a later GPU pass. Keep equipment
     // painted after that body too, rather than hiding its gauge behind the bag.
-    if (typeof ctx.__glPlayerEquipment === 'function') {
-      ctx.__glPlayerEquipment(target => drawJetpack(player, time, target));
-    } else drawJetpack(player, time, ctx);
-
-    if (player.canPhosphateSolubilization) {
-      ctx.shadowBlur = 16;
-      ctx.shadowColor = '#df91ff';
-      ctx.fillStyle = '#df91ff';
-      ctx.beginPath();
-      ctx.arc(15, -2, 3 + (player.phosphateCharge || 0) * 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-
-    if ((player.nematodeLoad || 0) >= 2) {
-      ctx.fillStyle = '#ffd7a0';
-      ctx.font = '800 8px Inter,system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText('DASH BLOQUEADO', 0, -36);
-    }
+    // Hifas, J2 agarrado e o icone de dash bloqueado vao na MESMA passada: antes
+    // ficavam atras do corpo no 2,5D (so apareciam as pontinhas).
+    const juveniles = state.level?.nematodeJuveniles || [];
+    const overlay = target => {
+      drawJetpack(player, time, target);
+      afflictions.draw(target, player, time, juveniles);
+    };
+    if (typeof ctx.__glPlayerEquipment === 'function') ctx.__glPlayerEquipment(overlay);
+    else overlay(ctx);
+    // A bola de luz do pulso solubilizador (carga e disparo) e desenhada pelo
+    // sistema de fosfato, na mao do Miguelito.
     ctx.restore();
   }
 
@@ -48854,6 +48952,241 @@ function createRhizosphereParallax({
   };
 }
 Object.assign(__exports, { BIOLOGICAL_PARALLAX_KEY, RHIZOSPHERE_PARALLAX_FACTORS, calculateFilamentGeometry, createRhizosphereParallax });
+},
+"src/render/player-afflictions.js": (__exports, __require) => {
+// O que esta grudado no Miguelito, desenhado POR CIMA do corpo (no 2,5D o corpo
+// vai para a GPU e e desenhado depois; por isso isto entra na mesma passada da
+// mochila). Coordenadas locais: origem no centro do jogador, x ja espelhado
+// pelo facing. So desenho: contaminacao, carga de J2 e dano vem dos sistemas.
+//
+// - Contaminacao fungica: hifas rosadas sobem dos pes conforme a porcentagem;
+//   acima de ~40% caem esporos e fica uma trilha grudenta curta; ao limpar, as
+//   hifas secam e caem em pedacos.
+// - J2 carregado: um juvenil pequeno, curvado, com a cabeca enterrada na perna
+//   e o corpo se contorcendo; vermelho quando ja esta causando dano.
+// - Dash bloqueado: icone em vez do texto.
+
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const hash = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+
+function createPlayerAfflictions() {
+  let shown = 0;            // contaminacao desenhada (acompanha a real)
+  let lastTime = null;
+  let trailTimer = 0;
+  const fragments = [];     // pedacos de hifa seca caindo (mundo)
+  const trail = [];         // manchas grudentas no chao (mundo)
+
+  function step(player, time) {
+    const dt = lastTime === null ? 0 : clamp(time - lastTime, 0, .1);
+    lastTime = time;
+    const c = clamp(player.fungalContamination || 0, 0, 1);
+    const cx = player.x + player.w / 2;
+    const cy = player.y + player.h / 2;
+    // limpou: as hifas que sumiram secam e caem
+    if (c < shown - .06) {
+      const n = Math.min(14, Math.round((shown - c) * 26));
+      for (let i = 0; i < n; i++) {
+        fragments.push({
+          x: cx + (Math.random() - .5) * 20,
+          y: cy + 20 - Math.random() * (10 + shown * 46),
+          vx: (Math.random() - .5) * 50,
+          vy: -20 - Math.random() * 40,
+          rot: Math.random() * TAU,
+          spin: (Math.random() - .5) * 8,
+          len: 4 + Math.random() * 6,
+          life: .9 + Math.random() * .5,
+          max: 1.4,
+        });
+      }
+    }
+    shown += (c - shown) * clamp(dt * 6, 0, 1);
+    for (const f of fragments) {
+      f.life -= dt; f.vy += 220 * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.spin * dt;
+    }
+    for (let i = fragments.length - 1; i >= 0; i--) if (fragments[i].life <= 0) fragments.splice(i, 1);
+    // trilha grudenta ao andar contaminado
+    for (const m of trail) m.life -= dt;
+    for (let i = trail.length - 1; i >= 0; i--) if (trail[i].life <= 0) trail.splice(i, 1);
+    trailTimer -= dt;
+    if (c > .4 && player.onGround && Math.abs(player.vx || 0) > 40 && trailTimer <= 0) {
+      trailTimer = .11;
+      trail.push({ x: cx + (Math.random() - .5) * 8, y: player.y + player.h, life: 1.6, size: 4 + c * 5 });
+      if (trail.length > 24) trail.shift();
+    }
+    return { c: shown, cx, cy };
+  }
+
+  // Hifas como rede que envolve o corpo: cada uma nasce nos pes/pernas e
+  // caminha para cima mudando de direcao (passeio aleatorio fixo por indice),
+  // com ramos curtos. O comprimento cresce com a contaminacao.
+  function drawHyphae(ctx, c, time) {
+    if (c < .04) return;
+    const n = Math.round(4 + c * 10);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < n; i++) {
+      const steps = 3 + Math.round(c * 9 * (.6 + .4 * hash(i + 9)));
+      let x = -10 + hash(i + 1) * 20;
+      let y = 22 - hash(i + 2) * 8;
+      let ang = -Math.PI / 2 + (hash(i + 3) - .5) * 1.2;
+      const pts = [[x, y]];
+      for (let k = 0; k < steps; k++) {
+        ang += (hash(i * 31 + k * 7) - .5) * 1.3 + Math.sin(time * 1.3 + i + k) * .05;
+        ang = clamp(ang, -Math.PI + .35, -.35); // sempre subindo, de lado
+        const len = 4 + hash(i * 13 + k) * 3;
+        x = clamp(x + Math.cos(ang) * len, -14, 14);
+        y = Math.max(-34, y + Math.sin(ang) * len);
+        pts.push([x, y]);
+      }
+      const path = () => {
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let k = 1; k < pts.length - 1; k++) {
+          const mx = (pts[k][0] + pts[k + 1][0]) / 2, my = (pts[k][1] + pts[k + 1][1]) / 2;
+          ctx.quadraticCurveTo(pts[k][0], pts[k][1], mx, my);
+        }
+        const last = pts[pts.length - 1];
+        ctx.lineTo(last[0], last[1]);
+      };
+      ctx.globalAlpha = .55 + c * .4;
+      ctx.strokeStyle = 'rgba(70,24,48,.85)'; ctx.lineWidth = 2.1; path(); ctx.stroke();
+      ctx.strokeStyle = c > .7 ? '#ff9cc0' : '#f4b2cd'; ctx.lineWidth = .95; path(); ctx.stroke();
+      // ramos curtos
+      for (let k = 2; k < pts.length - 1; k += 3) {
+        if (hash(i * 17 + k) < .45) continue;
+        const [bx, by] = pts[k];
+        const dir = hash(i * 5 + k) < .5 ? -1 : 1;
+        ctx.strokeStyle = '#f4b2cd'; ctx.lineWidth = .8;
+        ctx.beginPath(); ctx.moveTo(bx, by);
+        ctx.quadraticCurveTo(bx + dir * 3, by - 1.5, bx + dir * 5.5, by - 4 + Math.sin(time * 2 + i + k) * .6);
+        ctx.stroke();
+      }
+      if (i % 3 === 0) {
+        const last = pts[pts.length - 1];
+        ctx.fillStyle = '#ffd1e2';
+        ctx.beginPath(); ctx.arc(last[0], last[1], 1 + c * .7, 0, TAU); ctx.fill();
+      }
+    }
+    // penugem: pontinhos de micelio no corpo quando a contaminacao e alta
+    if (c > .5) {
+      ctx.fillStyle = '#f7c4d8';
+      const k = Math.round((c - .5) * 40);
+      for (let s = 0; s < k; s++) {
+        ctx.globalAlpha = .35 + .3 * Math.sin(time * 2 + s);
+        ctx.beginPath(); ctx.arc(-12 + hash(s + 40) * 24, -26 + hash(s + 50) * 46, .9, 0, TAU); ctx.fill();
+      }
+    }
+    // esporos caindo do corpo
+    if (c > .4) {
+      const k = Math.round((c - .4) * 10) + 2;
+      for (let s = 0; s < k; s++) {
+        const ph = (time * .8 + hash(s + 20)) % 1;
+        ctx.globalAlpha = (1 - ph) * .85;
+        ctx.fillStyle = s % 2 ? '#e58fb0' : '#c86b85';
+        ctx.beginPath(); ctx.arc(-8 + hash(s + 30) * 16, -12 + ph * 38, 1.4, 0, TAU); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawWorldBits(ctx, player, cx, cy) {
+    const facing = player.facing || 1;
+    const local = (x, y) => [(x - cx) * facing, y - cy];
+    ctx.save();
+    for (const m of trail) {
+      const [x, y] = local(m.x, m.y);
+      ctx.globalAlpha = clamp(m.life / 1.6, 0, 1) * .55;
+      ctx.fillStyle = '#d97aa2';
+      ctx.beginPath(); ctx.ellipse(x, y - 1, m.size, m.size * .32, 0, 0, TAU); ctx.fill();
+    }
+    for (const f of fragments) {
+      const [x, y] = local(f.x, f.y);
+      ctx.globalAlpha = clamp(f.life / .5, 0, 1);
+      ctx.strokeStyle = '#8a6248';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(x - Math.cos(f.rot) * f.len / 2, y - Math.sin(f.rot) * f.len / 2);
+      ctx.lineTo(x + Math.cos(f.rot) * f.len / 2, y + Math.sin(f.rot) * f.len / 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // J2 agarrado: cabeca enterrada na perna (com o estilete), corpo curvado
+  // saindo e se contorcendo.
+  function drawLatchedJ2(ctx, slot, time, harmful) {
+    const ax = slot ? -5 : 5;
+    const ay = slot ? 9 : 17;
+    const side = slot ? -1 : 1;
+    const w = Math.sin(time * 9 + slot * 2);
+    const w2 = Math.sin(time * 9 + slot * 2 + 1.4);
+    // sai de lado da perna e a cauda se debate para fora (nao pendura ate o chao)
+    const p1 = [ax + side * 6, ay - 2];
+    const p2 = [ax + side * (11 + w2 * 1.5), ay + 1 + w * 3];
+    const p3 = [ax + side * (15 + w * 2), ay + 5 + w2 * 3.5];
+    ctx.save();
+    ctx.lineCap = 'round';
+    // furo na perna e estilete
+    ctx.fillStyle = '#6b2a2a';
+    ctx.beginPath(); ctx.arc(ax, ay, 1.6, 0, TAU); ctx.fill();
+    const body = width => {
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.bezierCurveTo(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1]);
+      ctx.stroke();
+    };
+    if (harmful) {
+      ctx.globalAlpha = .45 + .25 * Math.sin(time * 8);
+      ctx.strokeStyle = '#ff4d6d'; body(6.2);
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = '#5e4a36'; body(4.2);
+    ctx.strokeStyle = '#cdb68f'; body(2.6);
+    // aneis do corpo
+    ctx.strokeStyle = 'rgba(123,98,72,.6)';
+    ctx.lineWidth = .7;
+    for (let i = 1; i <= 4; i++) {
+      const t = i / 5;
+      const u = 1 - t;
+      const x = u * u * u * ax + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0];
+      const y = u * u * u * ay + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1];
+      ctx.beginPath(); ctx.arc(x, y, 1.2, 0, TAU); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawDashBlocked(ctx, time) {
+    ctx.save();
+    ctx.translate(0, -60 + Math.sin(time * 4) * 1.5);
+    ctx.globalAlpha = .95;
+    ctx.fillStyle = 'rgba(40,16,18,.75)';
+    ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#ffd7a0'; ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-5, -3); ctx.lineTo(-1, 0); ctx.lineTo(-5, 3);
+    ctx.moveTo(0, -3); ctx.lineTo(4, 0); ctx.lineTo(0, 3);
+    ctx.stroke();
+    ctx.strokeStyle = '#ff5a6e'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-6.5, 6.5); ctx.lineTo(6.5, -6.5); ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Desenha tudo; `ctx` ja esta no centro do jogador, escalado pelo facing. */
+  function draw(ctx, player, time, juveniles = []) {
+    const { c, cx, cy } = step(player, time);
+    drawWorldBits(ctx, player, cx, cy);
+    drawHyphae(ctx, c, time);
+    const carried = juveniles.filter(j => j.alive && j.carriedByPlayer);
+    carried.slice(0, 2).forEach((j, i) => drawLatchedJ2(ctx, j.carrySlot ?? i, time, (j.carryTime || 0) > 5.5));
+    if ((player.nematodeLoad || 0) >= 2) drawDashBlocked(ctx, time);
+  }
+
+  return { draw };
+}
+Object.assign(__exports, { createPlayerAfflictions });
 },
 "experimental/2_5d/gl/layer-switch.js": (__exports, __require) => {
 // Comutador de camadas para o modo 2,5D (sem dependencia de Three.js).

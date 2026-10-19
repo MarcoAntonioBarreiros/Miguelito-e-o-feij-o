@@ -1100,6 +1100,16 @@ export function createRenderer25D({ mainCanvas, state, getAgents = () => null, g
         pushLight(zone.x, -(zone.y - zone.radius * .55), 260, zone.radius * 1.9, 1.0, .64, .46, 1.3 * zone.intensity, 0, 150, false, 'calm' + i);
       }
     }
+    // pulso solubilizador: a bola de luz ilumina por onde passa (e na mao,
+    // enquanto carrega)
+    (level.phosphateShots || []).forEach((shot, i) => {
+      pushLight(shot.x, -shot.y, 50, 240 + (shot.charge || 0) * 140, .9, .6, 1.0, 1.5, 0, 80, false, 'ps' + i);
+    });
+    if (player && (player.phosphateCharge || 0) > 0) {
+      const hx = player.x + player.w / 2 + (player.facing || 1) * 18;
+      const hy = player.y + player.h * .45;
+      pushLight(hx, -hy, 40, 120 + player.phosphateCharge * 120, .9, .62, 1.0, .6 + player.phosphateCharge * .9, 0, 85, false, 'pc');
+    }
     lights.sort((a, b) => b.key - a.key);
     const n = Math.min(MAX_LIGHTS, lights.length);
     shared.uLightCount.value = n;
