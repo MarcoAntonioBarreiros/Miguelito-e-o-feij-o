@@ -2,9 +2,9 @@
 //
 // Um tunel de verdade: chao e teto baixo dos dois lados, e no meio dele um vao
 // de zona hostil. A mecanica e ANDA -> DASH -> ANDA (ou anda -> propulsor ->
-// anda): o teto fica a 4 px da cabeca do Miguelito, entao dentro do tunel nao
-// ha pulo; o Dash, horizontal, cruza o vao; o propulsor encosta no teto e
-// desliza de lado.
+// anda): o teto fica 12 px acima da cabeca e, sob ele, o salto duplo nao
+// funciona (physics.js, underLowTunnel); o Dash, horizontal, cruza o vao; o
+// propulsor encosta no teto e desliza de lado.
 //
 // Calibrado na fisica do jogo (mesmo simulador), chao dos dois lados na mesma
 // altura ou a chegada ate 8 px mais baixa, teto 52 px acima do chao:
@@ -25,9 +25,9 @@ import { getPhaseManifest, getSegmentAt } from './campaign-manifest.js';
 import { isIntentionalDynamicCrossing } from './generator.js';
 
 export const LOW_TUNNEL = Object.freeze({
-  clearance: 52,          // da base do teto ao chao (Miguelito: 48)
+  clearance: 60,          // da base do teto ao chao (Miguelito: 48; 12 px de folga)
   gap: 136,               // vao dentro do tunel
-  minPairGap: 130,        // vao original minimo do par da rota
+  minPairGap: 124,        // vao original minimo do par da rota
   maxLedge: 200,          // maior beirada que o tunel pode criar
   entryCover: 170,        // chao coberto antes do vao
   minEntryCover: 100,
@@ -83,12 +83,12 @@ function chunkAllowed(phase, chunk) {
 // andando passa em 10-19 de 19 pontos de disparo; propulsor 6 de 6.
 export function tunnelGapFor(dy) {
   if (dy < -LOW_TUNNEL.maxRise) return null;
-  if (dy <= 2) return 136;
-  if (dy <= 8) return 144;
-  if (dy <= 16) return 152;
-  if (dy <= 24) return 160;
-  if (dy <= 32) return 170;
-  if (dy <= LOW_TUNNEL.maxDrop) return 180;
+  if (dy <= 2) return 128;
+  if (dy <= 8) return 136;
+  if (dy <= 16) return 144;
+  if (dy <= 24) return 152;
+  if (dy <= 32) return 162;
+  if (dy <= LOW_TUNNEL.maxDrop) return 172;
   return null;
 }
 

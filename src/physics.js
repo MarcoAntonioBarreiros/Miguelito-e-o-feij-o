@@ -4,6 +4,15 @@ import { microbeEncounters } from './data/microbes.js';
 import { recordPhaseObjectiveAction } from './procgen/campaign-objective-progress.js';
 import { unlockCampaignFeature } from './procgen/campaign-progression.js';
 import { cancelJetpack } from './player.js';
+
+// Sob o teto de um tunel baixo (low-tunnels.js) o salto duplo nao funciona: nao
+// ha onde subir. O tunel e anda -> Dash -> anda (ou propulsor).
+function underLowTunnel(level, player) {
+  for (const d of level.ceilingDrops || []) {
+    if (player.x + player.w > d.x && player.x < d.x + d.w && player.y < d.y + d.h + 140) return true;
+  }
+  return false;
+}
 import {
   HOVER_HOLD_SECONDS,
   JETPACK_CONFIG,
@@ -324,7 +333,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
         if (audio.canPlayJump?.() !== false) {
           audio.playFx?.('playerJump', { gain: 1, rate: 1 });
         }
-      } else if (player.jumpBuffer > 0 && player.canDoubleJump && player.airJumpAvailable) {
+      } else if (player.jumpBuffer > 0 && player.canDoubleJump && player.airJumpAvailable && !underLowTunnel(level, player)) {
         player.vy = -445 * jumpMultiplier;
         player.jumpBuffer = 0;
         player.airJumpAvailable = false;

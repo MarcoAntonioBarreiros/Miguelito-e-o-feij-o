@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"d86c2eb","subject":"Radar de patogenos: sinais na borda da tela para Ralstonia (chegada e fo","builtAt":"2026-10-19 01:37"};
+window.__BEANS_BUILD__ = {"commit":"155fc00","subject":"Tunel baixo procedural (fase 4 em diante): bloco de terra comprido com t","builtAt":"2026-10-19 01:44"};
 (() => {
 'use strict';
 const __modules = {
@@ -7711,6 +7711,14 @@ const { microbeEncounters } = __require("src/data/microbes.js");
 const { recordPhaseObjectiveAction } = __require("src/procgen/campaign-objective-progress.js");
 const { unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");
 const { cancelJetpack } = __require("src/player.js");
+// Sob o teto de um tunel baixo (low-tunnels.js) o salto duplo nao funciona: nao
+// ha onde subir. O tunel e anda -> Dash -> anda (ou propulsor).
+function underLowTunnel(level, player) {
+  for (const d of level.ceilingDrops || []) {
+    if (player.x + player.w > d.x && player.x < d.x + d.w && player.y < d.y + d.h + 140) return true;
+  }
+  return false;
+}
 const { HOVER_HOLD_SECONDS, JETPACK_CONFIG, applyJetpackThrust, canActivateJetpack, isJetpackRechargeRoot, jetpackChargeCapFromRootHealth, jetpackConsumptionStep, jetpackRechargeMultiplierForRoot, jetpackRechargeStep, rootHealthForJetpack } = __require("src/player-jetpack.js");
 function createPhysicsSystem({ state, input, entities, hud, audio }) {
   // Rotação das três variações de coleta de exsudato (Pacote 03). Contador, não
@@ -8019,7 +8027,7 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
         if (audio.canPlayJump?.() !== false) {
           audio.playFx?.('playerJump', { gain: 1, rate: 1 });
         }
-      } else if (player.jumpBuffer > 0 && player.canDoubleJump && player.airJumpAvailable) {
+      } else if (player.jumpBuffer > 0 && player.canDoubleJump && player.airJumpAvailable && !underLowTunnel(level, player)) {
         player.vy = -445 * jumpMultiplier;
         player.jumpBuffer = 0;
         player.airJumpAvailable = false;
@@ -53095,9 +53103,9 @@ Object.assign(__exports, { drawThreatRadar });
 //
 // Um tunel de verdade: chao e teto baixo dos dois lados, e no meio dele um vao
 // de zona hostil. A mecanica e ANDA -> DASH -> ANDA (ou anda -> propulsor ->
-// anda): o teto fica a 4 px da cabeca do Miguelito, entao dentro do tunel nao
-// ha pulo; o Dash, horizontal, cruza o vao; o propulsor encosta no teto e
-// desliza de lado.
+// anda): o teto fica 12 px acima da cabeca e, sob ele, o salto duplo nao
+// funciona (physics.js, underLowTunnel); o Dash, horizontal, cruza o vao; o
+// propulsor encosta no teto e desliza de lado.
 //
 // Calibrado na fisica do jogo (mesmo simulador), chao dos dois lados na mesma
 // altura ou a chegada ate 8 px mais baixa, teto 52 px acima do chao:
@@ -53116,9 +53124,9 @@ const { createRandom } = __require("src/procgen/random.js");
 const { getPhaseManifest, getSegmentAt } = __require("src/procgen/campaign-manifest.js");
 const { isIntentionalDynamicCrossing } = __require("src/procgen/generator.js");
 const LOW_TUNNEL = Object.freeze({
-  clearance: 52,          // da base do teto ao chao (Miguelito: 48)
+  clearance: 60,          // da base do teto ao chao (Miguelito: 48; 12 px de folga)
   gap: 136,               // vao dentro do tunel
-  minPairGap: 130,        // vao original minimo do par da rota
+  minPairGap: 124,        // vao original minimo do par da rota
   maxLedge: 200,          // maior beirada que o tunel pode criar
   entryCover: 170,        // chao coberto antes do vao
   minEntryCover: 100,
@@ -53174,12 +53182,12 @@ function chunkAllowed(phase, chunk) {
 // andando passa em 10-19 de 19 pontos de disparo; propulsor 6 de 6.
 function tunnelGapFor(dy) {
   if (dy < -LOW_TUNNEL.maxRise) return null;
-  if (dy <= 2) return 136;
-  if (dy <= 8) return 144;
-  if (dy <= 16) return 152;
-  if (dy <= 24) return 160;
-  if (dy <= 32) return 170;
-  if (dy <= LOW_TUNNEL.maxDrop) return 180;
+  if (dy <= 2) return 128;
+  if (dy <= 8) return 136;
+  if (dy <= 16) return 144;
+  if (dy <= 24) return 152;
+  if (dy <= 32) return 162;
+  if (dy <= LOW_TUNNEL.maxDrop) return 172;
   return null;
 }
 

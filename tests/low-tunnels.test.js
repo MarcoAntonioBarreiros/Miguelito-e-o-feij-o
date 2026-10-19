@@ -81,7 +81,7 @@ for (const pairGap of [136, 246, 300]) {
       assert.equal(Math.round(drops[0].exitX - drops[0].entryX), Math.min(pairGap, tunnelGapFor(dy)), 'vao dentro do tunel');
       const sim = createSimulator();
       let jumps = 0;
-      for (let at = -12; at <= 50; at += 6) for (const hold of [1, 3, 6, 12]) for (const dj of [null, 4, 8, 14]) {
+      for (let at = -12; at <= 50; at += 6) for (const hold of [1, 3, 6, 12]) for (const dj of [null, 4, 8, 14, 20]) {
         if (cross(sim, level, { at, jump: 0, hold, dj })) jumps++;
       }
       assert.equal(jumps, 0, `${jumps} pulos atravessaram`);
