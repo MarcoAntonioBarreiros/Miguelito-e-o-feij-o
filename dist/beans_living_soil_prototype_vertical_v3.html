@@ -1108,7 +1108,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"5617381","subject":"Remove o diagnostico temporario do biofilme (linha no painel, botao da p","builtAt":"2026-10-19 15:21"};
+window.__BEANS_BUILD__ = {"commit":"fd1bf3a","subject":"Mescla: micelio organico do fungo oportunista (GPT, aprovado)","builtAt":"2026-10-19 16:44"};
 (() => {
 'use strict';
 const __modules = {
@@ -8091,7 +8091,8 @@ function createSimulator({
     ecology,
     inoculants: beneficialInoculants,
   });
-  const opportunisticFungus = createOpportunisticFungus({ state, entities, ecology });
+  const opportunisticFungus = createOpportunisticFungus({ state, entities, ecology, mycoparasitism: trichoderma });
+  trichoderma.setTargetVisualProvider?.(targetId => opportunisticFungus.contactPaths(targetId));
   const bacillusBioprotection = createBacillusBioprotection({
     state,
     entities,
@@ -14437,10 +14438,13 @@ function renderHyphalNetwork(ctx, network, state, style = {}) {
   ctx.lineJoin = 'round';
 
   for (const tip of network.tips) {
-    if (tip.points.length < 2) continue;
+    // Optional presentation hooks do not modify the mechanical point array.
+    // Existing callers retain exactly the same default rendering.
+    const points = style.pointProvider ? style.pointProvider(tip, network) : tip.points;
+    if (!points || points.length < 2) continue;
     const alpha = (tip.active ? .9 : .5) * fade;
     ctx.beginPath();
-    tip.points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+    points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
     ctx.shadowBlur = style.shadowBlur ?? 12;
     ctx.shadowColor = color;
     ctx.strokeStyle = colorWithAlpha(color, alpha * .28);
@@ -14450,18 +14454,18 @@ function renderHyphalNetwork(ctx, network, state, style = {}) {
     ctx.strokeStyle = colorWithAlpha(core, alpha);
     ctx.lineWidth = Math.max(.7, (style.coreWidth || profile.coreWidth) - tip.depth * .22);
     ctx.stroke();
-    if (tip.active) {
+    if (tip.active && (!style.showTip || style.showTip(tip, network))) {
       ctx.shadowBlur = style.tipBlur ?? 16;
       ctx.shadowColor = color;
       ctx.fillStyle = tipColor;
       ctx.beginPath();
-      ctx.arc(tip.x, tip.y, 2.7 + Math.sin(state.time * 5 + tip.seed) * .65, 0, TAU);
+      ctx.arc(tip.x, tip.y, style.tipRadius ?? (2.7 + Math.sin(state.time * 5 + tip.seed) * .65), 0, TAU);
       ctx.fill();
       ctx.shadowBlur = 0;
     }
   }
 
-  for (const enzyme of network.enzymes) {
+  for (const enzyme of style.showEnzymes === false ? [] : network.enzymes) {
     ctx.globalAlpha = clamp(enzyme.life, 0, 1) * fade;
     const gradient = ctx.createRadialGradient(enzyme.x, enzyme.y, 0, enzyme.x, enzyme.y, enzyme.r);
     gradient.addColorStop(0, 'rgba(186,246,111,.36)');
@@ -14469,7 +14473,7 @@ function renderHyphalNetwork(ctx, network, state, style = {}) {
     ctx.fillStyle = gradient;
     ctx.beginPath(); ctx.arc(enzyme.x, enzyme.y, enzyme.r, 0, TAU); ctx.fill();
   }
-  for (const fragment of network.fragments) {
+  for (const fragment of style.showFragments === false ? [] : network.fragments) {
     ctx.globalAlpha = clamp(fragment.life, 0, 1) * fade;
     ctx.fillStyle = fragment.color || '#ff8297';
     ctx.beginPath(); ctx.arc(fragment.x, fragment.y, fragment.r || 2.2, 0, TAU); ctx.fill();
@@ -15482,6 +15486,7 @@ const { clamp, createHyphalNetwork, renderHyphalNetwork, TAU, updateHyphalNetwor
 const { fxLanded } = __require("src/game-audio.js");
 const { narrate } = __require("src/procgen/narrator.js");
 const { hyphalWorldBounds } = __require("src/procgen/world-bounds.js");
+const { drawOpportunisticMycoparasitism, opportunisticSearchPath } = __require("src/render/opportunistic-mycoparasitism.js");
 function nearestPointOnRect(x, y, rect) {
   return { x: clamp(x, rect.x, rect.x + rect.w), y: clamp(y, rect.y, rect.y + rect.h) };
 }
@@ -15513,6 +15518,7 @@ function createTrichodermaGrowth({ state, entities, ecology, colonies }) {
   const naturalGerminationRadius = 190;
   const maxActiveNetworks = 6;
   let lastExhaustionToastAt = -Infinity;
+  let targetVisualProvider = null;
 
   function releaseColony(network, { reward = 0, cooldown = 1.4, stage = 'ready' } = {}) {
     const colony = colonies.byId(network?.metadata?.colonyId);
@@ -15944,44 +15950,29 @@ function createTrichodermaGrowth({ state, entities, ecology, colonies }) {
     }
   }
 
-  function renderTargetStatus(ctx, network) {
-    const target = byAgentId(ecology.agents, network.metadata.targetId);
-    if (!target) return;
-    const contact = network.metadata.contact;
-    const lysis = network.metadata.lysis;
-    ctx.save();
-    ctx.translate(-state.cameraX, 0);
-    const pulse = 1 + Math.sin(state.time * 3.4 + network.metadata.phase) * .06;
-    ctx.strokeStyle = `rgba(141,240,168,${.18 + contact * .62})`;
-    ctx.lineWidth = 1.2 + contact * 2.2;
-    ctx.setLineDash([3, 6]);
-    ctx.beginPath();
-    ctx.arc(target.x, target.y, (18 + lysis * 18) * pulse, 0, TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    const coils = 2 + Math.floor(contact * 7);
-    for (let i = 0; i < coils; i++) {
-      const angle = state.time * (2.8 + i * .08) + network.metadata.phase + i / coils * TAU;
-      const radius = 11 + i * 2.3;
-      ctx.strokeStyle = `rgba(141,240,168,${.2 + contact * .62})`;
-      ctx.lineWidth = 1.15;
-      ctx.beginPath();
-      ctx.ellipse(target.x + Math.cos(angle) * 2.5, target.y + Math.sin(angle) * 1.8, radius, radius * .58, angle * .2, angle, angle + Math.PI * 1.5);
-      ctx.stroke();
-    }
-    ctx.restore();
+  function renderTargetStatus(ctx, network, substrate) {
+    if (!substrate) return;
+    drawOpportunisticMycoparasitism(ctx, substrate, network, state);
   }
 
   function render(ctx) {
     for (const network of networks.values()) {
+      const target = byAgentId(ecology.agents, network.metadata.targetId);
+      const substrate = targetVisualProvider?.(network.metadata.targetId) || null;
       renderHyphalNetwork(ctx, network, state, {
-        color: '#8df0a8', core: '#eaffef', tip: '#ffffff', shadowBlur: 14,
+        color: '#718d62', core: '#c1d4a5', tip: '#dce8c9',
+        shadowBlur: 0, tipBlur: 0, haloWidth: 2.7, coreWidth: 1.15, tipRadius: 1.45,
+        pointProvider: tip => opportunisticSearchPath(tip, target, substrate),
+        showTip: tip => tip.mode !== 'coil',
+        showEnzymes: false, showFragments: false,
       });
-      renderTargetStatus(ctx, network);
+      renderTargetStatus(ctx, network, substrate);
     }
   }
 
   return {
+    get networks() { return [...networks.values()]; },
+    setTargetVisualProvider(provider) { targetVisualProvider = typeof provider === 'function' ? provider : null; },
     get attackCount() { return activeNetworkCount(); },
     get searchCount() { return searchNetworks().length; },
     get vigorAverage() { return colonies.vigorAverage; },
@@ -15995,6 +15986,127 @@ function createTrichodermaGrowth({ state, entities, ecology, colonies }) {
   };
 }
 Object.assign(__exports, { createTrichodermaGrowth });
+},
+"src/render/opportunistic-mycoparasitism.js": (__exports, __require) => {
+// Read-only projection of Trichoderma's real contact and lysis onto the
+// opportunist's persistent hyphae. Geometry never advances on a visual clock.
+const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
+const TAU = Math.PI * 2;
+
+function measuredPath(points) {
+  const distances = [0];
+  for (let index = 1; index < points.length; index++) {
+    distances.push(distances[index - 1] + Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y));
+  }
+  return { points, distances, length: distances[distances.length - 1] || 0 };
+}
+
+function atDistance(path, distance) {
+  let end = 1;
+  while (end < path.distances.length - 1 && path.distances[end] < distance) end++;
+  const a = path.points[end - 1], b = path.points[end];
+  const span = Math.max(.001, path.distances[end] - path.distances[end - 1]);
+  const t = clamp((distance - path.distances[end - 1]) / span);
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const length = Math.max(.001, Math.hypot(dx, dy));
+  return { x: a.x + dx * t, y: a.y + dy * t, nx: -dy / length, ny: dx / length };
+}
+
+/** A bounded helix follows each living substrate; contact pays for its extent. */
+function buildOpportunisticCoils(network, contact, phase = 0, lysis = 0) {
+  if (!network?.paths?.length || !(contact > 0)) return [];
+  const coils = [];
+  const paths = network.paths.filter(path => path.points?.length > 1 && (path.integrity ?? 1) > .015).slice(0, 8);
+  for (let index = 0; index < paths.length; index++) {
+    const substrate = paths[index];
+    const path = measuredPath(substrate.points);
+    if (path.length < 2) continue;
+    const extension = clamp(contact * 1.28 - index * .038);
+    const visibleLength = path.length * extension;
+    if (visibleLength < .5) continue;
+    const width = clamp(substrate.width || 1, .4, 3);
+    const radius = .7 + width * .46;
+    const period = 9.5 + index % 4 * 1.4;
+    const steps = Math.min(96, Math.max(2, Math.ceil(visibleLength / 1.7)));
+    const points = [];
+    for (let step = 0; step <= steps; step++) {
+      const distance = visibleLength * step / steps;
+      const p = atDistance(path, distance);
+      const turn = distance / period * TAU + phase + index * 1.73;
+      const taper = Math.min(1, distance / 3, (visibleLength - distance + 1.5) / 3);
+      const offset = Math.sin(turn) * radius * taper;
+      points.push({ x: p.x + p.nx * offset, y: p.y + p.ny * offset, front: Math.cos(turn) > 0 });
+    }
+    const integrity = clamp(substrate.integrity ?? 1);
+    coils.push({
+      points, integrity, width: .65 + width * .15,
+      // Already formed contacts remain attached while the substrate loses
+      // integrity. They fade with real lysis rather than orbiting the sprite.
+      opacity: (.34 + contact * .36) * (.3 + integrity * .7) * (1 - clamp(lysis) * .24),
+    });
+  }
+  return coils;
+}
+
+function drawOpportunisticMycoparasitism(ctx, network, attack, state) {
+  const metadata = attack.metadata || {};
+  if (!metadata.contactLocked && !(metadata.contact > 0)) return;
+  const coils = buildOpportunisticCoils(network, metadata.contact || 0, metadata.phase || 0, metadata.lysis || 0);
+  if (!coils.length) return;
+  const inheritedAlpha = ctx.globalAlpha;
+  const fade = clamp(1 - (attack.fading || 0));
+  ctx.save();
+  ctx.translate(-state.cameraX, 0);
+  ctx.shadowBlur = 0;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const coil of coils) {
+    ctx.globalAlpha = inheritedAlpha * coil.opacity * fade;
+    ctx.strokeStyle = '#6e865c';
+    ctx.lineWidth = coil.width + .6;
+    ctx.beginPath();
+    coil.points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+    ctx.stroke();
+    ctx.strokeStyle = '#c1d4a5';
+    ctx.lineWidth = coil.width;
+    ctx.beginPath();
+    let drawing = false;
+    for (let index = 0; index < coil.points.length; index++) {
+      const point = coil.points[index];
+      if (!point.front) { drawing = false; continue; }
+      if (!drawing) {
+        const previous = coil.points[Math.max(0, index - 1)];
+        ctx.moveTo(previous.x, previous.y);
+        drawing = true;
+      }
+      ctx.lineTo(point.x, point.y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Keep the mechanically grown search stalk, trimming its subsequent orbit. */
+function opportunisticSearchPath(tip, target, substrate) {
+  if (tip.mode !== 'coil') return tip.points;
+  const center = target || substrate?.anchor;
+  if (!center) return [];
+  const points = [];
+  // The contact radius is the existing biological collision threshold (48).
+  // Daughter coils begin inside it and therefore have no aerial search stalk.
+  for (const point of tip.points) {
+    points.push(point);
+    if (Math.hypot(point.x - center.x, point.y - center.y) < 49) break;
+  }
+  if (points.length < 2) return [];
+  const last = points[points.length - 1];
+  const anchor = substrate?.anchor;
+  if (anchor && Math.hypot(last.x - center.x, last.y - center.y) < 49) {
+    points.push({ x: anchor.x, y: anchor.y });
+  }
+  return points;
+}
+Object.assign(__exports, { buildOpportunisticCoils, drawOpportunisticMycoparasitism, opportunisticSearchPath });
 },
 "src/procgen/trichoderma-recruitment.js": (__exports, __require) => {
 const { organismVerticalBounds } = __require("src/procgen/world-bounds.js");
@@ -18174,6 +18286,7 @@ const { organismSprites } = __require("src/render/organism-sprites.js");
 const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const { narrate } = __require("src/procgen/narrator.js");
 const { hyphalWorldBounds } = __require("src/procgen/world-bounds.js");
+const { drawOpportunisticMycelium, forgetOpportunisticVisual, opportunisticContactPaths, opportunisticVisualSnapshot, syncOpportunisticVisual } = __require("src/render/opportunistic-mycelium.js");
 const TAU = Math.PI * 2;
 // Limiar e tempo de sustentação do marco de controle fúngico (fase 5).
 const FUNGUS_CONTROL_THRESHOLD = 0.45;
@@ -18343,7 +18456,7 @@ function targetAngle(from, target) {
   return Math.atan2(target.y - from.y, target.x - from.x);
 }
 
-function createOpportunisticFungus({ state, entities, ecology }) {
+function createOpportunisticFungus({ state, entities, ecology, mycoparasitism = null }) {
   const networks = new Map();
   let contactIntensity = 0;
   let maximumIronLimitation = 0;
@@ -18443,6 +18556,7 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     for (const [key, network] of networks) {
       if (activeKeys.has(key)) continue;
       for (const agent of network.agents) delete agent.rootedFungus;
+      forgetOpportunisticVisual(network);
       networks.delete(key);
     }
   }
@@ -18675,6 +18789,8 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     );
     for (const network of networks.values()) {
       updateNetwork(network, dt, target, settings);
+      // Observe real biology every update, including when the renderer is off.
+      syncOpportunisticVisual(network, state.time, mycoparasitism?.networks || []);
       state.player.fungalAttachmentLevel = Math.max(
         state.player.fungalAttachmentLevel,
         network.attached,
@@ -18752,86 +18868,9 @@ function createOpportunisticFungus({ state, entities, ecology }) {
   }
 
   function drawNetwork(ctx, network) {
-    const response = network.response || { vigor: 1 };
-    const vigor = response.vigor;
-    const green = Math.round(72 + vigor * 45);
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    // Bainha fina: preserva o brilho neon sem transformar as hifas em ponte.
-    ctx.shadowColor = `rgba(255,74,119,${.12 + vigor * .2})`;
-    ctx.shadowBlur = 7 + vigor * 7;
-    for (const segment of network.segments) {
-      const width = Math.max(1.1, (2.35 - segment.depth * .3) * (.58 + vigor * .42));
-      ctx.strokeStyle = `rgba(112,23,54,${.16 + vigor * .18})`;
-      ctx.lineWidth = width + 1.7;
-      ctx.beginPath();
-      ctx.moveTo(segment.start.x, segment.start.y);
-      ctx.lineTo(segment.end.x, segment.end.y);
-      ctx.stroke();
-    }
-
-    ctx.shadowBlur = 4 + vigor * 5;
-    for (const segment of network.segments) {
-      const width = Math.max(.65, (1.55 - segment.depth * .18) * (.52 + vigor * .48));
-      ctx.strokeStyle = `rgba(255,${green},125,${.34 + vigor * .55})`;
-      ctx.lineWidth = width;
-      ctx.beginPath();
-      ctx.moveTo(segment.start.x, segment.start.y);
-      ctx.lineTo(segment.end.x, segment.end.y);
-      ctx.stroke();
-
-      if (segment.depth <= 1 && segment.order % 9 === 0) {
-        const dx = segment.end.x - segment.start.x;
-        const dy = segment.end.y - segment.start.y;
-        const length = Math.max(1, Math.hypot(dx, dy));
-        const nx = -dy / length;
-        const ny = dx / length;
-        ctx.strokeStyle = `rgba(255,210,211,${.22 + vigor * .36})`;
-        ctx.lineWidth = .75;
-        ctx.beginPath();
-        ctx.moveTo(segment.end.x - nx * 3.5, segment.end.y - ny * 3.5);
-        ctx.lineTo(segment.end.x + nx * 3.5, segment.end.y + ny * 3.5);
-        ctx.stroke();
-      }
-    }
-
-    for (const lesion of network.lesions) {
-      if (lesion === network.lesions[0]) continue;
-      const reached = lesion.reached ? 1 : .28;
-      const radius = 2.3 + reached * 2 + Math.sin(state.time * 2 + lesion.phase) * .35;
-      ctx.fillStyle = `rgba(255,92,126,${.22 + reached * .52})`;
-      ctx.shadowColor = 'rgba(255,78,118,.7)';
-      ctx.shadowBlur = lesion.reached ? 8 : 3;
-      ctx.beginPath();
-      ctx.arc(lesion.x, lesion.y, radius, 0, TAU);
-      ctx.fill();
-    }
-
-    for (const tip of network.tips) {
-      if (!tip.active) continue;
-      const radius = 1.5 + vigor * 1.7 + Math.sin(state.time * 4.2 + tip.phase) * .35;
-      ctx.fillStyle = `rgba(255,224,205,${.42 + vigor * .5})`;
-      ctx.shadowColor = 'rgba(255,112,132,.8)';
-      ctx.shadowBlur = 7 * vigor;
-      ctx.beginPath();
-      ctx.arc(tip.x, tip.y, radius, 0, TAU);
-      ctx.fill();
-    }
-
-    ctx.shadowBlur = 0;
-    for (const spore of network.spores) {
-      const alpha = clamp(spore.life / 3.5, .08, .34) * (.3 + vigor * .7);
-      ctx.fillStyle = `rgba(223,181,238,${alpha})`;
-      ctx.beginPath();
-      ctx.arc(spore.x, spore.y, 1.45 + Math.sin(state.time * 1.7 + spore.phase) * .25, 0, TAU);
-      ctx.fill();
-    }
-    ctx.restore();
-    // O foco animado fica na frente da rede: as hifas nascem visualmente
-    // atrás da sheet, sem atravessar o corpo do organismo.
-    drawFocus(ctx, network, vigor);
+    drawOpportunisticMycelium(ctx, network, state, mycoparasitism?.networks || []);
+    // Keep the existing sprite, scale, position and animation unchanged.
+    drawFocus(ctx, network, network.response?.vigor ?? 1);
   }
 
   function drawVigorIndicator(ctx, network) {
@@ -18868,6 +18907,7 @@ function createOpportunisticFungus({ state, entities, ecology }) {
   function clear() {
     for (const network of networks.values()) {
       for (const agent of network.agents) delete agent.rootedFungus;
+      forgetOpportunisticVisual(network);
     }
     networks.clear();
     contactIntensity = 0;
@@ -18891,6 +18931,14 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     clear,
     reset,
     get networks() { return networks; },
+    visualSnapshot(networkOrKey) {
+      const network = typeof networkOrKey === 'object' ? networkOrKey : networks.get(networkOrKey);
+      return network ? opportunisticVisualSnapshot(network, state.time, mycoparasitism?.networks || []) : null;
+    },
+    contactPaths(targetId) {
+      const network = [...networks.values()].find(candidate => candidate.agents.some(agent => agent.id === targetId));
+      return network ? opportunisticContactPaths(network, state.time, mycoparasitism?.networks || []) : null;
+    },
     get contactIntensity() { return contactIntensity; },
     get maximumIronLimitation() { return maximumIronLimitation; },
     // Leitura de HUD/telemetria: o vigor do foco MENOS controlado.
@@ -18911,881 +18959,250 @@ function createOpportunisticFungus({ state, entities, ecology }) {
 }
 Object.assign(__exports, { FUNGUS_CONTROL_THRESHOLD, FUNGUS_CONTROL_HOLD_SECONDS, MAX_HYPHAL_SEGMENTS_PER_FOCUS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, fungalResponse, createOpportunisticFungus });
 },
-"src/procgen/bacillus-bioprotection.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { fxLanded } = __require("src/game-audio.js");
-const { externalControlPressure } = __require("src/procgen/biological-audio-signals.js");
-const { narrate } = __require("src/procgen/narrator.js");
-const { drawBacillusBiofilm } = __require("src/render/bacillus-biofilm.js");
-const TAU = Math.PI * 2;
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-
-function modeLabel(entry) {
-  if (entry.mode === 'adhesion') return 'adesão à superfície';
-  if (entry.mode === 'matrix') return 'matriz do biofilme';
-  if (entry.mode === 'mature') return 'biofilme maduro';
-  if (entry.mode === 'antibiosis') return 'antibiose ativa';
-  if (entry.mode === 'sporulating') return 'esporulação';
-  if (entry.mode === 'spores') return 'endósporos dormentes';
-  if (entry.mode === 'germinating') return 'germinação de endósporos';
-  return 'biofilme';
-}
-
-function isMetabolicallyActive(entry) {
-  return ['adhesion', 'matrix', 'mature', 'antibiosis', 'sporulating', 'germinating'].includes(entry.mode);
-}
-
-function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
-  const colonyStates = new Map();
-  let fungiUnderAntibiosis = 0;
-
-  function bacillusColonies() {
-    return (inoculants.colonies || []).filter(colony => colony.type === 'bacillus');
-  }
-
-  function ensureBiofilm(colony) {
-    const films = state.level.biofilms || (state.level.biofilms = []);
-    let film = colony.linkedBiofilm;
-    if (!film || !films.includes(film)) {
-      film = films.find(candidate => (
-        candidate.inoculated
-        && Math.hypot(candidate.x - colony.x, candidate.y - colony.y) < 120
-      ));
-    }
-    if (!film) {
-      film = {
-        x: colony.x,
-        y: colony.y,
-        radius: 18,
-        targetRadius: 48,
-        growth: 0,
-        age: 0,
-        activated: false,
-        platform: colony.platform,
-        natural: false,
-        inoculated: true,
-      };
-      films.push(film);
-    }
-    colony.linkedBiofilm = film;
-    film.bacillusManaged = true;
-    film.bacillusColonyId = colony.id;
-    return film;
-  }
-
-  function createEntry(colony) {
-    const authoredMature = Boolean(colony.authored && colony.growth >= .95 && !colony.dormant);
-    const entry = {
-      colony,
-      film: ensureBiofilm(colony),
-      mode: authoredMature ? 'mature' : 'adhesion',
-      maturity: authoredMature ? 1 : .08,
-      antibioticReserve: 0,
-      // Nao existe "cepa solubilizadora" separada: e o mesmo Bacillus do
-      // checkpoint. Solubilizar fosfato e mais uma funcao dele quando maduro,
-      // como a antibiose. Uma colonia autoral ja madura comeca com reserva.
-      phosphateMetaboliteReserve: authoredMature ? .7 : 0,
-      sporulation: 0,
-      germination: 0,
-      activePressure: 0,
-      resistanceStrength: 0,
-      sporeCount: 5 + (colony.sourceCount || 1) * 4,
-      announcedMature: false,
-      announcedSpores: false,
-      announcedGermination: false,
-      // Estado de áudio, separado dos toasts.
-      audioInitialized: true,
-      audioPreviousMode: null,
-      audioBiofilmCompleted: authoredMature,
-      phase: Math.random() * TAU,
-    };
-    colony.bacillusState = entry;
-    colonyStates.set(colony.id, entry);
-    // Adesão só em inoculação REAL. Colônia autoral (`colony.authored`) já vem
-    // com o cenário: tocar adesão ao carregar a fase seria som sem evento.
-    if (!colony.authored) {
-      entities?.audio?.play('bacillusAdhesion', { x: colony.x, y: colony.y });
-    }
-    return entry;
-  }
-
-  function removeManagedFilm(entry) {
-    const films = state.level.biofilms || [];
-    const index = films.indexOf(entry.film);
-    if (index >= 0 && entry.film?.bacillusManaged) films.splice(index, 1);
-  }
-
-  function syncColonies() {
-    const current = bacillusColonies();
-    const ids = new Set(current.map(colony => colony.id));
-    for (const colony of current) {
-      let entry = colonyStates.get(colony.id);
-      if (!entry) entry = createEntry(colony);
-      entry.colony = colony;
-      entry.film = ensureBiofilm(colony);
-      colony.bacillusState = entry;
-    }
-    for (const [id, entry] of colonyStates) {
-      if (ids.has(id)) continue;
-      removeManagedFilm(entry);
-      if (entry.colony) entry.colony.bacillusState = null;
-      colonyStates.delete(id);
-    }
-  }
-
-  function clear() {
-    entities?.audio?.stopGroup('bacillus-biofilm');
-    entities?.audio?.stopGroup('bacillus-antibiosis');
-    for (const entry of colonyStates.values()) {
-      if (entry.colony) entry.colony.bacillusState = null;
-      removeManagedFilm(entry);
-    }
-    colonyStates.clear();
-    fungiUnderAntibiosis = 0;
-    state.player.bacillusResistance = 0;
-  }
-
-  function reset() {
-    clear();
-  }
-
-  function configureFilm(entry) {
-    const { colony, film } = entry;
-    if (!film) return;
-    film.platform = colony.platform;
-    film.x = colony.x;
-    film.y = colony.y;
-    film.bacillusMode = entry.mode;
-    film.protectionStrength = entry.resistanceStrength;
-
-    if (entry.mode === 'spores') {
-      film.targetRadius = 0;
-      film.radius = 0;
-      film.growth = 0;
-      film.functional = false;
-      return;
-    }
-
-    const target = 34 + entry.maturity * (48 + (colony.sourceCount || 1) * 6);
-    film.targetRadius = target;
-    film.radius = Math.min(Math.max(film.radius || 0, 8), target + 8);
-    film.growth = Math.max(film.growth || 0, clamp(entry.maturity, .08, 1));
-    film.functional = entry.maturity >= .42 && entry.mode !== 'sporulating';
-  }
-
-  // Único ponto de transição de modo do Bacillus — por isso é aqui que o áudio
-  // entra, e não espalhado pelo ciclo de vida.
-  function enterMode(entry, mode) {
-    if (entry.mode === mode) return;
-    entry.audioPreviousMode = entry.mode;
-    entry.mode = mode;
-    const colony = entry.colony;
-    const audio = entities?.audio;
-    const position = { x: colony.x, y: colony.y };
-
-    if (mode === 'mature' && !entry.audioBiofilmCompleted) {
-      // Só a PRIMEIRA vez que o biofilme fica funcional. Alternar entre
-      // `mature` e `antibiosis` depois disso não é uma nova conclusão.
-      audio?.stopLoop(`bacillus-biofilm:${colony.id}`, { fade: .2 });
-      const entregue = audio
-        ? fxLanded(audio.play('bacillusBiofilmComplete', { ...position, instanceId: colony.id }))
-        : true;
-      if (entregue) entry.audioBiofilmCompleted = true;
-    } else if (mode === 'sporulating') {
-      audio?.play('bacillusSporulation', position);
-    } else if (mode === 'germinating') {
-      // Reconstrução: o ciclo recomeça e a conclusão volta a ser possível.
-      entry.audioBiofilmCompleted = false;
-      audio?.play('bacillusGermination', position);
-    }
-
-    if (mode === 'mature' && !entry.announcedMature) {
-      entry.announcedMature = true;
-      narrate(state, 'bacillus.mature');
-      entities.burst(colony.x, colony.y, '#a8ffe6', 30, 130);
-    } else if (mode === 'spores' && !entry.announcedSpores) {
-      entry.announcedSpores = true;
-      narrate(state, 'bacillus.sporulation');
-      entities.burst(colony.x, colony.y, '#ffe5a0', 24, 95);
-    } else if (mode === 'germinating' && !entry.announcedGermination) {
-      entry.announcedGermination = true;
-      narrate(state, 'bacillus.reactivation');
-      entities.burst(colony.x, colony.y, '#d6ff94', 34, 125);
-    }
-  }
-
-  function updateLifecycle(entry, dt) {
-    const colony = entry.colony;
-    const fuel = clamp(colony.rechargeIntensity || 0, 0, 1);
-    const sourceBoost = 1 + Math.max(0, (colony.sourceCount || 1) - 1) * .12;
-
-    if (entry.mode === 'spores') {
-      colony.stage = modeLabel(entry);
-      colony.dormant = true;
-      colony.vigor = Math.min(colony.vigor, .08);
-      entry.antibioticReserve = Math.max(0, entry.antibioticReserve - dt * .01);
-      entry.phosphateMetaboliteReserve = Math.max(0, entry.phosphateMetaboliteReserve - dt * .008);
-      if (fuel > .08) {
-        colony.dormant = false;
-        colony.vigor = Math.max(colony.vigor, .065);
-        entry.germination = 0;
-        enterMode(entry, 'germinating');
-      }
-      configureFilm(entry);
-      return;
-    }
-
-    if (entry.mode === 'germinating') {
-      colony.dormant = false;
-      entry.germination = clamp(entry.germination + dt * (.14 + fuel * .55) * sourceBoost, 0, 1);
-      entry.maturity = Math.max(.18, entry.germination * .58);
-      colony.stage = modeLabel(entry);
-      if (entry.germination >= 1 && colony.vigor > .1) {
-        entry.maturity = .56;
-        entry.sporulation = 0;
-        entry.antibioticReserve = Math.max(entry.antibioticReserve, .08);
-        entry.announcedSpores = false;
-        entry.announcedGermination = false;
-        enterMode(entry, 'matrix');
-      }
-      configureFilm(entry);
-      return;
-    }
-
-    colony.dormant = false;
-    const growthRate = (.035 + fuel * .095 + colony.vigor * .018) * sourceBoost;
-    if (entry.mode === 'adhesion') {
-      entry.maturity = clamp(entry.maturity + dt * growthRate, 0, 1);
-      if (entry.maturity >= .28) enterMode(entry, 'matrix');
-    } else if (entry.mode === 'matrix') {
-      entry.maturity = clamp(entry.maturity + dt * growthRate * .82, 0, 1);
-      if (entry.maturity >= .72) enterMode(entry, 'mature');
-    } else {
-      entry.maturity = clamp(entry.maturity + dt * growthRate * .18, 0, 1);
-    }
-
-    if (entry.maturity >= .7) {
-      const production = dt * (.009 + fuel * .075 + colony.vigor * .012) * sourceBoost;
-      entry.antibioticReserve = clamp(entry.antibioticReserve + production, 0, 1.25);
-      if (entry.antibioticReserve > .12 && entry.mode === 'mature') enterMode(entry, 'antibiosis');
-    }
-
-
-    // Todo Bacillus maduro e metabolicamente ativo produz os acidos organicos
-    // que solubilizam o fosfato mineral. Nao ha cepa especial.
-    if (entry.maturity >= .72
-      && isMetabolicallyActive(entry)
-      && entry.mode !== 'sporulating') {
-      const config = state.level.phaseProfile?.phosphateSolubilization || {};
-      const baseRate = Number(config.metaboliteProductionRate) || .11;
-      const exudateMultiplier = Number(config.exudateProductionMultiplier) || 2.4;
-      const multiplier = 1 + fuel * Math.max(0, exudateMultiplier - 1);
-      entry.phosphateMetaboliteReserve = clamp(
-        entry.phosphateMetaboliteReserve + dt * baseRate * multiplier * colony.vigor,
-        0,
-        1,
-      );
-    }
-
-    const carbonStress = colony.vigor < .15 && fuel < .035;
-    if (carbonStress) {
-      entry.sporulation = clamp(entry.sporulation + dt * (.095 + (1 - colony.vigor) * .09), 0, 1);
-      if (entry.mode !== 'adhesion' && entry.mode !== 'matrix') enterMode(entry, 'sporulating');
-    } else {
-      entry.sporulation = Math.max(0, entry.sporulation - dt * (.12 + fuel * .25));
-      if (entry.mode === 'sporulating' && entry.sporulation < .35) {
-        enterMode(entry, entry.antibioticReserve > .12 ? 'antibiosis' : 'mature');
-      }
-    }
-
-    if (entry.sporulation >= 1) {
-      entry.maturity = .18;
-      entry.antibioticReserve *= .18;
-      colony.vigor = Math.min(colony.vigor, .025);
-      colony.dormant = true;
-      enterMode(entry, 'spores');
-    }
-
-    colony.stage = modeLabel(entry);
-    configureFilm(entry);
-  }
-
-  function decayAgentMarkers(dt) {
-    for (const agent of ecology.agents) {
-      agent.bacillusAntibiosis = Math.max(0, (agent.bacillusAntibiosis || 0) - dt * 1.8);
-    }
-  }
-
-  function applyAntibiosis(entry, dt) {
-    entry.activePressure = 0;
-    if (!isMetabolicallyActive(entry) || entry.maturity < .68 || entry.antibioticReserve <= .015) return;
-
-    const colony = entry.colony;
-    const radius = 82 + entry.maturity * 42 + (colony.sourceCount || 1) * 11;
-    for (const agent of ecology.agents) {
-      if (agent.type !== 'oportunista') continue;
-      const dx = agent.x - colony.x;
-      const dy = agent.y - colony.y;
-      const distance = Math.max(1, Math.hypot(dx, dy));
-      if (distance >= radius) continue;
-
-      const reserveFactor = clamp(entry.antibioticReserve / .35, .12, 1);
-      const synergy = 1 + clamp(agent.ironLimitation || 0, 0, 1) * .48;
-      const pressure = clamp((1 - distance / radius) * colony.vigor * reserveFactor * synergy, 0, 1);
-      if (pressure <= .01) continue;
-
-      agent.bacillusAntibiosis = Math.max(agent.bacillusAntibiosis || 0, pressure);
-      agent.vx += dx / distance * 118 * pressure * dt;
-      agent.vy += dy / distance * 66 * pressure * dt;
-      agent.vx *= Math.pow(.2, dt * pressure);
-      agent.vy *= Math.pow(.28, dt * pressure);
-      agent.homeX += dx / distance * 56 * pressure * dt;
-      agent.homeY += dy / distance * 36 * pressure * dt;
-      entry.antibioticReserve = Math.max(0, entry.antibioticReserve - dt * .018 * pressure);
-      entry.activePressure = Math.max(entry.activePressure, pressure);
-    }
-  }
-
-  function applyInducedResistance(entry, dt) {
-    entry.resistanceStrength = 0;
-    if (!isMetabolicallyActive(entry) || entry.maturity < .55 || entry.mode === 'sporulating') return;
-
-    const colony = entry.colony;
-    const platform = colony.platform;
-    const player = state.player;
-    const centerX = player.x + player.w / 2;
-    const centerY = player.y + player.h / 2;
-    const feetY = player.y + player.h;
-    const filmRadius = Math.max(18, entry.film?.radius || 0);
-    const insideFilm = Math.hypot(centerX - colony.x, centerY - colony.y) < filmRadius * 1.05;
-    const onProtectedRoot = platform
-      && centerX >= platform.x - 20
-      && centerX <= platform.x + platform.w + 20
-      && Math.abs(feetY - platform.y) < 58;
-    if (!insideFilm && !onProtectedRoot) return;
-
-    const strength = clamp(entry.maturity * colony.vigor * (.7 + (colony.sourceCount || 1) * .08), 0, .9);
-    entry.resistanceStrength = strength;
-    state.player.bacillusResistance = Math.max(state.player.bacillusResistance || 0, strength);
-
-    state.player.infectionExposure = Math.max(
-      0,
-      (state.player.infectionExposure || 0) - dt * (.45 + strength * 1.25),
-    );
-    state.player.infection = Math.max(
-      0,
-      (state.player.infection || 0) - dt * (.035 + strength * .18),
-    );
-    state.player.soil += dt * .055 * strength;
-  }
-
-  // Pressão mínima para a antibiose SOAR. Abaixo disto a colônia está madura,
-  // mas não está fazendo nada com ninguém — e madura não é motivo para som.
-  const ANTIBIOSIS_AUDIBLE_PRESSURE = .06;
-  const ANTIBIOSIS_MINIMUM_RESERVE = .02;
-
-  function updateColonyAudio(entry) {
-    const audio = entities?.audio;
-    if (!audio) return;
-    const colony = entry.colony;
-    const biofilmKey = `bacillus-biofilm:${colony.id}`;
-    const antibiosisKey = `bacillus-antibiosis:${colony.id}`;
-
-    // Matriz em construção: adesão, matriz e a reconstrução pós-germinação.
-    const building = entry.mode === 'adhesion'
-      || entry.mode === 'matrix'
-      || entry.mode === 'germinating';
-    if (building) {
-      audio.startLoop(biofilmKey, 'bacillusBiofilmGrowth', {
-        x: colony.x,
-        y: colony.y,
-        // A reconstrução entra baixa: é um biofilme voltando, não nascendo.
-        gain: (entry.mode === 'germinating' ? .40 : .55) + clamp(entry.maturity, 0, 1) * .45,
-        rate: .90 + clamp(entry.maturity, 0, 1) * .16,
-      });
-    } else {
-      audio.stopLoop(biofilmKey);
-    }
-
-    // `entry.activePressure` só enxerga o fungo oportunista. A mesma colônia
-    // contém Rhizoctonia e Ralstonia — esses sistemas já calculam a pressão, e
-    // publicam o valor no quadro de sinais para o áudio poder representá-lo.
-    // Sem isto, um biofilme segurando um foco de Rhizoctonia ficava mudo.
-    const pressaoExterna = externalControlPressure(state, 'bacillusAntibiosis', colony.id);
-    const combinedPressure = Math.max(entry.activePressure, pressaoExterna);
-    const antibiosing = combinedPressure > ANTIBIOSIS_AUDIBLE_PRESSURE
-      && entry.antibioticReserve > ANTIBIOSIS_MINIMUM_RESERVE
-      && isMetabolicallyActive(entry);
-    if (antibiosing) {
-      audio.startLoop(antibiosisKey, 'bacillusAntibiosis', {
-        x: colony.x,
-        y: colony.y,
-        gain: clamp(combinedPressure, 0, 1),
-      });
-    } else {
-      audio.stopLoop(antibiosisKey);
-    }
-  }
-
-  function update(dt) {
-    if (state.gameState !== 'play') return;
-    syncColonies();
-    state.player.bacillusResistance = 0;
-    fungiUnderAntibiosis = 0;
-    decayAgentMarkers(dt);
-
-    for (const entry of colonyStates.values()) updateLifecycle(entry, dt);
-    for (const entry of colonyStates.values()) applyAntibiosis(entry, dt);
-    for (const entry of colonyStates.values()) applyInducedResistance(entry, dt);
-    // Depois de `applyAntibiosis`: a pressão do quadro já está calculada, então
-    // o loop de antibiose só existe quando ela está realmente atuando.
-    for (const entry of colonyStates.values()) updateColonyAudio(entry);
-
-    fungiUnderAntibiosis = ecology.agents.filter(agent => (
-      agent.type === 'oportunista' && (agent.bacillusAntibiosis || 0) > .04
-    )).length;
-  }
-
-  function drawSpores(ctx, entry) {
-    if (entry.mode !== 'spores' && entry.mode !== 'germinating' && entry.mode !== 'sporulating') return;
-    const colony = entry.colony;
-    const germination = entry.mode === 'germinating' ? entry.germination : 0;
-    ctx.save();
-    ctx.translate(colony.x, colony.y - 5);
-    for (let i = 0; i < entry.sporeCount; i++) {
-      const angle = entry.phase + i * TAU / entry.sporeCount;
-      const ring = 12 + (i % 4) * 5;
-      const x = Math.cos(angle) * ring;
-      const y = Math.sin(angle) * ring * .48;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(angle + .35);
-      ctx.fillStyle = entry.mode === 'spores' ? '#d9b56c' : '#d6ff94';
-      ctx.strokeStyle = '#fff0bd';
-      ctx.lineWidth = 1.1;
-      ctx.globalAlpha = .58 + (i % 3) * .12;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 4.2, 2.5, 0, 0, TAU);
-      ctx.fill();
-      ctx.stroke();
-      if (germination > 0) {
-        ctx.strokeStyle = '#8ff4e8';
-        ctx.beginPath();
-        ctx.moveTo(3.5, 0);
-        ctx.quadraticCurveTo(6 + germination * 5, -2, 8 + germination * 10, -germination * 5);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-    ctx.restore();
-  }
-
-  function drawLimitedFungus(ctx, agent) {
-    const pressure = clamp(agent.bacillusAntibiosis || 0, 0, 1);
-    if (pressure <= .04) return;
-    const seed = Number.isFinite(agent.noiseSeed) ? agent.noiseSeed : 0;
-    ctx.save();
-    ctx.translate(agent.x, agent.y);
-    ctx.globalAlpha = .3 + pressure * .55;
-    ctx.strokeStyle = '#ffd77e';
-    ctx.lineWidth = 1.2;
-    ctx.setLineDash([2, 4]);
-    ctx.beginPath();
-    ctx.arc(0, 0, 16 + pressure * 10 + Math.sin(state.time * 3 + seed) * 2, 0, TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    for (let i = 0; i < 4; i++) {
-      const angle = state.time * .48 + seed + i * TAU / 4;
-      ctx.fillStyle = i % 2 ? '#ffd77e' : '#9effdf';
-      ctx.beginPath();
-      ctx.arc(Math.cos(angle) * 13, Math.sin(angle) * 8, 1.6, 0, TAU);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  // Duas barras rotuladas por colonia empilhavam retangulo, texto e fundo preto
-  // sobre a cena inteira — e uma colonia madura nunca esta sozinha. Aqui a
-  // reserva vira o que ela e de fato: substancia difundindo no solo. A
-  // quantidade se le pela densidade e pelo alcance da difusao, nao por um
-  // numero, e a colonia continua parecendo uma colonia.
-  function drawDiffusion(ctx, entry, amount, palette, seed) {
-    const spread = 16 + amount * 26;
-    const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, spread);
-    halo.addColorStop(0, palette.core);
-    halo.addColorStop(.55, palette.mid);
-    halo.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.globalAlpha = .15 + amount * .4;
-    ctx.fillStyle = halo;
-    ctx.beginPath();
-    ctx.ellipse(0, 6, spread, spread * .62, 0, 0, TAU);
-    ctx.fill();
-
-    // As particulas sobem e se dispersam como difusao real, e nascem em numero
-    // proporcional a reserva: pouca reserva, poucas particulas.
-    const count = Math.round(amount * 9);
-    ctx.globalAlpha = 1;
-    for (let index = 0; index < count; index++) {
-      const phase = (state.time * .34 + seed + index / Math.max(1, count)) % 1;
-      const angle = seed * TAU + index * 2.399;
-      const distance = spread * (.25 + phase * .8);
-      const x = Math.cos(angle) * distance;
-      const y = 6 + Math.sin(angle) * distance * .5 - phase * 13;
-      ctx.globalAlpha = (1 - phase) * (.32 + amount * .5);
-      ctx.fillStyle = palette.dot;
-      ctx.beginPath();
-      ctx.arc(x, y, 1.5 + (index % 3) * .5, 0, TAU);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  function drawReserve(ctx, entry) {
-    if (entry.mode === 'spores') return;
-    const colony = entry.colony;
-    const seed = (colony.x % 97) / 97;
-
-    const antibiotic = clamp(entry.antibioticReserve / 1.25, 0, 1);
-    if (antibiotic > .01) {
-      ctx.save();
-      ctx.translate(colony.x, colony.y);
-      drawDiffusion(ctx, entry, antibiotic, {
-        core: 'rgba(255,205,120,.5)', mid: 'rgba(255,180,80,.16)', dot: '#ffd77e',
-      }, seed);
-      ctx.restore();
-    }
-
-    const phosphate = clamp(entry.phosphateMetaboliteReserve || 0, 0, 1);
-    if (phosphate > .01) {
-      ctx.save();
-      ctx.translate(colony.x, colony.y);
-      drawDiffusion(ctx, entry, phosphate, {
-        core: 'rgba(214,140,255,.44)', mid: 'rgba(190,110,255,.14)', dot: '#dc8cff',
-      }, seed + .37);
-      ctx.restore();
-    }
-  }
-
-  function render(ctx) {
-    if (!colonyStates.size) return;
-    const visibleWidth = state.visibleWorldWidth || W / Math.max(.1, state.cameraZoom || 1);
-    ctx.save();
-    ctx.translate(-state.cameraX, 0);
-    for (const entry of colonyStates.values()) {
-      if (entry.colony.x < state.cameraX - 230 || entry.colony.x > state.cameraX + visibleWidth + 230) continue;
-      drawBacillusBiofilm(ctx, { entry }, state.time);
-      drawSpores(ctx, entry);
-      drawReserve(ctx, entry);
-    }
-    for (const agent of ecology.agents) {
-      if (agent.type === 'oportunista') drawLimitedFungus(ctx, agent);
-    }
-    ctx.restore();
-  }
-
-  return {
-    get colonyCount() { return colonyStates.size; },
-    get matureBiofilmCount() {
-      return [...colonyStates.values()].filter(entry => entry.maturity >= .72 && entry.mode !== 'spores').length;
-    },
-    get activeBiofilmCount() {
-      return [...colonyStates.values()].filter(entry => entry.mode === 'antibiosis' || entry.mode === 'mature').length;
-    },
-    get sporulatedCount() {
-      return [...colonyStates.values()].filter(entry => entry.mode === 'spores').length;
-    },
-    get germinatingCount() {
-      return [...colonyStates.values()].filter(entry => entry.mode === 'germinating').length;
-    },
-    get fungiUnderAntibiosis() { return fungiUnderAntibiosis; },
-    get entries() { return [...colonyStates.values()]; },
-    get solubilizerEntries() {
-      // Qualquer colonia de Bacillus e candidata: quem decide e a maturidade e
-      // a reserva, verificadas por quem consome esta lista.
-      return [...colonyStates.values()].filter(entry => entry.colony.type === 'bacillus');
-    },
-    get protectedRootCount() {
-      const platforms = new Set();
-      for (const entry of colonyStates.values()) {
-        if (entry.maturity >= .55 && entry.mode !== 'spores') platforms.add(entry.colony.platform);
-      }
-      return platforms.size;
-    },
-    clear,
-    reset,
-    update,
-    render,
-  };
-}
-Object.assign(__exports, { createBacillusBioprotection });
-},
-"src/render/bacillus-biofilm.js": (__exports, __require) => {
-// A surface coating, not the biological area of protection. All dimensions here
-// are visual; film.radius and every simulation threshold keep their old meaning.
-const { drawInoculatedBacillusSprite } = __require("src/render/bacillus-sprite.js");
+"src/render/opportunistic-mycelium.js": (__exports, __require) => {
+// Presentation of the EXISTING opportunist network. No biological writes,
+// random draws, extra collision filaments or independent growth simulation.
+const { clamp, smoothHyphalNoise } = __require("src/procgen/hyphal-growth.js");
 const { visibleRootRect } = __require("src/render/rhizosphere-geometry.js");
-const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
-const smooth = (lo, hi, value) => { const t = clamp((value - lo) / (hi - lo)); return t * t * (3 - 2 * t); };
-const noise = (seed, i) => { const n = Math.sin(seed * .173 + i * 127.1) * 43758.5453; return n - Math.floor(n); };
-const cache = new WeakMap();
-
+const models = new WeakMap();
 const TAU = Math.PI * 2;
+const smooth = value => { const t = clamp(value, 0, 1); return t * t * (3 - 2 * t); };
+const mix = (a, b, t) => a + (b - a) * t;
+const noise = value => (Math.sin(value * 127.1 + 311.7) + 1) * .5;
 
-function biofilmVisualState({ entry = null, colony = entry?.colony, film = entry?.film, progress = null } = {}) {
-  // Ecological film.growth also advances independently in gameplay.update. It
-  // must NEVER replace the Bacillus lifecycle's maturity for a managed colony.
-  const maturity = clamp(entry ? entry.maturity : progress ?? film?.growth ?? 1);
-  const mode = entry?.mode || film?.bacillusMode || 'matrix';
-  const vigor = clamp(colony?.vigor ?? 1);
-  const spores = mode === 'spores';
-  const sporulation = mode === 'sporulating' ? clamp(entry?.sporulation || 0) : 0;
+function biologicalControl(network, attacks, model) {
+  for (const agent of network.agents || []) model.agentIds.add(agent.id);
+  const live = new Set((network.agents || []).map(agent => agent.id));
+  let loss = 0;
+  let contact = 0;
+  for (const id of model.agentIds) {
+    if (!live.has(id)) { loss += 1; contact += 1; continue; }
+    let agentLysis = 0;
+    let agentContact = 0;
+    for (const attack of attacks) {
+      const meta = attack.metadata || attack;
+      if (meta.targetId !== id || meta.aborted || meta.exhausted) continue;
+      agentLysis = Math.max(agentLysis, clamp(meta.lysis || 0, 0, 1));
+      agentContact = Math.max(agentContact, clamp(meta.contact || 0, 0, 1));
+    }
+    loss += agentLysis;
+    contact += agentContact;
+  }
+  const total = Math.max(1, model.agentIds.size);
+  return { lysis: clamp(loss / total, 0, 1), contact: clamp(contact / total, 0, 1) };
+}
+
+function tissuePoint(network, point) {
+  const root = network.hostRoot;
+  if (!root) return { x: point.x, y: point.y };
+  const rect = visibleRootRect(root);
   return {
-    maturity, vigor, mode,
-    functional: Boolean(film?.functional ?? (!entry && maturity >= .42)),
-    adhesion: smooth(.06, .26, maturity),
-    matrix: smooth(.12, .42, maturity),
-    expansion: smooth(.24, .74, maturity),
-    maturation: smooth(.65, 1, maturity),
-    hydration: spores ? 0 : (1 - sporulation * .82) * (.48 + vigor * .52),
-    activity: clamp(entry?.activePressure || 0),
-    antibiotic: clamp(entry?.antibioticReserve || 0),
-    sourceCount: clamp(colony?.sourceCount ?? 3, 1, 8),
+    x: clamp(point.x, rect.x + 2, rect.x + rect.w - 2),
+    y: rect.y + rect.h * (.1 + clamp((point.y - root.y + 24) / 25, 0, 1) * .8),
   };
 }
 
-function biofilmSurface({ film, colony, entry, platform = colony?.platform || film?.platform, platforms = [] }) {
-  const x = film?.checkpoint?.x ?? colony?.x ?? film?.x ?? entry?.colony?.x ?? 0;
-  const y = film?.checkpoint ? film.checkpoint.y + 8 : colony?.y ?? film?.y ?? 0;
-  // Natural checkpoints have no platform reference. Resolve their actual host
-  // only for painting; do not attach/change any simulation object.
-  if (!platform) {
-    let best = 110;
-    for (const p of platforms) {
-      if (p.final || p.mycorrhizaStructure) continue;
-      const d = Math.hypot(x - clamp(x, p.x, p.x + p.w), y - p.y);
-      if (d < best) { platform = p; best = d; }
+function makeModel(network, time) {
+  const model = {
+    lastTime: time, clock: 0, segments: [], branches: new Map(), lesions: new Map(),
+    agentIds: new Set((network.agents || []).map(agent => agent.id)),
+    displayVigor: network.response?.vigor ?? 1, lysis: 0, contact: 0,
+  };
+  models.set(network, model);
+  return model;
+}
+
+function syncOpportunisticVisual(network, time = 0, attacks = []) {
+  const model = models.get(network) || makeModel(network, time);
+  const dt = Math.max(0, time - model.lastTime);
+  model.lastTime = Math.max(time, model.lastTime);
+  const response = network.response || { vigor: 1, growth: 1, branching: 1, sporulation: 1 };
+  // The real growth response paces extension interpolation and tissue maturation.
+  // This clock never generates new points, lesions or spores.
+  if (network.activated) model.clock += dt * 4.6 * Math.max(0, response.growth || 0);
+  model.displayVigor = mix(model.displayVigor, response.vigor, 1 - Math.exp(-dt * 1.8));
+  const control = biologicalControl(network, attacks, model);
+  model.lysis = control.lysis;
+  model.contact = control.contact;
+
+  for (let i = model.segments.length; i < network.segments.length; i++) {
+    const source = network.segments[i];
+    const key = `${source.phase}:${source.depth}`;
+    let branch = model.branches.get(key);
+    if (!branch) {
+      branch = { depth: source.depth, phase: source.phase, segments: [] };
+      model.branches.set(key, branch);
     }
+    const segment = { source, born: model.clock, index: i, branchIndex: branch.segments.length };
+    model.segments.push(segment);
+    branch.segments.push(segment);
   }
-  const rect = platform ? visibleRootRect(platform) : null;
-  const left = rect ? rect.x + 6 : x - 90;
-  const right = rect ? rect.x + rect.w - 6 : x + 90;
-  const center = clamp(x, left + 2, right - 2);
-  const seed = Math.round(x * 13 + y * 7 + (platform?.logicIndex || 0) * 83);
-  return { x: center, y: rect?.y ?? y + 7, left, right, band: clamp(rect?.h || 18, 14, 24), seed };
+  for (const lesion of network.lesions) {
+    if (!lesion.reached) continue;
+    if (!model.lesions.has(lesion)) model.lesions.set(lesion, {
+      born: lesion === network.lesions[0] ? model.clock - 12 : model.clock,
+    });
+  }
+  return model;
 }
 
-function buildBiofilmProfile(surface, visual, time = 0) {
-  const m = visual.maturity;
-  const spread = .12 + .88 * smooth(.09, .82, m);
-  const reach = 80 + visual.sourceCount * 10;
-  const left = Math.max(surface.left, surface.x - reach * spread * (.94 + noise(surface.seed, 1) * .15));
-  const right = Math.min(surface.right, surface.x + reach * spread * (.94 + noise(surface.seed, 2) * .15));
-  const center = (left + right) / 2;
-  const half = Math.max(1, (right - left) / 2);
-  const bridge = smooth(.34, .42, m);
-  const eps = smooth(.12, .29, m) * visual.hydration;
-  const samples = [];
-  for (let i = 0; i <= 80; i++) {
-    const u = i / 80;
-    const x = left + (right - left) * u;
-    const envelope = Math.pow(Math.max(0, 1 - ((x - center) / half) ** 2), .48);
-    let density = 0;
-    for (let k = 0; k < 9; k++) {
-      const at = (k + .25 + noise(surface.seed, 10 + k) * .5) / 9;
-      const onset = .13 + Math.abs(at - .5) * .30 + noise(surface.seed, 30 + k) * .025;
-      const emergence = smooth(onset, onset + .11, m);
-      const width = .015 + .058 * visual.matrix + noise(surface.seed, 50 + k) * .012;
-      const d = (u - at) / width;
-      density = Math.max(density, emergence * Math.exp(-d * d * 1.5));
+function integrity(model, segment) {
+  // Loss is derived from actual per-agent lysis/removal, not low iron vigor.
+  // Stable susceptibility makes degradation irregular without flashing RNG.
+  const susceptibility = .88 + noise(segment.source.phase + segment.index * .07) * .24;
+  return smooth(clamp((1 - model.lysis) * susceptibility, 0, 1));
+}
+
+function extension(model, segment) {
+  // Draw only between two points already produced by the real simulation.
+  return smooth(model.clock - segment.born);
+}
+
+function segmentPoints(network, model, segment) {
+  const start = tissuePoint(network, segment.source.start);
+  const end = tissuePoint(network, segment.source.end);
+  const t = extension(model, segment);
+  return [start, { x: mix(start.x, end.x, t), y: mix(start.y, end.y, t) }];
+}
+
+function lesionMaturity(model, lesion) {
+  const record = model.lesions.get(lesion);
+  return record ? smooth((model.clock - record.born) / 12) : 0;
+}
+
+function opportunisticVisualSnapshot(network, time = 0, attacks = []) {
+  const model = syncOpportunisticVisual(network, time, attacks);
+  let totalLength = 0;
+  let remainingLength = 0;
+  for (const segment of model.segments) {
+    const [a, b] = segmentPoints(network, model, segment);
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    totalLength += length;
+    remainingLength += length * integrity(model, segment);
+  }
+  const lesions = network.lesions.map(lesion => ({
+    reached: lesion.reached, biologicalMaturity: lesion.maturity,
+    maturity: lesionMaturity(model, lesion), ...tissuePoint(network, lesion),
+  }));
+  const reached = lesions.filter(lesion => lesion.reached);
+  return {
+    key: network.key, activated: network.activated, response: { ...network.response },
+    vigor: network.response?.vigor ?? 1, displayVigor: model.displayVigor,
+    growth: network.response?.growth ?? 0, branching: network.response?.branching ?? 0,
+    sporulation: network.response?.sporulation ?? 0,
+    maturity: reached.length ? reached.reduce((sum, lesion) => sum + lesion.maturity, 0) / reached.length : 0,
+    reachedLesions: network.reachedLesions, lesions,
+    segments: model.segments.length, branches: model.branches.size,
+    activeTips: network.tips.filter(tip => tip.active).length,
+    spores: network.spores.length, totalLength, remainingLength,
+    contact: model.contact, lysis: model.lysis,
+    survivingAgents: network.agents.length, initialAgents: model.agentIds.size,
+    points: model.segments.map(segment => {
+      const [start, end] = segmentPoints(network, model, segment);
+      return { start, end, fraction: extension(model, segment), integrity: integrity(model, segment) };
+    }),
+  };
+}
+
+function opportunisticContactPaths(network, time = 0, attacks = []) {
+  const model = syncOpportunisticVisual(network, time, attacks);
+  const paths = [];
+  for (const branch of model.branches.values()) {
+    if (branch.segments.length < 2) continue;
+    const points = [];
+    let survival = 0;
+    for (const segment of branch.segments) {
+      const [a, b] = segmentPoints(network, model, segment);
+      if (!points.length) points.push(a);
+      points.push(b);
+      survival += integrity(model, segment);
     }
-    const ripple = .83 + .12 * Math.sin(u * 25 + surface.seed) + .055 * Math.sin(u * 61 + surface.seed * .3);
-    // Only restrained breathing/gloss uses time. Extent, density and thickness
-    // cannot advance unless real maturity advances (same principle as nodules).
-    const breath = Math.sin(time * 1.1 + u * 8 + surface.seed) * .24 * visual.matrix;
-    const depth = Math.max(density, bridge * (.68 + .12 * Math.sin(u * 19 + surface.seed)));
-    const height = depth * envelope * eps;
-    samples.push({ x, top: surface.y - height * (10 + visual.expansion * 8) * ripple - breath * height,
-      bottom: surface.y + height * (4 + visual.expansion * 6) * (1.08 - ripple * .2), height });
+    paths.push({ points, width: Math.max(.6, 1.65 - branch.depth * .24), integrity: survival / branch.segments.length });
   }
-  // Gaps are separate attached EPS islands early on; later the same heightfield
-  // joins into one continuous film. There is no replacement at a stage boundary.
-  const segments = [];
-  let segment = [];
-  for (const p of samples) {
-    if (p.height > .025) segment.push(p);
-    else if (segment.length) { if (segment.length > 1) segments.push(segment); segment = []; }
-  }
-  if (segment.length > 1) segments.push(segment);
-  return { left, right, samples, segments };
+  return { anchor: tissuePoint(network, network.anchor), paths, lysis: model.lysis, contact: model.contact };
 }
 
-function trace(ctx, points, reverse = false, edge = 'top', move = true) {
-  const list = reverse ? [...points].reverse() : points;
-  if (move) ctx.moveTo(list[0].x, list[0][edge]); else ctx.lineTo(list[0].x, list[0][edge]);
-  for (let i = 1; i < list.length - 1; i++) {
-    ctx.quadraticCurveTo(list[i].x, list[i][edge], (list[i].x + list[i + 1].x) / 2, (list[i][edge] + list[i + 1][edge]) / 2);
-  }
-  const last = list[list.length - 1]; ctx.lineTo(last.x, last[edge]);
-}
-
-function outline(ctx, profile) {
-  ctx.beginPath();
-  for (const points of profile.segments) {
-    trace(ctx, points); trace(ctx, points, true, 'bottom', false); ctx.closePath();
-  }
-}
-
-function paintGel(ctx, surface, visual, profile) {
-  if (!profile.segments.length) return;
-  const y = surface.y;
-  outline(ctx, profile);
-  const gel = ctx.createLinearGradient(0, y - 19, 0, y + 12);
-  gel.addColorStop(0, 'rgba(177,250,201,.59)');
-  gel.addColorStop(.36, 'rgba(102,215,156,.46)');
-  gel.addColorStop(.7, 'rgba(57,170,123,.47)');
-  gel.addColorStop(1, 'rgba(22,102,77,.62)');
-  ctx.fillStyle = gel; ctx.fill();
-  ctx.strokeStyle = 'rgba(24,111,82,.48)'; ctx.lineWidth = 1.1; ctx.stroke();
-  // Broad refracted edge inside the gel, never an external halo.
-  ctx.save(); outline(ctx, profile); ctx.clip();
-  ctx.strokeStyle = 'rgba(168,255,199,.17)'; ctx.lineWidth = 5; ctx.stroke();
-  ctx.restore();
-}
-
-function paintCells(ctx, surface, visual, profile, time) {
-  const m = visual.maturity;
-  const slots = 12;
-  const spread = .2 + .8 * smooth(.10, .78, m);
-  for (let k = 0; k < slots; k++) {
-    // Stable low-discrepancy placement: daughter cells appear between the first
-    // adherent cells. They do not orbit, float away or form a radial rosette.
-    const u = k < 2 ? .43 + k * .16 : .055 + ((k * .61803398875) % 1) * .89;
-    const onset = k < 2 ? .025 : .12 + (k - 2) * .047;
-    const alpha = smooth(onset, onset + .10, m) * (.55 + visual.vigor * .45) * (1 - (1 - visual.hydration) * .7);
-    if (alpha < .005) continue;
-    const x = clamp(surface.x + (u - .5) * (profile.right - profile.left) * spread,
-      surface.left + 7, surface.right - 7);
-    const index = clamp(Math.round((x - profile.left) / Math.max(1, profile.right - profile.left) * 80), 0, 80);
-    const p = profile.samples[index];
-    const y = surface.y - (3.5 + visual.expansion * 1.3) + (noise(surface.seed, k + 100) - .5) * (3 + visual.expansion * 13);
-    const width = 9.0 + noise(surface.seed, k + 120) * 3.4 + smooth(onset, onset + .15, m) * 1.3;
-    ctx.save(); ctx.translate(x, Math.max(p.top + 5.5, y));
-    ctx.rotate((noise(surface.seed, k + 140) - .5) * 2.1);
-    const drawn = drawInoculatedBacillusSprite(ctx, 0, 0, width, null, time, k * 3.7, alpha);
-    if (!drawn) {
-      // Only an asset-loading fallback; the real game uses its unmodified sheet.
-      ctx.globalAlpha = alpha; ctx.fillStyle = '#aa7ed8';
-      ctx.beginPath(); ctx.roundRect(-3, -6, 6, 12, 3); ctx.fill();
-    }
-    ctx.restore();
-  }
-}
-
-function paintGlaze(ctx, surface, visual, profile, time) {
-  if (!profile.segments.length) return;
-  ctx.save(); outline(ctx, profile); ctx.clip();
-  ctx.fillStyle = 'rgba(164,255,199,.09)'; ctx.fill();
-  for (const segment of profile.segments) {
+function drawLesions(ctx, network, model) {
+  for (const lesion of network.lesions) {
+    const maturity = lesionMaturity(model, lesion);
+    if (!lesion.reached || maturity <= .001) continue;
+    const center = tissuePoint(network, lesion);
+    const root = network.hostRoot ? visibleRootRect(network.hostRoot) : null;
+    const radius = (3 + maturity * 10) * (1 - model.lysis * .45);
+    ctx.fillStyle = `rgba(97,48,57,${(.08 + maturity * .24) * (1 - model.lysis * .72)})`;
     ctx.beginPath();
-    trace(ctx, segment.map(p => ({ x: p.x, top: p.top + 2.0 })));
-    ctx.strokeStyle = 'rgba(217,255,225,.38)'; ctx.lineWidth = .85; ctx.stroke();
-    // Interrupted wet highlights follow the local surface instead of tracing
-    // a solid neon border around the whole film.
-    for (let k = 0; k < 3; k++) {
-      const begin = Math.floor(segment.length * (.13 + k * .28));
-      const end = Math.min(segment.length, begin + Math.max(2, Math.floor(segment.length * .10)));
-      if (end - begin < 2) continue;
-      ctx.beginPath(); trace(ctx, segment.slice(begin, end).map(p => ({ x: p.x, top: p.top + 3.2 })));
-      ctx.strokeStyle = `rgba(243,255,229,${.20 + visual.maturation * .18})`;
-      ctx.lineWidth = 1.7; ctx.lineCap = 'round'; ctx.stroke();
+    for (let i = 0; i <= 16; i++) {
+      const angle = i / 16 * TAU;
+      const ripple = 1 + Math.sin(angle * 3 + lesion.phase) * .15 + Math.cos(angle * 5 + lesion.phase) * .09;
+      const x = center.x + Math.cos(angle) * radius * ripple;
+      const y = center.y + Math.sin(angle) * radius * .32 * ripple;
+      const point = { x: root ? clamp(x, root.x + 1, root.x + root.w - 1) : x,
+        y: root ? clamp(y, root.y + 1, root.y + root.h - 1) : y };
+      if (i) ctx.lineTo(point.x, point.y); else ctx.moveTo(point.x, point.y);
     }
+    ctx.closePath(); ctx.fill();
   }
-  // A few inclusions trapped in EPS, not emitted particles. Their locations are
-  // fixed to the root and their brightness reflects real film vitality.
-  for (let i = 0; i < 6; i++) {
-    const u = .08 + noise(surface.seed, 180 + i) * .84;
-    const p = profile.samples[Math.round(u * 80)];
-    if (p.height < .2) continue;
-    const r = .7 + noise(surface.seed, 200 + i) * 1.1;
-    const y = p.top + (p.bottom - p.top) * (.32 + noise(surface.seed, 220 + i) * .45);
-    ctx.strokeStyle = `rgba(187,255,224,${.18 + visual.vigor * .16})`;
-    ctx.lineWidth = .65;
-    ctx.beginPath(); ctx.ellipse(p.x, y, r, r * .75, -.3, 0, TAU); ctx.stroke();
+}
+
+function traceRun(ctx, points) {
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length - 1; i++) {
+    const point = points[i]; const next = points[i + 1];
+    ctx.quadraticCurveTo(point.x, point.y, (point.x + next.x) * .5, (point.y + next.y) * .5);
+  }
+  const end = points[points.length - 1]; ctx.lineTo(end.x, end.y);
+}
+
+function drawOpportunisticMycelium(ctx, network, state, attacks = []) {
+  const model = syncOpportunisticVisual(network, state.time, attacks);
+  const vigor = model.displayVigor;
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.shadowBlur = 0;
+  drawLesions(ctx, network, model);
+  for (const branch of model.branches.values()) {
+    // Short runs keep variable widths/transparency without per-point glows.
+    for (let first = 0; first < branch.segments.length; first += 7) {
+      const run = branch.segments.slice(first, first + 7);
+      const points = [];
+      let life = 0;
+      for (const segment of run) {
+        const [a, b] = segmentPoints(network, model, segment);
+        if (!points.length) points.push(a);
+        points.push(b); life += integrity(model, segment);
+      }
+      life /= run.length;
+      if (life < .004) continue;
+      const organic = .86 + smoothHyphalNoise(points[0].x, points[0].y, 0, branch.phase) * .16;
+      const width = Math.max(.45, (1.85 - branch.depth * .28) * organic * (.72 + vigor * .28));
+      const alpha = (.36 + vigor * .39) * life;
+      traceRun(ctx, points); ctx.lineWidth = width + 1.15;
+      ctx.strokeStyle = `rgba(79,39,47,${alpha * .65})`; ctx.stroke();
+      traceRun(ctx, points); ctx.lineWidth = width;
+      ctx.strokeStyle = `rgba(${Math.round(156 + vigor * 49)},${Math.round(100 + vigor * 22)},${Math.round(112 + vigor * 20)},${alpha})`;
+      ctx.stroke();
+    }
+    const last = branch.segments[branch.segments.length - 1];
+    const tip = network.tips.find(candidate => candidate.phase === branch.phase && candidate.depth === branch.depth);
+    if (!last || !tip?.active || model.lysis >= .98) continue;
+    const [a, b] = segmentPoints(network, model, last);
+    const angle = Math.atan2(b.y - a.y, b.x - a.x);
+    ctx.fillStyle = `rgba(236,193,171,${(.28 + vigor * .45) * integrity(model, last)})`;
+    ctx.beginPath(); ctx.ellipse(b.x, b.y, 1.6, .8, angle, 0, TAU); ctx.fill();
+  }
+  // Every spore is the real, potentially contaminating entity. Do not remove
+  // hazard particles or change their trajectories to manufacture suppression.
+  const reached = [...model.lesions.keys()];
+  const maturity = reached.length ? reached.reduce((sum, lesion) => sum + lesionMaturity(model, lesion), 0) / reached.length : 0;
+  for (const spore of network.spores) {
+    const alpha = clamp(spore.life / 3.5, .08, .42) * (.55 + vigor * .45) * (.65 + maturity * .35);
+    ctx.fillStyle = `rgba(220,180,204,${alpha})`;
+    ctx.beginPath(); ctx.ellipse(spore.x, spore.y, 1.8, 1.25, spore.phase, 0, TAU); ctx.fill();
   }
   ctx.restore();
 }
 
-function paintRelief(ctx, surface, profile) {
-  if (!profile.segments.length) return;
-  outline(ctx, profile);
-  const height = ctx.createLinearGradient(0, surface.y - 20, 0, surface.y + 12);
-  height.addColorStop(0, '#000'); height.addColorStop(.42, '#dedede');
-  height.addColorStop(.62, '#bcbcbc'); height.addColorStop(1, '#000');
-  ctx.fillStyle = height; ctx.fill();
-  ctx.save(); outline(ctx, profile); ctx.clip();
-  ctx.strokeStyle = '#222'; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
-}
-
-function makeCanvas(ctx) {
-  return ctx.canvas?.ownerDocument?.createElement?.('canvas')
-    || (typeof document !== 'undefined' ? document.createElement('canvas') : null);
-}
-
-function drawBacillusBiofilm(ctx, { entry = null, colony = entry?.colony, film = entry?.film,
-  platform = colony?.platform || film?.platform, platforms = [], progress = null, key = entry || film || colony } = {}, time = 0) {
-  const visual = biofilmVisualState({ entry, colony, film, progress });
-  if (visual.hydration <= 0 || !key) return;
-  const surface = biofilmSurface({ film, colony, entry, platform, platforms });
-  const reach = (80 + visual.sourceCount * 10) * 1.1 + 8;
-  const x0 = Math.max(surface.left - 2, surface.x - reach);
-  const x1 = Math.min(surface.right + 2, surface.x + reach);
-  const bounds = { x: x0, y: surface.y - 34, w: Math.max(4, x1 - x0), h: 53 };
-  const transform = ctx.getTransform?.();
-  if (transform && ctx.canvas?.width > 0 && ctx.canvas?.height > 0) {
-    const corners = [[bounds.x, bounds.y], [bounds.x + bounds.w, bounds.y],
-      [bounds.x, bounds.y + bounds.h], [bounds.x + bounds.w, bounds.y + bounds.h]]
-      .map(([x, y]) => [transform.a * x + transform.c * y + transform.e, transform.b * x + transform.d * y + transform.f]);
-    if (Math.max(...corners.map(p => p[0])) < -8 || Math.min(...corners.map(p => p[0])) > ctx.canvas.width + 8
-      || Math.max(...corners.map(p => p[1])) < -8 || Math.min(...corners.map(p => p[1])) > ctx.canvas.height + 8) return;
-  }
-  let item = cache.get(key);
-  if (!item) {
-    item = { image: makeCanvas(ctx), relief: makeCanvas(ctx), revision: 0, stamp: '', lastTime: -Infinity };
-    cache.set(key, item);
-  }
-  let profile = null;
-  const paint = (target, relief = false) => {
-    profile ||= buildBiofilmProfile(surface, visual, time);
-    if (relief) { paintRelief(target, surface, profile); return; }
-    paintGel(target, surface, visual, profile);
-    paintCells(target, surface, visual, profile, time);
-    paintGlaze(target, surface, visual, profile, time);
-  };
-  if (!item.image || !item.relief) { ctx.save(); paint(ctx); ctx.restore(); return; }
-  // A bounded local patch retains sprite detail. It is uploaded only while its
-  // own biology/animation changes, never as a full-screen extra texture.
-  const scale = 2.5;
-  // Moving a root/camera moves the patch pose, not its pixels. Only a change in
-  // local host geometry should force a repaint between the bounded updates.
-  const stamp = [visual.mode, surface.x - bounds.x, surface.left - bounds.x,
-    surface.right - bounds.x, bounds.w].map(value => typeof value === 'number' ? value.toFixed(3) : value).join(':');
-  if (stamp !== item.stamp || time < item.lastTime || time - item.lastTime >= 1 / 24) {
-    for (const [canvas, relief] of [[item.image, false], [item.relief, true]]) {
-      const w = Math.max(2, Math.ceil(bounds.w * scale)), h = Math.ceil(bounds.h * scale);
-      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-      const target = canvas.getContext('2d');
-      target.setTransform(1, 0, 0, 1, 0, 0); target.clearRect(0, 0, canvas.width, canvas.height);
-      target.setTransform(scale, 0, 0, scale, -bounds.x * scale, -bounds.y * scale);
-      paint(target, relief);
-    }
-    item.revision++; item.stamp = stamp; item.lastTime = time;
-  }
-  const packet = { key, image: item.image, relief: item.relief, ...bounds, revision: item.revision,
-    activity: visual.functional ? .55 + visual.vigor * .45 : .15 + visual.vigor * .1 };
-  if (typeof ctx.__glBiofilm === 'function' && ctx.__glBiofilm(packet) !== false) return;
-  ctx.drawImage(item.image, bounds.x, bounds.y, bounds.w, bounds.h);
-}
-Object.assign(__exports, { biofilmVisualState, biofilmSurface, buildBiofilmProfile, drawBacillusBiofilm });
+function forgetOpportunisticVisual(network) { models.delete(network); }
+Object.assign(__exports, { syncOpportunisticVisual, opportunisticVisualSnapshot, opportunisticContactPaths, drawOpportunisticMycelium, forgetOpportunisticVisual });
 },
 "src/render/rhizosphere-geometry.js": (__exports, __require) => {
 // GEOMETRIA DA RIZOSFERA — só desenho
@@ -22593,6 +22010,882 @@ function drawFinalRoot(ctx, goal, { pulse = 0, scale = FINAL_ROOT_SCALE, time = 
   return true;
 }
 Object.assign(__exports, { FINAL_ROOT_COLLAR_OFFSET, FINAL_ROOT_SCALE, FINAL_ROOT_MAIN_LOCAL, FINAL_ROOT_BRANCHES_LOCAL, finalRootCollar, finalRootBounds, traceSoftRootGlowTube, drawFinalRoot });
+},
+"src/procgen/bacillus-bioprotection.js": (__exports, __require) => {
+const { W } = __require("src/core/constants.js");
+const { fxLanded } = __require("src/game-audio.js");
+const { externalControlPressure } = __require("src/procgen/biological-audio-signals.js");
+const { narrate } = __require("src/procgen/narrator.js");
+const { drawBacillusBiofilm } = __require("src/render/bacillus-biofilm.js");
+const TAU = Math.PI * 2;
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function modeLabel(entry) {
+  if (entry.mode === 'adhesion') return 'adesão à superfície';
+  if (entry.mode === 'matrix') return 'matriz do biofilme';
+  if (entry.mode === 'mature') return 'biofilme maduro';
+  if (entry.mode === 'antibiosis') return 'antibiose ativa';
+  if (entry.mode === 'sporulating') return 'esporulação';
+  if (entry.mode === 'spores') return 'endósporos dormentes';
+  if (entry.mode === 'germinating') return 'germinação de endósporos';
+  return 'biofilme';
+}
+
+function isMetabolicallyActive(entry) {
+  return ['adhesion', 'matrix', 'mature', 'antibiosis', 'sporulating', 'germinating'].includes(entry.mode);
+}
+
+function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
+  const colonyStates = new Map();
+  let fungiUnderAntibiosis = 0;
+
+  function bacillusColonies() {
+    return (inoculants.colonies || []).filter(colony => colony.type === 'bacillus');
+  }
+
+  function ensureBiofilm(colony) {
+    const films = state.level.biofilms || (state.level.biofilms = []);
+    let film = colony.linkedBiofilm;
+    if (!film || !films.includes(film)) {
+      film = films.find(candidate => (
+        candidate.inoculated
+        && Math.hypot(candidate.x - colony.x, candidate.y - colony.y) < 120
+      ));
+    }
+    if (!film) {
+      film = {
+        x: colony.x,
+        y: colony.y,
+        radius: 18,
+        targetRadius: 48,
+        growth: 0,
+        age: 0,
+        activated: false,
+        platform: colony.platform,
+        natural: false,
+        inoculated: true,
+      };
+      films.push(film);
+    }
+    colony.linkedBiofilm = film;
+    film.bacillusManaged = true;
+    film.bacillusColonyId = colony.id;
+    return film;
+  }
+
+  function createEntry(colony) {
+    const authoredMature = Boolean(colony.authored && colony.growth >= .95 && !colony.dormant);
+    const entry = {
+      colony,
+      film: ensureBiofilm(colony),
+      mode: authoredMature ? 'mature' : 'adhesion',
+      maturity: authoredMature ? 1 : .08,
+      antibioticReserve: 0,
+      // Nao existe "cepa solubilizadora" separada: e o mesmo Bacillus do
+      // checkpoint. Solubilizar fosfato e mais uma funcao dele quando maduro,
+      // como a antibiose. Uma colonia autoral ja madura comeca com reserva.
+      phosphateMetaboliteReserve: authoredMature ? .7 : 0,
+      sporulation: 0,
+      germination: 0,
+      activePressure: 0,
+      resistanceStrength: 0,
+      sporeCount: 5 + (colony.sourceCount || 1) * 4,
+      announcedMature: false,
+      announcedSpores: false,
+      announcedGermination: false,
+      // Estado de áudio, separado dos toasts.
+      audioInitialized: true,
+      audioPreviousMode: null,
+      audioBiofilmCompleted: authoredMature,
+      phase: Math.random() * TAU,
+    };
+    colony.bacillusState = entry;
+    colonyStates.set(colony.id, entry);
+    // Adesão só em inoculação REAL. Colônia autoral (`colony.authored`) já vem
+    // com o cenário: tocar adesão ao carregar a fase seria som sem evento.
+    if (!colony.authored) {
+      entities?.audio?.play('bacillusAdhesion', { x: colony.x, y: colony.y });
+    }
+    return entry;
+  }
+
+  function removeManagedFilm(entry) {
+    const films = state.level.biofilms || [];
+    const index = films.indexOf(entry.film);
+    if (index >= 0 && entry.film?.bacillusManaged) films.splice(index, 1);
+  }
+
+  function syncColonies() {
+    const current = bacillusColonies();
+    const ids = new Set(current.map(colony => colony.id));
+    for (const colony of current) {
+      let entry = colonyStates.get(colony.id);
+      if (!entry) entry = createEntry(colony);
+      entry.colony = colony;
+      entry.film = ensureBiofilm(colony);
+      colony.bacillusState = entry;
+    }
+    for (const [id, entry] of colonyStates) {
+      if (ids.has(id)) continue;
+      removeManagedFilm(entry);
+      if (entry.colony) entry.colony.bacillusState = null;
+      colonyStates.delete(id);
+    }
+  }
+
+  function clear() {
+    entities?.audio?.stopGroup('bacillus-biofilm');
+    entities?.audio?.stopGroup('bacillus-antibiosis');
+    for (const entry of colonyStates.values()) {
+      if (entry.colony) entry.colony.bacillusState = null;
+      removeManagedFilm(entry);
+    }
+    colonyStates.clear();
+    fungiUnderAntibiosis = 0;
+    state.player.bacillusResistance = 0;
+  }
+
+  function reset() {
+    clear();
+  }
+
+  function configureFilm(entry) {
+    const { colony, film } = entry;
+    if (!film) return;
+    film.platform = colony.platform;
+    film.x = colony.x;
+    film.y = colony.y;
+    film.bacillusMode = entry.mode;
+    film.protectionStrength = entry.resistanceStrength;
+
+    if (entry.mode === 'spores') {
+      film.targetRadius = 0;
+      film.radius = 0;
+      film.growth = 0;
+      film.functional = false;
+      return;
+    }
+
+    const target = 34 + entry.maturity * (48 + (colony.sourceCount || 1) * 6);
+    film.targetRadius = target;
+    film.radius = Math.min(Math.max(film.radius || 0, 8), target + 8);
+    film.growth = Math.max(film.growth || 0, clamp(entry.maturity, .08, 1));
+    film.functional = entry.maturity >= .42 && entry.mode !== 'sporulating';
+  }
+
+  // Único ponto de transição de modo do Bacillus — por isso é aqui que o áudio
+  // entra, e não espalhado pelo ciclo de vida.
+  function enterMode(entry, mode) {
+    if (entry.mode === mode) return;
+    entry.audioPreviousMode = entry.mode;
+    entry.mode = mode;
+    const colony = entry.colony;
+    const audio = entities?.audio;
+    const position = { x: colony.x, y: colony.y };
+
+    if (mode === 'mature' && !entry.audioBiofilmCompleted) {
+      // Só a PRIMEIRA vez que o biofilme fica funcional. Alternar entre
+      // `mature` e `antibiosis` depois disso não é uma nova conclusão.
+      audio?.stopLoop(`bacillus-biofilm:${colony.id}`, { fade: .2 });
+      const entregue = audio
+        ? fxLanded(audio.play('bacillusBiofilmComplete', { ...position, instanceId: colony.id }))
+        : true;
+      if (entregue) entry.audioBiofilmCompleted = true;
+    } else if (mode === 'sporulating') {
+      audio?.play('bacillusSporulation', position);
+    } else if (mode === 'germinating') {
+      // Reconstrução: o ciclo recomeça e a conclusão volta a ser possível.
+      entry.audioBiofilmCompleted = false;
+      audio?.play('bacillusGermination', position);
+    }
+
+    if (mode === 'mature' && !entry.announcedMature) {
+      entry.announcedMature = true;
+      narrate(state, 'bacillus.mature');
+      entities.burst(colony.x, colony.y, '#a8ffe6', 30, 130);
+    } else if (mode === 'spores' && !entry.announcedSpores) {
+      entry.announcedSpores = true;
+      narrate(state, 'bacillus.sporulation');
+      entities.burst(colony.x, colony.y, '#ffe5a0', 24, 95);
+    } else if (mode === 'germinating' && !entry.announcedGermination) {
+      entry.announcedGermination = true;
+      narrate(state, 'bacillus.reactivation');
+      entities.burst(colony.x, colony.y, '#d6ff94', 34, 125);
+    }
+  }
+
+  function updateLifecycle(entry, dt) {
+    const colony = entry.colony;
+    const fuel = clamp(colony.rechargeIntensity || 0, 0, 1);
+    const sourceBoost = 1 + Math.max(0, (colony.sourceCount || 1) - 1) * .12;
+
+    if (entry.mode === 'spores') {
+      colony.stage = modeLabel(entry);
+      colony.dormant = true;
+      colony.vigor = Math.min(colony.vigor, .08);
+      entry.antibioticReserve = Math.max(0, entry.antibioticReserve - dt * .01);
+      entry.phosphateMetaboliteReserve = Math.max(0, entry.phosphateMetaboliteReserve - dt * .008);
+      if (fuel > .08) {
+        colony.dormant = false;
+        colony.vigor = Math.max(colony.vigor, .065);
+        entry.germination = 0;
+        enterMode(entry, 'germinating');
+      }
+      configureFilm(entry);
+      return;
+    }
+
+    if (entry.mode === 'germinating') {
+      colony.dormant = false;
+      entry.germination = clamp(entry.germination + dt * (.14 + fuel * .55) * sourceBoost, 0, 1);
+      entry.maturity = Math.max(.18, entry.germination * .58);
+      colony.stage = modeLabel(entry);
+      if (entry.germination >= 1 && colony.vigor > .1) {
+        entry.maturity = .56;
+        entry.sporulation = 0;
+        entry.antibioticReserve = Math.max(entry.antibioticReserve, .08);
+        entry.announcedSpores = false;
+        entry.announcedGermination = false;
+        enterMode(entry, 'matrix');
+      }
+      configureFilm(entry);
+      return;
+    }
+
+    colony.dormant = false;
+    const growthRate = (.035 + fuel * .095 + colony.vigor * .018) * sourceBoost;
+    if (entry.mode === 'adhesion') {
+      entry.maturity = clamp(entry.maturity + dt * growthRate, 0, 1);
+      if (entry.maturity >= .28) enterMode(entry, 'matrix');
+    } else if (entry.mode === 'matrix') {
+      entry.maturity = clamp(entry.maturity + dt * growthRate * .82, 0, 1);
+      if (entry.maturity >= .72) enterMode(entry, 'mature');
+    } else {
+      entry.maturity = clamp(entry.maturity + dt * growthRate * .18, 0, 1);
+    }
+
+    if (entry.maturity >= .7) {
+      const production = dt * (.009 + fuel * .075 + colony.vigor * .012) * sourceBoost;
+      entry.antibioticReserve = clamp(entry.antibioticReserve + production, 0, 1.25);
+      if (entry.antibioticReserve > .12 && entry.mode === 'mature') enterMode(entry, 'antibiosis');
+    }
+
+
+    // Todo Bacillus maduro e metabolicamente ativo produz os acidos organicos
+    // que solubilizam o fosfato mineral. Nao ha cepa especial.
+    if (entry.maturity >= .72
+      && isMetabolicallyActive(entry)
+      && entry.mode !== 'sporulating') {
+      const config = state.level.phaseProfile?.phosphateSolubilization || {};
+      const baseRate = Number(config.metaboliteProductionRate) || .11;
+      const exudateMultiplier = Number(config.exudateProductionMultiplier) || 2.4;
+      const multiplier = 1 + fuel * Math.max(0, exudateMultiplier - 1);
+      entry.phosphateMetaboliteReserve = clamp(
+        entry.phosphateMetaboliteReserve + dt * baseRate * multiplier * colony.vigor,
+        0,
+        1,
+      );
+    }
+
+    const carbonStress = colony.vigor < .15 && fuel < .035;
+    if (carbonStress) {
+      entry.sporulation = clamp(entry.sporulation + dt * (.095 + (1 - colony.vigor) * .09), 0, 1);
+      if (entry.mode !== 'adhesion' && entry.mode !== 'matrix') enterMode(entry, 'sporulating');
+    } else {
+      entry.sporulation = Math.max(0, entry.sporulation - dt * (.12 + fuel * .25));
+      if (entry.mode === 'sporulating' && entry.sporulation < .35) {
+        enterMode(entry, entry.antibioticReserve > .12 ? 'antibiosis' : 'mature');
+      }
+    }
+
+    if (entry.sporulation >= 1) {
+      entry.maturity = .18;
+      entry.antibioticReserve *= .18;
+      colony.vigor = Math.min(colony.vigor, .025);
+      colony.dormant = true;
+      enterMode(entry, 'spores');
+    }
+
+    colony.stage = modeLabel(entry);
+    configureFilm(entry);
+  }
+
+  function decayAgentMarkers(dt) {
+    for (const agent of ecology.agents) {
+      agent.bacillusAntibiosis = Math.max(0, (agent.bacillusAntibiosis || 0) - dt * 1.8);
+    }
+  }
+
+  function applyAntibiosis(entry, dt) {
+    entry.activePressure = 0;
+    if (!isMetabolicallyActive(entry) || entry.maturity < .68 || entry.antibioticReserve <= .015) return;
+
+    const colony = entry.colony;
+    const radius = 82 + entry.maturity * 42 + (colony.sourceCount || 1) * 11;
+    for (const agent of ecology.agents) {
+      if (agent.type !== 'oportunista') continue;
+      const dx = agent.x - colony.x;
+      const dy = agent.y - colony.y;
+      const distance = Math.max(1, Math.hypot(dx, dy));
+      if (distance >= radius) continue;
+
+      const reserveFactor = clamp(entry.antibioticReserve / .35, .12, 1);
+      const synergy = 1 + clamp(agent.ironLimitation || 0, 0, 1) * .48;
+      const pressure = clamp((1 - distance / radius) * colony.vigor * reserveFactor * synergy, 0, 1);
+      if (pressure <= .01) continue;
+
+      agent.bacillusAntibiosis = Math.max(agent.bacillusAntibiosis || 0, pressure);
+      agent.vx += dx / distance * 118 * pressure * dt;
+      agent.vy += dy / distance * 66 * pressure * dt;
+      agent.vx *= Math.pow(.2, dt * pressure);
+      agent.vy *= Math.pow(.28, dt * pressure);
+      agent.homeX += dx / distance * 56 * pressure * dt;
+      agent.homeY += dy / distance * 36 * pressure * dt;
+      entry.antibioticReserve = Math.max(0, entry.antibioticReserve - dt * .018 * pressure);
+      entry.activePressure = Math.max(entry.activePressure, pressure);
+    }
+  }
+
+  function applyInducedResistance(entry, dt) {
+    entry.resistanceStrength = 0;
+    if (!isMetabolicallyActive(entry) || entry.maturity < .55 || entry.mode === 'sporulating') return;
+
+    const colony = entry.colony;
+    const platform = colony.platform;
+    const player = state.player;
+    const centerX = player.x + player.w / 2;
+    const centerY = player.y + player.h / 2;
+    const feetY = player.y + player.h;
+    const filmRadius = Math.max(18, entry.film?.radius || 0);
+    const insideFilm = Math.hypot(centerX - colony.x, centerY - colony.y) < filmRadius * 1.05;
+    const onProtectedRoot = platform
+      && centerX >= platform.x - 20
+      && centerX <= platform.x + platform.w + 20
+      && Math.abs(feetY - platform.y) < 58;
+    if (!insideFilm && !onProtectedRoot) return;
+
+    const strength = clamp(entry.maturity * colony.vigor * (.7 + (colony.sourceCount || 1) * .08), 0, .9);
+    entry.resistanceStrength = strength;
+    state.player.bacillusResistance = Math.max(state.player.bacillusResistance || 0, strength);
+
+    state.player.infectionExposure = Math.max(
+      0,
+      (state.player.infectionExposure || 0) - dt * (.45 + strength * 1.25),
+    );
+    state.player.infection = Math.max(
+      0,
+      (state.player.infection || 0) - dt * (.035 + strength * .18),
+    );
+    state.player.soil += dt * .055 * strength;
+  }
+
+  // Pressão mínima para a antibiose SOAR. Abaixo disto a colônia está madura,
+  // mas não está fazendo nada com ninguém — e madura não é motivo para som.
+  const ANTIBIOSIS_AUDIBLE_PRESSURE = .06;
+  const ANTIBIOSIS_MINIMUM_RESERVE = .02;
+
+  function updateColonyAudio(entry) {
+    const audio = entities?.audio;
+    if (!audio) return;
+    const colony = entry.colony;
+    const biofilmKey = `bacillus-biofilm:${colony.id}`;
+    const antibiosisKey = `bacillus-antibiosis:${colony.id}`;
+
+    // Matriz em construção: adesão, matriz e a reconstrução pós-germinação.
+    const building = entry.mode === 'adhesion'
+      || entry.mode === 'matrix'
+      || entry.mode === 'germinating';
+    if (building) {
+      audio.startLoop(biofilmKey, 'bacillusBiofilmGrowth', {
+        x: colony.x,
+        y: colony.y,
+        // A reconstrução entra baixa: é um biofilme voltando, não nascendo.
+        gain: (entry.mode === 'germinating' ? .40 : .55) + clamp(entry.maturity, 0, 1) * .45,
+        rate: .90 + clamp(entry.maturity, 0, 1) * .16,
+      });
+    } else {
+      audio.stopLoop(biofilmKey);
+    }
+
+    // `entry.activePressure` só enxerga o fungo oportunista. A mesma colônia
+    // contém Rhizoctonia e Ralstonia — esses sistemas já calculam a pressão, e
+    // publicam o valor no quadro de sinais para o áudio poder representá-lo.
+    // Sem isto, um biofilme segurando um foco de Rhizoctonia ficava mudo.
+    const pressaoExterna = externalControlPressure(state, 'bacillusAntibiosis', colony.id);
+    const combinedPressure = Math.max(entry.activePressure, pressaoExterna);
+    const antibiosing = combinedPressure > ANTIBIOSIS_AUDIBLE_PRESSURE
+      && entry.antibioticReserve > ANTIBIOSIS_MINIMUM_RESERVE
+      && isMetabolicallyActive(entry);
+    if (antibiosing) {
+      audio.startLoop(antibiosisKey, 'bacillusAntibiosis', {
+        x: colony.x,
+        y: colony.y,
+        gain: clamp(combinedPressure, 0, 1),
+      });
+    } else {
+      audio.stopLoop(antibiosisKey);
+    }
+  }
+
+  function update(dt) {
+    if (state.gameState !== 'play') return;
+    syncColonies();
+    state.player.bacillusResistance = 0;
+    fungiUnderAntibiosis = 0;
+    decayAgentMarkers(dt);
+
+    for (const entry of colonyStates.values()) updateLifecycle(entry, dt);
+    for (const entry of colonyStates.values()) applyAntibiosis(entry, dt);
+    for (const entry of colonyStates.values()) applyInducedResistance(entry, dt);
+    // Depois de `applyAntibiosis`: a pressão do quadro já está calculada, então
+    // o loop de antibiose só existe quando ela está realmente atuando.
+    for (const entry of colonyStates.values()) updateColonyAudio(entry);
+
+    fungiUnderAntibiosis = ecology.agents.filter(agent => (
+      agent.type === 'oportunista' && (agent.bacillusAntibiosis || 0) > .04
+    )).length;
+  }
+
+  function drawSpores(ctx, entry) {
+    if (entry.mode !== 'spores' && entry.mode !== 'germinating' && entry.mode !== 'sporulating') return;
+    const colony = entry.colony;
+    const germination = entry.mode === 'germinating' ? entry.germination : 0;
+    ctx.save();
+    ctx.translate(colony.x, colony.y - 5);
+    for (let i = 0; i < entry.sporeCount; i++) {
+      const angle = entry.phase + i * TAU / entry.sporeCount;
+      const ring = 12 + (i % 4) * 5;
+      const x = Math.cos(angle) * ring;
+      const y = Math.sin(angle) * ring * .48;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle + .35);
+      ctx.fillStyle = entry.mode === 'spores' ? '#d9b56c' : '#d6ff94';
+      ctx.strokeStyle = '#fff0bd';
+      ctx.lineWidth = 1.1;
+      ctx.globalAlpha = .58 + (i % 3) * .12;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 4.2, 2.5, 0, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      if (germination > 0) {
+        ctx.strokeStyle = '#8ff4e8';
+        ctx.beginPath();
+        ctx.moveTo(3.5, 0);
+        ctx.quadraticCurveTo(6 + germination * 5, -2, 8 + germination * 10, -germination * 5);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function drawLimitedFungus(ctx, agent) {
+    const pressure = clamp(agent.bacillusAntibiosis || 0, 0, 1);
+    if (pressure <= .04) return;
+    const seed = Number.isFinite(agent.noiseSeed) ? agent.noiseSeed : 0;
+    ctx.save();
+    ctx.translate(agent.x, agent.y);
+    ctx.globalAlpha = .3 + pressure * .55;
+    ctx.strokeStyle = '#ffd77e';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath();
+    ctx.arc(0, 0, 16 + pressure * 10 + Math.sin(state.time * 3 + seed) * 2, 0, TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (let i = 0; i < 4; i++) {
+      const angle = state.time * .48 + seed + i * TAU / 4;
+      ctx.fillStyle = i % 2 ? '#ffd77e' : '#9effdf';
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * 13, Math.sin(angle) * 8, 1.6, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Duas barras rotuladas por colonia empilhavam retangulo, texto e fundo preto
+  // sobre a cena inteira — e uma colonia madura nunca esta sozinha. Aqui a
+  // reserva vira o que ela e de fato: substancia difundindo no solo. A
+  // quantidade se le pela densidade e pelo alcance da difusao, nao por um
+  // numero, e a colonia continua parecendo uma colonia.
+  function drawDiffusion(ctx, entry, amount, palette, seed) {
+    const spread = 16 + amount * 26;
+    const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, spread);
+    halo.addColorStop(0, palette.core);
+    halo.addColorStop(.55, palette.mid);
+    halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = .15 + amount * .4;
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.ellipse(0, 6, spread, spread * .62, 0, 0, TAU);
+    ctx.fill();
+
+    // As particulas sobem e se dispersam como difusao real, e nascem em numero
+    // proporcional a reserva: pouca reserva, poucas particulas.
+    const count = Math.round(amount * 9);
+    ctx.globalAlpha = 1;
+    for (let index = 0; index < count; index++) {
+      const phase = (state.time * .34 + seed + index / Math.max(1, count)) % 1;
+      const angle = seed * TAU + index * 2.399;
+      const distance = spread * (.25 + phase * .8);
+      const x = Math.cos(angle) * distance;
+      const y = 6 + Math.sin(angle) * distance * .5 - phase * 13;
+      ctx.globalAlpha = (1 - phase) * (.32 + amount * .5);
+      ctx.fillStyle = palette.dot;
+      ctx.beginPath();
+      ctx.arc(x, y, 1.5 + (index % 3) * .5, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawReserve(ctx, entry) {
+    if (entry.mode === 'spores') return;
+    const colony = entry.colony;
+    const seed = (colony.x % 97) / 97;
+
+    const antibiotic = clamp(entry.antibioticReserve / 1.25, 0, 1);
+    if (antibiotic > .01) {
+      ctx.save();
+      ctx.translate(colony.x, colony.y);
+      drawDiffusion(ctx, entry, antibiotic, {
+        core: 'rgba(255,205,120,.5)', mid: 'rgba(255,180,80,.16)', dot: '#ffd77e',
+      }, seed);
+      ctx.restore();
+    }
+
+    const phosphate = clamp(entry.phosphateMetaboliteReserve || 0, 0, 1);
+    if (phosphate > .01) {
+      ctx.save();
+      ctx.translate(colony.x, colony.y);
+      drawDiffusion(ctx, entry, phosphate, {
+        core: 'rgba(214,140,255,.44)', mid: 'rgba(190,110,255,.14)', dot: '#dc8cff',
+      }, seed + .37);
+      ctx.restore();
+    }
+  }
+
+  function render(ctx) {
+    if (!colonyStates.size) return;
+    const visibleWidth = state.visibleWorldWidth || W / Math.max(.1, state.cameraZoom || 1);
+    ctx.save();
+    ctx.translate(-state.cameraX, 0);
+    for (const entry of colonyStates.values()) {
+      if (entry.colony.x < state.cameraX - 230 || entry.colony.x > state.cameraX + visibleWidth + 230) continue;
+      drawBacillusBiofilm(ctx, { entry }, state.time);
+      drawSpores(ctx, entry);
+      drawReserve(ctx, entry);
+    }
+    for (const agent of ecology.agents) {
+      if (agent.type === 'oportunista') drawLimitedFungus(ctx, agent);
+    }
+    ctx.restore();
+  }
+
+  return {
+    get colonyCount() { return colonyStates.size; },
+    get matureBiofilmCount() {
+      return [...colonyStates.values()].filter(entry => entry.maturity >= .72 && entry.mode !== 'spores').length;
+    },
+    get activeBiofilmCount() {
+      return [...colonyStates.values()].filter(entry => entry.mode === 'antibiosis' || entry.mode === 'mature').length;
+    },
+    get sporulatedCount() {
+      return [...colonyStates.values()].filter(entry => entry.mode === 'spores').length;
+    },
+    get germinatingCount() {
+      return [...colonyStates.values()].filter(entry => entry.mode === 'germinating').length;
+    },
+    get fungiUnderAntibiosis() { return fungiUnderAntibiosis; },
+    get entries() { return [...colonyStates.values()]; },
+    get solubilizerEntries() {
+      // Qualquer colonia de Bacillus e candidata: quem decide e a maturidade e
+      // a reserva, verificadas por quem consome esta lista.
+      return [...colonyStates.values()].filter(entry => entry.colony.type === 'bacillus');
+    },
+    get protectedRootCount() {
+      const platforms = new Set();
+      for (const entry of colonyStates.values()) {
+        if (entry.maturity >= .55 && entry.mode !== 'spores') platforms.add(entry.colony.platform);
+      }
+      return platforms.size;
+    },
+    clear,
+    reset,
+    update,
+    render,
+  };
+}
+Object.assign(__exports, { createBacillusBioprotection });
+},
+"src/render/bacillus-biofilm.js": (__exports, __require) => {
+// A surface coating, not the biological area of protection. All dimensions here
+// are visual; film.radius and every simulation threshold keep their old meaning.
+const { drawInoculatedBacillusSprite } = __require("src/render/bacillus-sprite.js");
+const { visibleRootRect } = __require("src/render/rhizosphere-geometry.js");
+const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
+const smooth = (lo, hi, value) => { const t = clamp((value - lo) / (hi - lo)); return t * t * (3 - 2 * t); };
+const noise = (seed, i) => { const n = Math.sin(seed * .173 + i * 127.1) * 43758.5453; return n - Math.floor(n); };
+const cache = new WeakMap();
+
+const TAU = Math.PI * 2;
+
+function biofilmVisualState({ entry = null, colony = entry?.colony, film = entry?.film, progress = null } = {}) {
+  // Ecological film.growth also advances independently in gameplay.update. It
+  // must NEVER replace the Bacillus lifecycle's maturity for a managed colony.
+  const maturity = clamp(entry ? entry.maturity : progress ?? film?.growth ?? 1);
+  const mode = entry?.mode || film?.bacillusMode || 'matrix';
+  const vigor = clamp(colony?.vigor ?? 1);
+  const spores = mode === 'spores';
+  const sporulation = mode === 'sporulating' ? clamp(entry?.sporulation || 0) : 0;
+  return {
+    maturity, vigor, mode,
+    functional: Boolean(film?.functional ?? (!entry && maturity >= .42)),
+    adhesion: smooth(.06, .26, maturity),
+    matrix: smooth(.12, .42, maturity),
+    expansion: smooth(.24, .74, maturity),
+    maturation: smooth(.65, 1, maturity),
+    hydration: spores ? 0 : (1 - sporulation * .82) * (.48 + vigor * .52),
+    activity: clamp(entry?.activePressure || 0),
+    antibiotic: clamp(entry?.antibioticReserve || 0),
+    sourceCount: clamp(colony?.sourceCount ?? 3, 1, 8),
+  };
+}
+
+function biofilmSurface({ film, colony, entry, platform = colony?.platform || film?.platform, platforms = [] }) {
+  const x = film?.checkpoint?.x ?? colony?.x ?? film?.x ?? entry?.colony?.x ?? 0;
+  const y = film?.checkpoint ? film.checkpoint.y + 8 : colony?.y ?? film?.y ?? 0;
+  // Natural checkpoints have no platform reference. Resolve their actual host
+  // only for painting; do not attach/change any simulation object.
+  if (!platform) {
+    let best = 110;
+    for (const p of platforms) {
+      if (p.final || p.mycorrhizaStructure) continue;
+      const d = Math.hypot(x - clamp(x, p.x, p.x + p.w), y - p.y);
+      if (d < best) { platform = p; best = d; }
+    }
+  }
+  const rect = platform ? visibleRootRect(platform) : null;
+  const left = rect ? rect.x + 6 : x - 90;
+  const right = rect ? rect.x + rect.w - 6 : x + 90;
+  const center = clamp(x, left + 2, right - 2);
+  const seed = Math.round(x * 13 + y * 7 + (platform?.logicIndex || 0) * 83);
+  return { x: center, y: rect?.y ?? y + 7, left, right, band: clamp(rect?.h || 18, 14, 24), seed };
+}
+
+function buildBiofilmProfile(surface, visual, time = 0) {
+  const m = visual.maturity;
+  const spread = .12 + .88 * smooth(.09, .82, m);
+  const reach = 80 + visual.sourceCount * 10;
+  const left = Math.max(surface.left, surface.x - reach * spread * (.94 + noise(surface.seed, 1) * .15));
+  const right = Math.min(surface.right, surface.x + reach * spread * (.94 + noise(surface.seed, 2) * .15));
+  const center = (left + right) / 2;
+  const half = Math.max(1, (right - left) / 2);
+  const bridge = smooth(.34, .42, m);
+  const eps = smooth(.12, .29, m) * visual.hydration;
+  const samples = [];
+  for (let i = 0; i <= 80; i++) {
+    const u = i / 80;
+    const x = left + (right - left) * u;
+    const envelope = Math.pow(Math.max(0, 1 - ((x - center) / half) ** 2), .48);
+    let density = 0;
+    for (let k = 0; k < 9; k++) {
+      const at = (k + .25 + noise(surface.seed, 10 + k) * .5) / 9;
+      const onset = .13 + Math.abs(at - .5) * .30 + noise(surface.seed, 30 + k) * .025;
+      const emergence = smooth(onset, onset + .11, m);
+      const width = .015 + .058 * visual.matrix + noise(surface.seed, 50 + k) * .012;
+      const d = (u - at) / width;
+      density = Math.max(density, emergence * Math.exp(-d * d * 1.5));
+    }
+    const ripple = .83 + .12 * Math.sin(u * 25 + surface.seed) + .055 * Math.sin(u * 61 + surface.seed * .3);
+    // Only restrained breathing/gloss uses time. Extent, density and thickness
+    // cannot advance unless real maturity advances (same principle as nodules).
+    const breath = Math.sin(time * 1.1 + u * 8 + surface.seed) * .24 * visual.matrix;
+    const depth = Math.max(density, bridge * (.68 + .12 * Math.sin(u * 19 + surface.seed)));
+    const height = depth * envelope * eps;
+    samples.push({ x, top: surface.y - height * (10 + visual.expansion * 8) * ripple - breath * height,
+      bottom: surface.y + height * (4 + visual.expansion * 6) * (1.08 - ripple * .2), height });
+  }
+  // Gaps are separate attached EPS islands early on; later the same heightfield
+  // joins into one continuous film. There is no replacement at a stage boundary.
+  const segments = [];
+  let segment = [];
+  for (const p of samples) {
+    if (p.height > .025) segment.push(p);
+    else if (segment.length) { if (segment.length > 1) segments.push(segment); segment = []; }
+  }
+  if (segment.length > 1) segments.push(segment);
+  return { left, right, samples, segments };
+}
+
+function trace(ctx, points, reverse = false, edge = 'top', move = true) {
+  const list = reverse ? [...points].reverse() : points;
+  if (move) ctx.moveTo(list[0].x, list[0][edge]); else ctx.lineTo(list[0].x, list[0][edge]);
+  for (let i = 1; i < list.length - 1; i++) {
+    ctx.quadraticCurveTo(list[i].x, list[i][edge], (list[i].x + list[i + 1].x) / 2, (list[i][edge] + list[i + 1][edge]) / 2);
+  }
+  const last = list[list.length - 1]; ctx.lineTo(last.x, last[edge]);
+}
+
+function outline(ctx, profile) {
+  ctx.beginPath();
+  for (const points of profile.segments) {
+    trace(ctx, points); trace(ctx, points, true, 'bottom', false); ctx.closePath();
+  }
+}
+
+function paintGel(ctx, surface, visual, profile) {
+  if (!profile.segments.length) return;
+  const y = surface.y;
+  outline(ctx, profile);
+  const gel = ctx.createLinearGradient(0, y - 19, 0, y + 12);
+  gel.addColorStop(0, 'rgba(177,250,201,.59)');
+  gel.addColorStop(.36, 'rgba(102,215,156,.46)');
+  gel.addColorStop(.7, 'rgba(57,170,123,.47)');
+  gel.addColorStop(1, 'rgba(22,102,77,.62)');
+  ctx.fillStyle = gel; ctx.fill();
+  ctx.strokeStyle = 'rgba(24,111,82,.48)'; ctx.lineWidth = 1.1; ctx.stroke();
+  // Broad refracted edge inside the gel, never an external halo.
+  ctx.save(); outline(ctx, profile); ctx.clip();
+  ctx.strokeStyle = 'rgba(168,255,199,.17)'; ctx.lineWidth = 5; ctx.stroke();
+  ctx.restore();
+}
+
+function paintCells(ctx, surface, visual, profile, time) {
+  const m = visual.maturity;
+  const slots = 12;
+  const spread = .2 + .8 * smooth(.10, .78, m);
+  for (let k = 0; k < slots; k++) {
+    // Stable low-discrepancy placement: daughter cells appear between the first
+    // adherent cells. They do not orbit, float away or form a radial rosette.
+    const u = k < 2 ? .43 + k * .16 : .055 + ((k * .61803398875) % 1) * .89;
+    const onset = k < 2 ? .025 : .12 + (k - 2) * .047;
+    const alpha = smooth(onset, onset + .10, m) * (.55 + visual.vigor * .45) * (1 - (1 - visual.hydration) * .7);
+    if (alpha < .005) continue;
+    const x = clamp(surface.x + (u - .5) * (profile.right - profile.left) * spread,
+      surface.left + 7, surface.right - 7);
+    const index = clamp(Math.round((x - profile.left) / Math.max(1, profile.right - profile.left) * 80), 0, 80);
+    const p = profile.samples[index];
+    const y = surface.y - (3.5 + visual.expansion * 1.3) + (noise(surface.seed, k + 100) - .5) * (3 + visual.expansion * 13);
+    const width = 9.0 + noise(surface.seed, k + 120) * 3.4 + smooth(onset, onset + .15, m) * 1.3;
+    ctx.save(); ctx.translate(x, Math.max(p.top + 5.5, y));
+    ctx.rotate((noise(surface.seed, k + 140) - .5) * 2.1);
+    const drawn = drawInoculatedBacillusSprite(ctx, 0, 0, width, null, time, k * 3.7, alpha);
+    if (!drawn) {
+      // Only an asset-loading fallback; the real game uses its unmodified sheet.
+      ctx.globalAlpha = alpha; ctx.fillStyle = '#aa7ed8';
+      ctx.beginPath(); ctx.roundRect(-3, -6, 6, 12, 3); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function paintGlaze(ctx, surface, visual, profile, time) {
+  if (!profile.segments.length) return;
+  ctx.save(); outline(ctx, profile); ctx.clip();
+  ctx.fillStyle = 'rgba(164,255,199,.09)'; ctx.fill();
+  for (const segment of profile.segments) {
+    ctx.beginPath();
+    trace(ctx, segment.map(p => ({ x: p.x, top: p.top + 2.0 })));
+    ctx.strokeStyle = 'rgba(217,255,225,.38)'; ctx.lineWidth = .85; ctx.stroke();
+    // Interrupted wet highlights follow the local surface instead of tracing
+    // a solid neon border around the whole film.
+    for (let k = 0; k < 3; k++) {
+      const begin = Math.floor(segment.length * (.13 + k * .28));
+      const end = Math.min(segment.length, begin + Math.max(2, Math.floor(segment.length * .10)));
+      if (end - begin < 2) continue;
+      ctx.beginPath(); trace(ctx, segment.slice(begin, end).map(p => ({ x: p.x, top: p.top + 3.2 })));
+      ctx.strokeStyle = `rgba(243,255,229,${.20 + visual.maturation * .18})`;
+      ctx.lineWidth = 1.7; ctx.lineCap = 'round'; ctx.stroke();
+    }
+  }
+  // A few inclusions trapped in EPS, not emitted particles. Their locations are
+  // fixed to the root and their brightness reflects real film vitality.
+  for (let i = 0; i < 6; i++) {
+    const u = .08 + noise(surface.seed, 180 + i) * .84;
+    const p = profile.samples[Math.round(u * 80)];
+    if (p.height < .2) continue;
+    const r = .7 + noise(surface.seed, 200 + i) * 1.1;
+    const y = p.top + (p.bottom - p.top) * (.32 + noise(surface.seed, 220 + i) * .45);
+    ctx.strokeStyle = `rgba(187,255,224,${.18 + visual.vigor * .16})`;
+    ctx.lineWidth = .65;
+    ctx.beginPath(); ctx.ellipse(p.x, y, r, r * .75, -.3, 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function paintRelief(ctx, surface, profile) {
+  if (!profile.segments.length) return;
+  outline(ctx, profile);
+  const height = ctx.createLinearGradient(0, surface.y - 20, 0, surface.y + 12);
+  height.addColorStop(0, '#000'); height.addColorStop(.42, '#dedede');
+  height.addColorStop(.62, '#bcbcbc'); height.addColorStop(1, '#000');
+  ctx.fillStyle = height; ctx.fill();
+  ctx.save(); outline(ctx, profile); ctx.clip();
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+}
+
+function makeCanvas(ctx) {
+  return ctx.canvas?.ownerDocument?.createElement?.('canvas')
+    || (typeof document !== 'undefined' ? document.createElement('canvas') : null);
+}
+
+function drawBacillusBiofilm(ctx, { entry = null, colony = entry?.colony, film = entry?.film,
+  platform = colony?.platform || film?.platform, platforms = [], progress = null, key = entry || film || colony } = {}, time = 0) {
+  const visual = biofilmVisualState({ entry, colony, film, progress });
+  if (visual.hydration <= 0 || !key) return;
+  const surface = biofilmSurface({ film, colony, entry, platform, platforms });
+  const reach = (80 + visual.sourceCount * 10) * 1.1 + 8;
+  const x0 = Math.max(surface.left - 2, surface.x - reach);
+  const x1 = Math.min(surface.right + 2, surface.x + reach);
+  const bounds = { x: x0, y: surface.y - 34, w: Math.max(4, x1 - x0), h: 53 };
+  const transform = ctx.getTransform?.();
+  if (transform && ctx.canvas?.width > 0 && ctx.canvas?.height > 0) {
+    const corners = [[bounds.x, bounds.y], [bounds.x + bounds.w, bounds.y],
+      [bounds.x, bounds.y + bounds.h], [bounds.x + bounds.w, bounds.y + bounds.h]]
+      .map(([x, y]) => [transform.a * x + transform.c * y + transform.e, transform.b * x + transform.d * y + transform.f]);
+    if (Math.max(...corners.map(p => p[0])) < -8 || Math.min(...corners.map(p => p[0])) > ctx.canvas.width + 8
+      || Math.max(...corners.map(p => p[1])) < -8 || Math.min(...corners.map(p => p[1])) > ctx.canvas.height + 8) return;
+  }
+  let item = cache.get(key);
+  if (!item) {
+    item = { image: makeCanvas(ctx), relief: makeCanvas(ctx), revision: 0, stamp: '', lastTime: -Infinity };
+    cache.set(key, item);
+  }
+  let profile = null;
+  const paint = (target, relief = false) => {
+    profile ||= buildBiofilmProfile(surface, visual, time);
+    if (relief) { paintRelief(target, surface, profile); return; }
+    paintGel(target, surface, visual, profile);
+    paintCells(target, surface, visual, profile, time);
+    paintGlaze(target, surface, visual, profile, time);
+  };
+  if (!item.image || !item.relief) { ctx.save(); paint(ctx); ctx.restore(); return; }
+  // A bounded local patch retains sprite detail. It is uploaded only while its
+  // own biology/animation changes, never as a full-screen extra texture.
+  const scale = 2.5;
+  // Moving a root/camera moves the patch pose, not its pixels. Only a change in
+  // local host geometry should force a repaint between the bounded updates.
+  const stamp = [visual.mode, surface.x - bounds.x, surface.left - bounds.x,
+    surface.right - bounds.x, bounds.w].map(value => typeof value === 'number' ? value.toFixed(3) : value).join(':');
+  if (stamp !== item.stamp || time < item.lastTime || time - item.lastTime >= 1 / 24) {
+    for (const [canvas, relief] of [[item.image, false], [item.relief, true]]) {
+      const w = Math.max(2, Math.ceil(bounds.w * scale)), h = Math.ceil(bounds.h * scale);
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      const target = canvas.getContext('2d');
+      target.setTransform(1, 0, 0, 1, 0, 0); target.clearRect(0, 0, canvas.width, canvas.height);
+      target.setTransform(scale, 0, 0, scale, -bounds.x * scale, -bounds.y * scale);
+      paint(target, relief);
+    }
+    item.revision++; item.stamp = stamp; item.lastTime = time;
+  }
+  const packet = { key, image: item.image, relief: item.relief, ...bounds, revision: item.revision,
+    activity: visual.functional ? .55 + visual.vigor * .45 : .15 + visual.vigor * .1 };
+  if (typeof ctx.__glBiofilm === 'function' && ctx.__glBiofilm(packet) !== false) return;
+  ctx.drawImage(item.image, bounds.x, bounds.y, bounds.w, bounds.h);
+}
+Object.assign(__exports, { biofilmVisualState, biofilmSurface, buildBiofilmProfile, drawBacillusBiofilm });
 },
 "src/procgen/bacillus-bioprotection-safety.js": (__exports, __require) => {
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -31250,7 +31543,9 @@ function validateChunk(fromPlatform, toPlatform, primitive, agentType = 'normal'
   const sim = createSimulator();
   const validationEnd = Math.max(toPlatform.x + toPlatform.w + 600, 6000);
 
-  sim.state.level.platforms = [fromPlatform, toPlatform];
+  // copias: a simulacao de validacao nao pode carimbar estado de jogo
+  // (rootBaseY da saude da raiz etc.) nas plataformas reais da geracao
+  sim.state.level.platforms = [{ ...fromPlatform }, { ...toPlatform }];
   sim.state.level.hazards = [];
   sim.state.level.endX = validationEnd;
   sim.state.level.cameraMaxX = Math.max(0, validationEnd - 1280);
