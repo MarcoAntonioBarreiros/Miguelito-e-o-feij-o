@@ -153,10 +153,10 @@ test('as hifas são compostas antes das sheets do oportunista e da Rhizoctonia',
     opportunisticSource.indexOf('function drawNetwork(ctx, network)'),
     opportunisticSource.indexOf('function drawVigorIndicator(ctx, network)'),
   );
-  assert.ok(
-    opportunisticDraw.indexOf('for (const segment of network.segments)')
-      < opportunisticDraw.lastIndexOf('drawFocus(ctx, network, vigor)'),
-  );
+  const networkPaint = opportunisticDraw.indexOf('drawOpportunisticMycelium(ctx, network');
+  const originalSpritePaint = opportunisticDraw.indexOf('drawFocus(ctx, network');
+  assert.ok(networkPaint >= 0 && originalSpritePaint > networkPaint,
+    'o renderer hifal extraído deve continuar atrás da sheet original');
 
   const rhizoctoniaSource = fs.readFileSync(
     path.join(root, 'src/procgen/rhizoctonia-control.js'),
