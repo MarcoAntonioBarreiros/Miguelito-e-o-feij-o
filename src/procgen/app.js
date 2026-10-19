@@ -759,6 +759,9 @@ const PHASE_TOPOLOGY_VARIANTS = [
 // link salvo nao cai fora de modo nenhum, que foi exatamente o acidente do T3b.
 const CLASSIC_PHASE_VARIANTS = ['classic', 'phase-classic'];
 const phaseTopologyMode = !CLASSIC_PHASE_VARIANTS.includes(optionalDetourVariant);
+// Diretor de salas (phase-director.js): padrao da fase 10. `?v=silhueta` volta
+// ao plano vertical antigo (zonas longas) para comparar.
+const phaseDirectorMode = phaseTopologyMode && optionalDetourVariant !== 'silhueta';
 
 const optionalDetourTopologyMode =
   optionalDetourVariant === 'optional-detour-topology-t1'
@@ -1002,9 +1005,19 @@ function prepareLevel() {
     // Cada tipo de portão só é pedido se a fase liberou a habilidade que o
     // abre. Sem isso o portão é softlock, não desafio — e é por isso que a
     // lista é montada a partir dos unlocks em vez de ser fixa.
-    verticalPlan: phaseTopologyMode && campaign.phase === 10
+    verticalPlan: phaseTopologyMode && !phaseDirectorMode && campaign.phase === 10
       ? { gateKinds: availableRouteGateKinds() }
       : false,
+    director: phaseDirectorMode && campaign.phase === 10
+      ? {
+          gateKinds: availableRouteGateKinds(),
+          abilities: {
+            dash: Boolean(campaign.unlocks?.dash),
+            // mesmo filtro do portao: habilidade + Bacillus liberado no laboratorio
+            phosphateSolubilization: availableRouteGateKinds().includes('phosphateWall'),
+          },
+        }
+      : null,
   });
   levelData.optionalDetourPlaytestMode = optionalDetourPlaytestMode;
   // Marca lida por `meloidogyne-lifecycle` e `ralstonia-vascular-wilt` no

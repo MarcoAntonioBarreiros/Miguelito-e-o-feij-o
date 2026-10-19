@@ -181,43 +181,79 @@ function planMerged(a, b) {
   };
 }
 
+// O par (a -> b) comporta o tunel? Devolve o candidato ou null.
+function candidateFor(level, a, b, { merged, all, referenced, segments, phase }) {
+  const plan = merged ? planMerged(a, b) : planFor(a, b);
+  if (!plan) return null;
+  if (!convertibleToSoil(a, referenced) || !convertibleToSoil(b, referenced)) return null;
+  if (segments && (!chunkAllowed(phase, a.logicIndex) || !chunkAllowed(phase, b.logicIndex))) return null;
+  if (isIntentionalDynamicCrossing(level, a, b)) return null;
+  if (a.nitrogenGate || b.nitrogenGate || a.underdevelopedNitrogenRoot || b.underdevelopedNitrogenRoot) return null;
+  // portao de nitrogenio: a raiz subdesenvolvida cresce justamente sobre um
+  // vao assim. Nem o par, nem nada que encoste no vao.
+  const reserved = (level.nitrogenRoots || []).some(n => [n.hostPlatform, n.targetPlatform, n.leftPlatform, n.rightPlatform]
+    .some(q => q === a || q === b));
+  if (reserved) return null;
+  const { block } = plan;
+  // teto, corredor e beirada livres de qualquer outra plataforma
+  const corridor = { x: block.x, y: block.y, w: block.w, h: block.h + LOW_TUNNEL.clearance + LOW_TUNNEL.ledgeDepth + 30 };
+  if (all.some(p => p !== a && p !== b && overlaps(corridor, p))) return null;
+  // nada que precise ser alcancado preso na parte baixa do teto (o bloco
+  // sobe ate a superficie; o que voa la em cima nao conta)
+  const lowBand = { x: block.x, y: block.y + block.h - 160, w: block.w, h: 160 };
+  const blocked = [
+    ...(level.allies || []),
+    ...(level.checkpoints || []),
+    ...(level.crystals || []),
+  ].some(o => Number.isFinite(o?.x) && Number.isFinite(o?.y) && pointIn(lowBand, o.x, o.y, 24));
+  if (blocked) return null;
+  return { a, b, gap: Math.round(plan.pairGap), chunk: a.logicIndex, converts: (a.type === 'root') + (b.type === 'root'), ...plan };
+}
+
 /** Pares candidatos, em ordem de rota. Exportado para testes e diagnostico. */
 export function lowTunnelCandidates(level, phase, { merged = false } = {}) {
   if (!(phase >= LOW_TUNNEL.firstPhase)) return [];
   const route = routePlatforms(level);
-  const all = level.platforms || [];
-  const referenced = referencedPlatforms(level);
+  const ctx = { merged, all: level.platforms || [], referenced: referencedPlatforms(level), segments: true, phase };
   const out = [];
   for (let i = 0; i + 1 < route.length; i++) {
-    const a = route[i];
-    const b = route[i + 1];
-    const plan = merged ? planMerged(a, b) : planFor(a, b);
-    if (!plan) continue;
-    if (!convertibleToSoil(a, referenced) || !convertibleToSoil(b, referenced)) continue;
-    if (!chunkAllowed(phase, a.logicIndex) || !chunkAllowed(phase, b.logicIndex)) continue;
-    if (isIntentionalDynamicCrossing(level, a, b)) continue;
-    if (a.nitrogenGate || b.nitrogenGate || a.underdevelopedNitrogenRoot || b.underdevelopedNitrogenRoot) continue;
-    // portao de nitrogenio: a raiz subdesenvolvida cresce justamente sobre um
-    // vao assim. Nem o par, nem nada que encoste no vao.
-    const reserved = (level.nitrogenRoots || []).some(n => [n.hostPlatform, n.targetPlatform, n.leftPlatform, n.rightPlatform]
-      .some(q => q === a || q === b));
-    if (reserved) continue;
-    const { block } = plan;
-    // teto, corredor e beirada livres de qualquer outra plataforma
-    const corridor = { x: block.x, y: block.y, w: block.w, h: block.h + LOW_TUNNEL.clearance + LOW_TUNNEL.ledgeDepth + 30 };
-    if (all.some(p => p !== a && p !== b && overlaps(corridor, p))) continue;
-    // nada que precise ser alcancado preso na parte baixa do teto (o bloco
-    // sobe ate a superficie; o que voa la em cima nao conta)
-    const lowBand = { x: block.x, y: block.y + block.h - 160, w: block.w, h: 160 };
-    const blocked = [
-      ...(level.allies || []),
-      ...(level.checkpoints || []),
-      ...(level.crystals || []),
-    ].some(o => Number.isFinite(o?.x) && Number.isFinite(o?.y) && pointIn(lowBand, o.x, o.y, 24));
-    if (blocked) continue;
-    out.push({ a, b, gap: Math.round(plan.pairGap), chunk: a.logicIndex, converts: (a.type === 'root') + (b.type === 'root'), ...plan });
+    const c = candidateFor(level, route[i], route[i + 1], ctx);
+    if (c) out.push(c);
   }
   return out;
+}
+
+// Diretor de salas (fase 10+): o gerador ja reservou o par de cada tunel.
+// Instala exatamente esses, sem sorteio de posicao.
+function installDirectorTunnels(level, phase, rnd, phosphateOn) {
+  const route = routePlatforms(level);
+  const all = level.platforms || [];
+  const referenced = referencedPlatforms(level);
+  const chosen = [];
+  const failures = [];
+  for (let i = 0; i + 1 < route.length; i++) {
+    const a = route[i];
+    if (a.tunnelRoomRole !== 'entry') continue;
+    const b = route[i + 1];
+    if (b.tunnelRoomRole !== 'exit' || b.tunnelRoomId !== a.tunnelRoomId) { failures.push({ id: a.tunnelRoomId, reason: 'par' }); continue; }
+    const phosphate = a.tunnelRoomKind === 'phosphateTunnel' && phosphateOn;
+    const options = [];
+    for (const merged of phosphate ? [true, false] : [false]) {
+      const c = candidateFor(level, a, b, { merged, all, referenced, segments: false, phase });
+      if (c) options.push({ ...c, phosphate, roomId: a.tunnelRoomId });
+    }
+    let pick = null;
+    while (options.length) {
+      const o = options.splice(Math.floor(rnd() * options.length), 1)[0];
+      if (o.phosphate && !chargerFor(level, o)) continue;
+      pick = o;
+      break;
+    }
+    if (pick) chosen.push(pick);
+    else failures.push({ id: a.tunnelRoomId, reason: 'geometria' });
+  }
+  level.tunnelRoomFailures = failures;
+  return chosen;
 }
 
 /**
@@ -228,9 +264,16 @@ export function installLowTunnels(level, { phase, seedValue = '' , abilities = {
   level.ceilingDrops = [];
   level.tunnelFloors = [];
   const rnd = createRandom(`${seedValue}:low-tunnel:${phase}`);
-  const gapCandidates = lowTunnelCandidates(level, phase);
   const phosphateOn = LOW_TUNNEL.phosphatePhases.includes(phase)
     && abilities.phosphateSolubilization !== false;
+  const directorMode = (level.platforms || []).some(p => p.tunnelRoomRole === 'entry');
+  const chosen = directorMode ? installDirectorTunnels(level, phase, rnd, phosphateOn) : pickTunnels(level, phase, rnd, phosphateOn);
+  materializeTunnels(level, chosen);
+  return level.ceilingDrops;
+}
+
+function pickTunnels(level, phase, rnd, phosphateOn) {
+  const gapCandidates = lowTunnelCandidates(level, phase);
   const mergedCandidates = phosphateOn ? lowTunnelCandidates(level, phase, { merged: true }) : [];
   const chosen = [];
   const spaced = c => !chosen.some(k => k.a === c.a || k.b === c.a || k.a === c.b
@@ -261,8 +304,11 @@ export function installLowTunnels(level, { phase, seedValue = '' , abilities = {
     if (!spaced(pick)) continue;
     chosen.push(pick);
   }
-  chosen.sort((m, n) => m.a.x - n.a.x);
+  return chosen;
+}
 
+function materializeTunnels(level, chosen) {
+  chosen.sort((m, n) => m.a.x - n.a.x);
   for (const c of chosen) {
     const drop = {
       ...c.block,
@@ -308,7 +354,6 @@ export function installLowTunnels(level, { phase, seedValue = '' , abilities = {
       if (pointIn(drop, e.x, e.y, 6)) e.y = drop.y + drop.h + 22;
     }
   }
-  return level.ceilingDrops;
 }
 
 // Bloco de raiz ate `chargerReach` passos antes do tunel para a colonia de

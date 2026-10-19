@@ -1,12 +1,18 @@
 import { createRandom } from './random.js';
 import {
+  AZO_ASCENT_RISE_RANGE,
   createPhaseVerticalPlan,
+  MYCORRHIZA_BRIDGE_GAP_RANGE,
+  MYCORRHIZA_BRIDGE_MAX_DELTA,
+  NITROGEN_GATE_LANDING_GAP_RANGE,
+  NITROGEN_GATE_TARGET_WIDTH_RANGE,
   plannedRouteGates,
   ROUTE_GATE_KINDS,
   validatePhaseVerticalPlan,
   verticalBandAt,
 } from './phase-vertical-plan.js';
 import { generateLogicGraph } from './logic.js';
+import { createPhaseRecipe, directorBand } from './phase-director.js';
 import { generatePrimitives } from './primitives.js';
 import { generateGeometry } from './geometry.js';
 import { validateChunk } from './agents.js';
@@ -69,7 +75,7 @@ function traversalLimits(chunk, primitive, index) {
   };
 }
 
-function stabilizeGeometry(candidate, previous, chunk, primitive, index, verticalPlan = null) {
+function stabilizeGeometry(candidate, previous, chunk, primitive, index, band = null) {
   const limits = traversalLimits(chunk, primitive, index);
   const previousEnd = previous.x + previous.w;
   const rawGap = candidate.x - previousEnd;
@@ -79,7 +85,6 @@ function stabilizeGeometry(candidate, previous, chunk, primitive, index, vertica
 
   // A faixa vem do plano vertical quando ele existe; sem plano é a faixa fixa
   // de sempre, e o resultado é byte a byte o de antes.
-  const band = verticalPlan ? verticalBandAt(verticalPlan, index) : null;
   const floorY = band ? band.top : 235;
   const ceilingY = band ? band.bottom : 565;
 
@@ -357,6 +362,78 @@ function createRecoveryRoots(previous, next, chunk, rnd, index) {
   }];
 }
 
+// SALAS DO DIRETOR sem portao (ver phase-director.js). Geometria autoral: nao
+// passam por `stabilizeGeometry`, que achataria a queda em 92 px.
+//
+// Queda: um passo so, forte. Vao curto para nao virar salto de precisao.
+function buildDropRoomPlatform(previous, room, rnd, index, envelope) {
+  const room_ = envelope.bottom - 40 - previous.y;
+  if (room_ < 160) return null;
+  const drop = Math.round(clamp(lerp(170, 260, rnd()), 160, room_));
+  const gap = Math.round(lerp(48, 100, rnd()));
+  return {
+    x: previous.x + previous.w + gap,
+    y: previous.y + drop,
+    w: Math.round(lerp(210, 270, rnd())),
+    h: 54,
+    type: 'root',
+    logicIndex: index,
+    dropRoom: true,
+    dropRoomDepth: drop,
+    directorRoom: room.id,
+    directorRoomKind: room.kind,
+  };
+}
+
+// Tunel: o gerador so reserva o PAR de blocos de terra (entrada larga e saida
+// na mesma altura, com vao no tamanho que o tunel usa). O teto, o cristal e a
+// colonia de Bacillus vem de `installLowTunnels`, que le as marcas.
+function buildTunnelRoomEntry(previous, room, rnd, index, band, primitives) {
+  const basic = primitives.find(p => p.id === 'running-jump-short') || primitives[0];
+  const planned = band ? band.target - previous.y : 0;
+  const tries = [
+    { gap: Math.round(lerp(56, 96, rnd())), dy: Math.round(clamp(planned, -30, 36)) },
+    { gap: 44, dy: 0 },
+  ];
+  for (const { gap, dy } of tries) {
+    const entry = {
+      x: previous.x + previous.w + gap,
+      y: previous.y + dy,
+      w: Math.round(lerp(300, 340, rnd())),
+      h: 54,
+      type: 'soil',
+      logicIndex: index,
+      tunnelRoomRole: 'entry',
+      tunnelRoomKind: room.kind,
+      tunnelRoomId: room.id,
+      directorRoom: room.id,
+      directorRoomKind: room.kind,
+    };
+    if (validateChunk({ ...previous }, { ...entry }, basic, 'normal')) return entry;
+  }
+  return null;
+}
+
+function buildTunnelRoomExit(entry, pending, rnd, index) {
+  const phosphate = pending.kind === 'phosphateTunnel';
+  // fosfato aceita os dois tipos (sem vao: |dy| <= 6 e vao <= 300)
+  const dy = Math.round(phosphate ? lerp(0, 6, rnd()) : lerp(0, 20, rnd()));
+  const gap = Math.round(phosphate ? lerp(150, 200, rnd()) : lerp(170, 220, rnd()));
+  return {
+    x: entry.x + entry.w + gap,
+    y: Math.min(entry.y + dy, 560),
+    w: Math.round(lerp(260, 300, rnd())),
+    h: 54,
+    type: 'soil',
+    logicIndex: index,
+    tunnelRoomRole: 'exit',
+    tunnelRoomKind: pending.kind,
+    tunnelRoomId: pending.id,
+    directorRoom: pending.id,
+    directorRoomKind: pending.kind,
+  };
+}
+
 const BASIC_TRAVERSAL_PRIMITIVES = Object.freeze([
   { id: 'standing-jump-short', requires: [] },
   { id: 'running-jump-short', requires: [] },
@@ -463,6 +540,9 @@ export function generateLevel(seedString, {
   // geração é exatamente a que está no ar. O fallback do modo topológico não é
   // um segundo caminho a manter — é a ausência deste.
   verticalPlan: verticalPlanOption = false,
+  // Diretor de salas (ver phase-director.js). Quando presente, substitui o
+  // plano vertical: { gateKinds, abilities }.
+  director: directorOption = null,
 } = {}) {
   const rnd = createRandom(seedString);
   const primitives = generatePrimitives();
@@ -531,11 +611,77 @@ export function generateLevel(seedString, {
     }
   }
 
+  // Diretor: a receita nasce com semente propria (nao desloca o `rnd`) e os
+  // portoes que ela pede entram pelo mesmo ramo autoral dos portoes do plano.
+  let recipe = null;
+  let directorLevel = 500;
+  let pendingTunnel = null;
+  const roomStats = { built: [], skipped: [] };
+  if (directorOption && !verticalPlan) {
+    recipe = createPhaseRecipe({
+      seedValue: seedString,
+      phase,
+      logic,
+      gateKinds: directorOption.gateKinds || [],
+      abilities: directorOption.abilities || {},
+      lastChunk: logic.length - 6,
+      reservedChunks: [...traversalPlans.keys()],
+    });
+    for (const room of recipe?.rooms || []) {
+      if (!room.gateKind) continue;
+      const params = room.gateKind === 'azospirillumAscent'
+        ? { riseRange: AZO_ASCENT_RISE_RANGE }
+        : room.gateKind === 'mycorrhizaBridge'
+          ? { gapRange: MYCORRHIZA_BRIDGE_GAP_RANGE, maximumVerticalDelta: MYCORRHIZA_BRIDGE_MAX_DELTA }
+          : { landingGapRange: NITROGEN_GATE_LANDING_GAP_RANGE, targetWidthRange: NITROGEN_GATE_TARGET_WIDTH_RANGE };
+      routeGateRequests.set(room.chunkIndex, {
+        chunkIndex: room.chunkIndex,
+        zoneId: room.id,
+        mechanic: room.gateKind,
+        directorRoom: room.id,
+        ...params,
+      });
+    }
+  }
+  const bandAt = index => (verticalPlan
+    ? verticalBandAt(verticalPlan, index)
+    : recipe ? directorBand(recipe, index, directorLevel) : null);
+
   let prevPlatform = { x: 50, y: 500, w: 240, h: 100, type: 'root', logicIndex: -1 };
   platforms.push(prevPlatform);
 
   for (let i = 0; i < logic.length; i++) {
     const chunk = logic[i];
+    // Sala do diretor sem portao (queda, tuneis): geometria autoral, segue.
+    const room = recipe?.byChunk.get(i);
+    const roomPlatform = pendingTunnel && pendingTunnel.chunkIndex === i - 1
+      ? buildTunnelRoomExit(prevPlatform, pendingTunnel, rnd, i)
+      : room && !room.gateKind && !prevPlatform.encounterInstanceId
+        ? (room.kind === 'drop'
+          ? buildDropRoomPlatform(prevPlatform, room, rnd, i, recipe.envelope)
+          : buildTunnelRoomEntry(prevPlatform, room, rnd, i, bandAt(i), primitives))
+        : null;
+    if (room && !room.gateKind && !roomPlatform) roomStats.skipped.push(room.id);
+    if (roomPlatform) {
+      if (roomPlatform.tunnelRoomRole === 'entry') pendingTunnel = { ...room, chunkIndex: i };
+      else if (roomPlatform.tunnelRoomRole === 'exit') pendingTunnel = null;
+      if (roomPlatform.tunnelRoomRole !== 'entry') {
+        roomStats.built.push(roomPlatform.directorRoom);
+        directorLevel = roomPlatform.y;
+      }
+      platforms.push(roomPlatform);
+      debugInfo.push({
+        index: i,
+        logic: chunk,
+        primitive: `diretor:${roomPlatform.directorRoomKind}`,
+        repairs: 0,
+        accepted: true,
+        recoveryRoots: 0,
+        gap: Math.round(roomPlatform.x - (prevPlatform.x + prevPlatform.w)),
+      });
+      prevPlatform = roomPlatform;
+      continue;
+    }
     const traversalPlan = traversalPlans.get(i);
     if (traversalPlan) {
       const template = getTraversalEncounterTemplate(traversalPlan.templateId, {
@@ -616,7 +762,7 @@ export function generateLevel(seedString, {
     // Fecha o trio da FBN: a plataforma seguinte ao alvo tambem e autoral, ou o
     // vao total nao bate com a conta que `nitrogen-root.js` exige.
     if (pendingNitrogenGate && pendingNitrogenGate.chunkIndex === i - 1) {
-      const band = verticalPlan ? verticalBandAt(verticalPlan, i) : null;
+      const band = bandAt(i);
       const right = buildNitrogenGatePlatform(prevPlatform, pendingNitrogenGate, rnd, i, band, 'right');
       right.nitrogenGate = 'right';
       nextPlatform = right;
@@ -637,7 +783,7 @@ export function generateLevel(seedString, {
       // Alarga o hospedeiro ANTES de medir o vão: a inoculação precisa de
       // superfície, e alargar à direita não afeta o salto que chegou até aqui.
       prevPlatform.w = Math.max(prevPlatform.w, ROUTE_GATE_HOST_MIN_WIDTH);
-      const band = verticalPlan ? verticalBandAt(verticalPlan, i) : null;
+      const band = bandAt(i);
       const gatePlatform = gateRequest.mechanic === 'mycorrhizaBridge'
         ? buildBridgeGatePlatform(prevPlatform, gateRequest, rnd, i, band)
         : gateRequest.mechanic === 'azospirillumAscent'
@@ -693,10 +839,10 @@ export function generateLevel(seedString, {
     // o laço na PRIMEIRA tentativa, matando as 12 repetições.
     while (attempts < 12 && !accepted) {
       prim = validPrims[Math.floor(rnd() * validPrims.length)];
-      const plannedBand = verticalPlan ? verticalBandAt(verticalPlan, i) : null;
+      const plannedBand = bandAt(i);
       nextPlatform = stabilizeGeometry(
         generateGeometry(chunk, prevPlatform, prim, rnd, plannedBand),
-        prevPlatform, chunk, prim, i, verticalPlan,
+        prevPlatform, chunk, prim, i, plannedBand,
       );
       accepted = validated(nextPlatform, prevPlatform, prim, chunk, i);
       attempts++;
@@ -705,7 +851,7 @@ export function generateLevel(seedString, {
     if (!accepted) {
       const fallback = createSafeFallback(
         prevPlatform, chunk, primitives, rnd, i,
-        verticalPlan ? verticalBandAt(verticalPlan, i) : null,
+        bandAt(i),
       );
       nextPlatform = fallback.platform;
       prim = fallback.primitive;
@@ -802,6 +948,14 @@ export function generateLevel(seedString, {
       });
     }
 
+    if (recipe && gateRequest?.directorRoom && gateRequest.chunkIndex === i) {
+      const built = nextPlatform.ascentGate || nextPlatform.bridgeGate || nextPlatform.nitrogenGate === 'target';
+      (built ? roomStats.built : roomStats.skipped).push(gateRequest.directorRoom);
+    }
+    if (recipe && (nextPlatform.ascentGate || nextPlatform.bridgeGate || nextPlatform.nitrogenGate)) {
+      directorLevel = nextPlatform.y;
+    }
+
     const recoveryRoots = createRecoveryRoots(prevPlatform, nextPlatform, chunk, rnd, i);
     platforms.push(...recoveryRoots, nextPlatform);
     debugInfo.push({
@@ -883,6 +1037,9 @@ export function generateLevel(seedString, {
     verticalPlan,
     verticalPlanViolations,
     verticalPlanRequested: Boolean(verticalPlanOption),
+    directorRecipe: recipe
+      ? { rooms: recipe.rooms, signature: recipe.signature, built: roomStats.built, skipped: roomStats.skipped }
+      : null,
     routeGates,
     // Vista filtrada, mantida porque a escada já é lida por nome em `app.js`,
     // nos testes e no painel de debug. Somar sem quebrar o anterior.

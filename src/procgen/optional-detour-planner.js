@@ -209,7 +209,9 @@ export function primaryRouteGeometryHash(level) {
 
 function authoredConflict(route, startIndex, rejoinIndex) {
   return route.slice(startIndex + 1, rejoinIndex).some(platform => (
-    platform.authored
+    // sala de tunel do diretor: o teto sobe ate a superficie
+    platform.tunnelRoomRole
+    || platform.authored
     && (
       platform.signatureChallenge
       || platform.mandatoryAzospirillumTarget

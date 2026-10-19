@@ -124,6 +124,8 @@ function routeGapCandidates(level, encounters, route, firstExudate, allowPromoti
     // immediately before the missing route platform is always its host.
     const hostPlatform = leftPlatform;
     if (!colonizableRoot(hostPlatform, allowPromotion) || hostPlatform.logicIndex <= firstExudate) continue;
+    // sala de tunel do diretor (fase 10): o par e chao de tunel, nao portao
+    if ([leftPlatform, targetPlatform, rightPlatform].some(p => p?.tunnelRoomRole)) continue;
 
     const blockedGapWidth = rightPlatform.x - (leftPlatform.x + leftPlatform.w);
     const leftLandingGap = targetPlatform.x - (leftPlatform.x + leftPlatform.w);
