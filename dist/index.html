@@ -1089,7 +1089,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"2acfd16","subject":"Merge remote-tracking branch 'origin/main' into experimental/visual-2_5d","builtAt":"2026-10-19 02:15"};
+window.__BEANS_BUILD__ = {"commit":"09cd9e5","subject":"Tunel de fosfato (fases 8-10): cristal baixo do chao ao teto bloqueia o ","builtAt":"2026-10-19 02:33"};
 (() => {
 'use strict';
 const __modules = {
@@ -8485,7 +8485,7 @@ function objectiveProgressSnapshot(state) {
 Object.assign(__exports, { createEmptyObjectiveProgress, resetPhaseObjectiveProgress, ensurePhaseObjectiveProgress, objectiveConditionId, recordPhaseObjectiveAction, objectiveProgressSnapshot });
 },
 "src/procgen/campaign-progression.js": (__exports, __require) => {
-const { CAMPAIGN_UNLOCKS, ECOLOGY_ROAMING_TYPES, campaignManifest, getPathogenStartChunk, getPhaseManifest, hasPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");
+const { CAMPAIGN_UNLOCKS, ECOLOGY_ROAMING_TYPES, campaignManifest, getPathogenStartChunk, getPhaseManifest, getPersistentUnlocksBeforePhase, hasPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");
 const { createRandom } = __require("src/procgen/random.js");
 const { setLogicCampaignProfile } = __require("src/procgen/logic.js");
 const { getChunkAnchorPlatform } = __require("src/procgen/traversal-route.js");
@@ -8737,6 +8737,15 @@ function getPhaseProfile(campaign) {
 }
 
 function prepareCampaignGeneration(campaign) {
+  // As habilidades ganhas nas fases anteriores valem sempre (manifesto). Um save
+  // sem alguma delas (fase iniciada direto, coleta perdida) deixava a fase
+  // montada sem a habilidade que ela pressupoe — p.ex. a solubilizacao a partir
+  // da fase 8, sem a qual o tunel de fosfato nao pode existir.
+  const earned = getPersistentUnlocksBeforePhase(campaign.phase);
+  campaign.unlocks = campaign.unlocks || {};
+  for (const [feature, on] of Object.entries(earned)) {
+    if (on && !campaign.unlocks[feature]) campaign.unlocks[feature] = true;
+  }
   const profile = getPhaseProfile(campaign);
   setLogicCampaignProfile(profile);
   return profile;
