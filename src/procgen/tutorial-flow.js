@@ -42,8 +42,12 @@ function minimumSpatialDistance(visibleWorldWidth) {
   );
 }
 
-export function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}) {
+export function createTutorialFlow({ seen = [], unlocked = [], pages = {}, cycles = [], fresh = [] } = {}) {
   const seenCards = new Set(seen.filter(id => getTutorialCard(id)));
+  // Ciclos ja revisados no fim da fase: so eles aparecem no GUIA.
+  const reviewedCycles = new Set(cycles.filter(id => getTutorialCard(id)?.cycle?.length));
+  // Cartoes ja vistos que ganharam pagina nova depois: selo "novo" no GUIA.
+  const freshCards = new Set(fresh.filter(id => getTutorialCard(id)));
   const unlockedCards = new Set(unlocked.filter(id => getTutorialCard(id)));
   const unlockedPages = normalizePages(pages);
   let lastAutomaticPresentation = null;
@@ -140,8 +144,13 @@ export function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}
       return { handled: false, open: false, reason: 'prerequisite', cardId };
     }
 
-    const pagesAdded = reveal(cardId, pageIndexesForTrigger(card, presentation, triggerId));
     const alreadySeen = seenCards.has(cardId);
+    const pagesAdded = reveal(cardId, pageIndexesForTrigger(card, presentation, triggerId));
+    // Pagina nova num cartao que o jogador ja leu: entra no GUIA com selo.
+    const guideUpdated = alreadySeen && pagesAdded.length > 0;
+    if (guideUpdated) freshCards.add(cardId);
+    // Cartoes fora do manifesto trazem a propria regra (tutorial-registry.js).
+    const policy = presentation?.policy || card.policy || null;
     let open = false;
     let reason = pagesAdded.length ? 'guide-updated' : 'already-recorded';
 
@@ -158,6 +167,16 @@ export function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}
         reason = 'derived-guided';
       } else {
         reason = 'guide-only';
+      }
+    } else if (policy === 'guide-only') {
+      reason = 'guide-only';
+    } else if (policy === 'first-occurrence') {
+      // Estado novo do jogo (contaminado, J2 agarrado, calmaria...): abre na
+      // primeira vez, mesmo em trecho silencioso, sem esperar distancia.
+      if (alreadySeen) reason = 'already-seen';
+      else {
+        open = true;
+        reason = 'first-occurrence';
       }
     } else if (presentation?.policy === 'mandatory-first-appearance') {
       if (mandatoryFirstAppearance) {
@@ -201,6 +220,7 @@ export function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}
       cardId,
       presentationId: presentation?.id || null,
       pagesAdded,
+      guideUpdated,
       unlockedPages: pagesFor(cardId),
       mandatoryFirstAppearance,
       diagnostic,
@@ -211,6 +231,13 @@ export function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}
     if (!getTutorialCard(cardId)) return false;
     unlockedCards.add(cardId);
     seenCards.add(cardId);
+    freshCards.delete(cardId);
+    return true;
+  }
+
+  function markCycleReviewed(cardId) {
+    if (!getTutorialCard(cardId)?.cycle?.length || reviewedCycles.has(cardId)) return false;
+    reviewedCycles.add(cardId);
     return true;
   }
 
@@ -218,6 +245,8 @@ export function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}
     seenCards.clear();
     unlockedCards.clear();
     unlockedPages.clear();
+    reviewedCycles.clear();
+    freshCards.clear();
     lastAutomaticPresentation = null;
   }
 
@@ -225,6 +254,8 @@ export function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}
     return {
       seen: [...seenCards],
       unlocked: [...unlockedCards],
+      cycles: [...reviewedCycles],
+      fresh: [...freshCards],
       pages: Object.fromEntries(
         [...unlockedPages.entries()].map(([cardId, indexes]) => [cardId, [...indexes].sort((a, b) => a - b)]),
       ),
@@ -234,12 +265,15 @@ export function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}
   return {
     handle,
     markSeen,
+    markCycleReviewed,
     revealAll,
     pagesFor,
     snapshot,
     clear,
     hasSeen: cardId => seenCards.has(cardId),
     isUnlocked: cardId => unlockedCards.has(cardId),
+    cycleReviewed: cardId => reviewedCycles.has(cardId),
+    isFresh: cardId => freshCards.has(cardId),
     get discoveredCount() { return unlockedCards.size; },
   };
 }

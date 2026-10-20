@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { tutorialCards } from '../src/procgen/tutorial-registry.js';
-import { tutorialCycleLayout, tutorialCycleContext } from '../src/procgen/tutorial-cycle.js';
+import { tutorialCycleLayout, tutorialCycleStep } from '../src/procgen/tutorial-cycle.js';
 
 test('cada ciclo tem um percurso aberto, com transições entre etapas consecutivas', () => {
   for (const card of Object.values(tutorialCards)) {
+    if (!card.cycle.length) continue;
     for (const narrow of [false, true]) {
       const layout = tutorialCycleLayout(card.cycle.length, narrow);
       assert.equal(layout.positions.length, card.cycle.length, card.id);
@@ -17,15 +18,13 @@ test('cada ciclo tem um percurso aberto, com transições entre etapas consecuti
   }
 });
 
-test('os destaques de todas as etapas usam somente páginas existentes e desbloqueadas', () => {
+test('cada etapa tem rotulo e legenda propria; nenhuma cai em texto generico', () => {
   for (const card of Object.values(tutorialCards)) {
-    const all = card.pages.map((_, index) => index);
     for (let stage = 0; stage < card.cycle.length; stage++) {
-      const context = tutorialCycleContext(card, stage, all);
-      assert(context, `${card.id}: etapa ${stage}`);
-      assert.equal(context.body, card.pages[context.sourceIndex].body);
-      assert.equal(context.title, card.pages[context.sourceIndex].title);
-      assert.equal(tutorialCycleContext(card, stage, all.filter(i => i !== context.sourceIndex)), null);
+      const step = tutorialCycleStep(card, stage);
+      assert(step.label && step.caption, `${card.id}: etapa ${stage}`);
+      assert.doesNotMatch(step.caption, /será apresentado/);
     }
+    assert.equal(tutorialCycleStep(card, card.cycle.length), null);
   }
 });

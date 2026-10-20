@@ -153,7 +153,7 @@ export function createNarrator({
     const item = {
       id,
       kind: entry.kind,
-      cardId: entry.cardId || null,
+      cardId: params.cardId || entry.cardId || null,
       text,
       duration: narrationDisplaySeconds(text),
       queuedAt: clock,

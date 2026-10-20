@@ -1,3 +1,6 @@
+// Textos exibidos: tutorial-text-revision.js (aplicada em tutorial-registry.js).
+// Aqui fica a identidade do cartao (titulo, subtitulo, cor, glifo) e o texto
+// original de referencia; mudar so o texto aqui nao muda o jogo.
 const page = (title, body, points = []) => ({ title, body, points });
 const card = (id, category, title, subtitle, glyph, accent, pages, cycle = [], cycleLabel = 'Ciclo ou etapas') => ({
   id, category, title, subtitle, glyph, accent, pages, cycle, cycleLabel,

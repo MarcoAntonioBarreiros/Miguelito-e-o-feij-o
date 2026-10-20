@@ -23,6 +23,7 @@ import {
 // dano, a maior pendência da saída, as mensagens da guarda e as origens da
 // chegada de patógenos.
 const WORST_CASE_PARAMS = {
+  'guide.updated': [{ title: 'Fixação biológica de nitrogênio' }],
   'survival.defeated': [
     { source: 'contaminação pelo fungo oportunista' },
     { source: 'colapso de raiz com murcha vascular' },
@@ -222,7 +223,7 @@ test('fila respeita prioridade, limite de 3 e descarta expirados', () => {
 test('narrate sem narrador registrado mantém o comportamento antigo', () => {
   const state = { toast: '', toastTime: 0 };
   assert.equal(narrate(state, 'azo.coinoculation'), true);
-  assert.equal(state.toast, 'Co-inoculação: FBN potencializada');
+  assert.equal(state.toast, 'Co-inoculação pode favorecer a FBN');
   assert.equal(state.toastTime, 4);
   narrate(state, 'goal.blocked', { message: 'Prova pendente' });
   assert.equal(state.toast, 'Prova pendente');

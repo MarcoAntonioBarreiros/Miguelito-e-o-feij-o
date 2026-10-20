@@ -1,4 +1,5 @@
-// Revisao dos cartoes didaticos (20/10/2026). DADOS, ainda nao ligados ao jogo.
+// Revisao dos cartoes didaticos (20/10/2026). Fonte dos textos do jogo:
+// tutorial-registry.js aplica estas paginas, ciclos e cartoes novos.
 //
 // Regras (verificadas em tests/tutorial-text-revision.test.js):
 //   - corpo de cada pagina: ate 140 caracteres (duas frases curtas);
@@ -364,7 +365,7 @@ export const CYCLE_REVISION = {
 };
 
 // Cartoes novos, curtos, abertos na primeira vez que a situacao acontece.
-// `trigger` descreve o evento (a ligacao no codigo vem na etapa de integracao).
+// `trigger` descreve o evento; a ligacao esta em tutorial-triggers.js.
 export const NEW_CARDS = {
   'action-selection': {
     category: 'Como jogar', title: 'O que o E faz?', subtitle: 'Escolha a ação antes de agir', glyph: 'E', accent: '#ffd36f',

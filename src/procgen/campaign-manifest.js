@@ -536,15 +536,16 @@ const phases = [
         prerequisitePresentationIds: ['presentation-opportunistic-fungus', 'presentation-pseudomonas'],
         debutChunk: 13, moduleId: 'p5-interaction',
         pages: ['Competição por ferro', 'Vigor reduzido', 'Efeito no jogo', 'Sem eliminação direta'] },
-      // A mochila estreia no COMECO da fase 5 (debutChunk 0), antes de o fungo
-      // tomar conta: ela e mobilidade, nao resposta a patogeno. Fica por ultimo
-      // NO ARRAY de proposito — a sequencia pedagogica de biologia (fungo ->
-      // Pseudomonas -> interacao) e lida pelas tres primeiras posicoes, e quem
-      // decide a ordem real de aparicao e o debutChunk.
+      // A mochila estreia no COMECO da fase 5, antes de o fungo tomar conta: ela
+      // e mobilidade, nao resposta a patogeno. O cartao abre quando a propulsao
+      // fica disponivel (evento de desbloqueio, chunk 1 — tutorial-triggers.js),
+      // nao junto com o fungo. Fica por ultimo NO ARRAY de proposito — a
+      // sequencia pedagogica de biologia (fungo -> Pseudomonas -> interacao) e
+      // lida pelas tres primeiras posicoes.
       { id: 'presentation-jetpack', cardId: 'power-jetpack',
         triggerIds: ['power-jetpack'], autoOpenTrigger: 'power-jetpack',
         policy: 'event-immediate', suppressIndividualCards: false,
-        debutChunk: 0, moduleId: 'p5-fungus-intro',
+        debutChunk: 1, moduleId: 'p5-fungus-intro',
         pages: ['mecânica de gameplay', 'energia vem da raiz'] },
     ],
     unlockEvents: [

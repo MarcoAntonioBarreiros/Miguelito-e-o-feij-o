@@ -1,7 +1,13 @@
 import { createTutorialCycle } from './tutorial-cycle.js';
 import { tutorialDisplayPages, isTutorialGamePage } from './tutorial-card-pages.js';
 import { createTutorialMicroscope } from './tutorial-microscope.js';
-import { getTutorialCard, tutorialCardIds, tutorialCards } from './tutorial-registry.js';
+import {
+  cycleCardsForPhase,
+  getTutorialCard,
+  newCardsTaughtBeforePhase,
+  tutorialCardIds,
+  tutorialCards,
+} from './tutorial-registry.js';
 import { tutorialPacing } from './campaign-manifest.js';
 import { createTutorialFlow } from './tutorial-flow.js';
 import { getCardsTaughtBeforePhase } from './tutorial-prior-knowledge.js';
@@ -16,6 +22,8 @@ export const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
   unlocked: 'miguelito:tutorial:unlocked:v3',
   pages: 'miguelito:tutorial:pages:v3',
+  cycles: 'miguelito:tutorial:cycles:v3',
+  fresh: 'miguelito:tutorial:fresh:v3',
 });
 
 const LEGACY_STORAGE_KEYS = Object.freeze([
@@ -26,6 +34,8 @@ const LEGACY_STORAGE_KEYS = Object.freeze([
   TUTORIAL_STORAGE_KEYS.seen,
   TUTORIAL_STORAGE_KEYS.unlocked,
   TUTORIAL_STORAGE_KEYS.pages,
+  TUTORIAL_STORAGE_KEYS.cycles,
+  TUTORIAL_STORAGE_KEYS.fresh,
 ]);
 
 export function isHardReloadShortcut(event) {
@@ -213,6 +223,8 @@ export function createTutorialManager({ state }) {
     ])],
     unlocked: [...readStoredSet(TUTORIAL_STORAGE_KEYS.unlocked)],
     pages: readStoredPages(TUTORIAL_STORAGE_KEYS.pages),
+    cycles: [...readStoredSet(TUTORIAL_STORAGE_KEYS.cycles)],
+    fresh: [...readStoredSet(TUTORIAL_STORAGE_KEYS.fresh)],
   });
   let activeId = null;
   let pageIndex = 0;
@@ -223,6 +235,8 @@ export function createTutorialManager({ state }) {
   let activeAutomaticEntry = null;
   let pausedSupport = null;
   let resumeFramesRemaining = 0;
+  // Revisao do fim da fase: um cartao so com o ciclo, um organismo por vez.
+  let review = null;
   const heldDuringTutorial = new Set();
   const pendingTutorials = createPendingTutorialQueue();
   const safetyGate = createAutomaticTutorialSafetyGate({ state });
@@ -231,6 +245,8 @@ export function createTutorialManager({ state }) {
     const snapshot = flow.snapshot();
     writeStoredSet(TUTORIAL_STORAGE_KEYS.seen, new Set(snapshot.seen));
     writeStoredSet(TUTORIAL_STORAGE_KEYS.unlocked, new Set(snapshot.unlocked));
+    writeStoredSet(TUTORIAL_STORAGE_KEYS.cycles, new Set(snapshot.cycles));
+    writeStoredSet(TUTORIAL_STORAGE_KEYS.fresh, new Set(snapshot.fresh));
     try {
       sessionStorage.setItem(TUTORIAL_STORAGE_KEYS.pages, JSON.stringify(snapshot.pages));
     } catch (_) {
@@ -285,7 +301,10 @@ export function createTutorialManager({ state }) {
   }
 
   function displayPages() {
-    return tutorialDisplayPages(getTutorialCard(activeId), flow.pagesFor(activeId));
+    return tutorialDisplayPages(getTutorialCard(activeId), flow.pagesFor(activeId), {
+      cycleOnly: Boolean(review),
+      includeCycle: flow.cycleReviewed(activeId),
+    });
   }
 
   function renderDots(card) {
@@ -318,13 +337,14 @@ export function createTutorialManager({ state }) {
     title.classList.toggle('tutorial-title--scientific', /^organism-(rhizobium|azospirillum|bacillus|pseudomonas|trichoderma|rhizoctonia|ralstonia|meloidogyne)/.test(card.id));
 
     panel.style.setProperty('--tutorial-accent', card.accent || '#70e5d6');
-    setText(category, card.category);
+    setText(category, review ? `Revisão · Fase ${review.phase}` : card.category);
     setText(title, card.title);
-    setText(subtitle, pageIndex === 0 || gamePage ? card.subtitle : currentPage.title);
+    setText(subtitle, review ? card.cycleLabel
+      : pageIndex === 0 || gamePage ? card.subtitle : currentPage.title);
     microscope.show(card.id);
     setText(pageCounter, `${pagePosition + 1} / ${availablePages.length}`);
     setText(pageTitle, currentPage.title);
-    pageTitle.hidden = pageIndex > 0 || gamePage || Boolean(currentPage.callout);
+    pageTitle.hidden = pageIndex > 0 || gamePage || Boolean(currentPage.callout) || currentPage.kind === 'cycle';
     setText(pageBody, currentPage.body);
     if (newBadge) newBadge.hidden = !activeFirstSeen;
 
@@ -342,7 +362,7 @@ export function createTutorialManager({ state }) {
     }
     pagePoints.hidden = !highlightedPoints.length;
 
-    cycleView.show(currentPage.kind === 'cycle' ? card : null, flow.pagesFor(card.id));
+    cycleView.show(currentPage.kind === 'cycle' ? card : null);
     pageBody.hidden = !currentPage.body || gamePage;
     pageDots.parentElement.hidden = availablePages.length <= 1;
     pageDots.parentElement.classList.toggle('tutorial-pagination--many', availablePages.length > 6);
@@ -357,21 +377,22 @@ export function createTutorialManager({ state }) {
     updateNavigation();
   }
 
+  // No ciclo, as etapas se escolhem tocando nelas (ou com as setas do
+  // teclado); Continuar segue para a proxima pagina ou fecha o cartao.
   function updateNavigation() {
     const availablePages = displayPages();
-    const finalStage = !cycleView.length || cycleView.index === cycleView.length - 1;
-    const finalPage = pageIndex >= availablePages.length - 1 && finalStage;
+    const finalPage = pageIndex >= availablePages.length - 1;
     const nextActionLabel = finalPage
       ? (returnToLibrary ? 'Voltar à biblioteca' : 'Continuar')
-      : (cycleView.length ? 'Próxima etapa' : 'Próxima página');
+      : 'Próxima página';
 
     nextButton.setAttribute('aria-label', nextActionLabel);
     nextButton.title = nextActionLabel;
     setText(nextButton.querySelector('.tutorial-button-label'), finalPage ? nextActionLabel : 'Continuar');
     nextButton.dataset.action = finalPage ? 'finish' : 'next';
 
-    previousButton.disabled = pageIndex === 0 && cycleView.index === 0;
-    const previousLabel = cycleView.length && cycleView.index > 0 ? 'Etapa anterior' : 'Página anterior';
+    previousButton.disabled = pageIndex === 0;
+    const previousLabel = 'Página anterior';
     previousButton.setAttribute('aria-label', previousLabel);
     previousButton.title = previousLabel;
   }
@@ -381,12 +402,14 @@ export function createTutorialManager({ state }) {
     firstSeen = !flow.hasSeen(id),
     automaticEntry = null,
     support = null,
+    reviewEntry = null,
   } = {}) {
     const card = getTutorialCard(id);
     if (!card) return false;
+    review = reviewEntry;
     if (!flow.isUnlocked(id)) flow.revealAll(id);
     const availablePages = flow.pagesFor(id);
-    if (!availablePages.length) return false;
+    if (!availablePages.length) { review = null; return false; }
     if (!automaticEntry) pendingTutorials.removeCard(id);
     persist();
     activeAutomaticEntry = automaticEntry;
@@ -409,6 +432,17 @@ export function createTutorialManager({ state }) {
   }
 
   function finishActiveCard() {
+    if (review) {
+      flow.markCycleReviewed(activeId);
+      persist();
+      const next = review.queue.shift();
+      if (next && openCard(next, { reviewEntry: review, firstSeen: false })) return;
+      const done = review.onDone;
+      review = null;
+      resumeGame();
+      done?.();
+      return;
+    }
     if (activeId) {
       flow.markSeen(activeId);
       persist();
@@ -421,7 +455,6 @@ export function createTutorialManager({ state }) {
   }
 
   function nextPage() {
-    if (cycleView.move(1)) return;
     const card = getTutorialCard(activeId);
     if (!card) return;
     const availablePages = displayPages();
@@ -434,7 +467,6 @@ export function createTutorialManager({ state }) {
   }
 
   function previousPage() {
-    if (cycleView.move(-1)) return;
     if (pageIndex <= 0) return;
     pageIndex--;
     renderCard();
@@ -461,7 +493,8 @@ export function createTutorialManager({ state }) {
 
     const unread = document.createElement('span');
     unread.className = 'tutorial-library-card-state';
-    unread.textContent = flow.hasSeen(id) ? '✓' : 'NOVO';
+    // Selo "novo": cartao ainda nao lido ou com pagina liberada depois.
+    unread.textContent = flow.hasSeen(id) && !flow.isFresh(id) ? '✓' : 'NOVO';
 
     button.append(icon, copy, unread);
     button.addEventListener('click', () => openCard(id, { fromLibrary: true, firstSeen: !flow.hasSeen(id) }));
@@ -524,6 +557,12 @@ export function createTutorialManager({ state }) {
     });
     if (!action.handled) return false;
     persist();
+    if (action.guideUpdated) {
+      // Aviso curto: a pagina nova entrou no GUIA sem interromper o jogo.
+      window.dispatchEvent(new CustomEvent('miguelito:tutorial-guide-updated', {
+        detail: { cardId: action.cardId, title: getTutorialCard(action.cardId)?.title || '' },
+      }));
+    }
     if (action.diagnostic) {
       window.dispatchEvent(new CustomEvent(tutorialPacing.diagnosticEventName, {
         detail: action.diagnostic,
@@ -578,12 +617,39 @@ export function createTutorialManager({ state }) {
   // Organismos que estreiam nesta fase não são tocados aqui.
   function syncPriorKnowledge(phase) {
     const recorded = [];
-    for (const cardId of getCardsTaughtBeforePhase(phase)) {
+    let changed = false;
+    for (const cardId of [...getCardsTaughtBeforePhase(phase), ...newCardsTaughtBeforePhase(phase)]) {
       if (flow.hasSeen(cardId)) continue;
       if (flow.markSeen(cardId)) recorded.push(cardId);
     }
-    if (recorded.length) persist();
+    // Ciclos de fases ja concluidas tambem ficam no GUIA.
+    for (let earlier = 1; earlier < phase; earlier++) {
+      for (const cardId of cycleCardsForPhase(earlier)) {
+        if (flow.isUnlocked(cardId) && flow.markCycleReviewed(cardId)) changed = true;
+      }
+    }
+    if (recorded.length || changed) persist();
     return recorded;
+  }
+
+  // Fim da fase: revisa os ciclos dos organismos que o jogador conheceu nela.
+  // Devolve false (e nao abre nada) quando a fase nao tem ciclo a revisar.
+  function openCycleReview(phase, { onDone } = {}) {
+    if (mode !== 'closed') return false;
+    const queue = cycleCardsForPhase(phase).filter(id => flow.isUnlocked(id) && !flow.cycleReviewed(id));
+    if (!queue.length) return false;
+    const entry = { phase, queue, onDone };
+    return openCard(queue.shift(), { reviewEntry: entry, firstSeen: false });
+  }
+
+  // Cartao que outro meio ja apresentou (ex.: zona necrotica na chegada
+  // guiada): entra no GUIA ja lido, sem abrir.
+  function recordInGuide(id) {
+    if (!getTutorialCard(id)) return false;
+    flow.revealAll(id);
+    flow.markSeen(id);
+    persist();
+    return true;
   }
 
   function clearStoredTutorialProgress() {
@@ -664,6 +730,8 @@ export function createTutorialManager({ state }) {
       else finishActiveCard();
     } else if (mode === 'card' && isTutorialAdvanceShortcut(event)) {
       nextPage();
+    } else if (mode === 'card' && (event.code === 'ArrowLeft' || event.code === 'ArrowRight')) {
+      cycleView.move(event.code === 'ArrowRight' ? 1 : -1);
     }
   }, true);
   window.addEventListener('keyup', event => {
@@ -683,6 +751,9 @@ export function createTutorialManager({ state }) {
     trigger,
     updateAutomaticPresentation,
     syncPriorKnowledge,
+    openCycleReview,
+    recordInGuide,
+    get reviewing() { return Boolean(review); },
     openCard: id => openCard(id, { fromLibrary: false, firstSeen: !flow.hasSeen(id) }),
     openLibrary,
     resetTutorialProgress,

@@ -1,6 +1,6 @@
 # Revisão dos cartões didáticos
 
-Gerado de `src/procgen/tutorial-text-revision.js`. Limites: corpo ≤ 140 caracteres, até 2 tópicos de ≤ 60, título ≤ 32. Páginas marcadas "continuação" aparecem logo depois da original.
+Gerado de `src/procgen/tutorial-text-revision.js`. Ligado ao jogo em `tutorial-registry.js` (textos, ciclos e cartões novos), `tutorial-flow.js` (regras de abertura, selo "novo"), `tutorial-manager.js` (revisão do fim da fase) e `tutorial-triggers.js` (gatilhos). Limites: corpo ≤ 140 caracteres, até 2 tópicos de ≤ 60, título ≤ 32. Páginas marcadas "continuação" aparecem logo depois da original.
 
 ## 1. Mudanças de posição
 

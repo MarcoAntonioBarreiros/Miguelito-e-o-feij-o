@@ -4,8 +4,15 @@ export function isTutorialGamePage(page) {
   return /no jogo|como usar|poder inimigo|novo movimento|missão do jogador/i.test(page.title);
 }
 
-export function tutorialDisplayPages(card, unlockedIndexes) {
+function cyclePage(card) {
+  return { kind: 'cycle', title: card.cycleLabel || 'Ciclo', body: '', points: [], cycle: card.cycle };
+}
+
+// `includeCycle`: o ciclo so aparece depois de revisado no fim da fase (GUIA).
+// `cycleOnly`: o cartao de revisao do fim da fase mostra so o ciclo.
+export function tutorialDisplayPages(card, unlockedIndexes, { includeCycle = false, cycleOnly = false } = {}) {
   if (!card) return [];
+  if (cycleOnly) return card.cycle?.length ? [cyclePage(card)] : [];
   const pages = [];
   for (const sourceIndex of unlockedIndexes) {
     const page = card.pages[sourceIndex];
@@ -19,28 +26,25 @@ export function tutorialDisplayPages(card, unlockedIndexes) {
         pages.push({ sourceIndex, kind: 'details', title: page.title, body: '', points: points.slice(index, index + 2) });
       }
     }
+    // Continuação: mesma página de origem, mesmo título, logo em seguida.
+    for (const extra of page.more || []) {
+      pages.push({ sourceIndex, kind: 'content', continued: true, title: page.title, body: extra.body, points: extra.points || [] });
+    }
   }
   // A apresentação aproxima conceito e aplicação, como no cartão de referência.
   // Só usa uma instrução que já foi desbloqueada; não duplica seu conteúdo.
+  // Com os textos curtos, a junção só acontece quando cabe inteira: se a
+  // introdução tem tópicos ou continuação, cada uma fica na sua página (antes a
+  // introdução era cortada e sobrava uma frase solta numa página própria).
   const introduction = pages[0];
-  const gameIndex = pages.findIndex(page => page.body && isTutorialGamePage(page));
-  if (introduction?.sourceIndex === 0 && gameIndex > 0 && !isTutorialGamePage(introduction)) {
-    const game = pages.splice(gameIndex, 1)[0];
-    introduction.callout = game;
-    if (introduction.body.length + game.body.length > 320 || introduction.points.length) {
-      const sentence = introduction.body.match(/^.*?[.!?](?:\s+|$)/u)?.[0];
-      const lead = sentence && sentence.length < introduction.body.length ? sentence : introduction.body;
-      const remainder = introduction.body.slice(lead.length);
-      if (remainder || introduction.points.length) {
-        pages.splice(1, 0, { sourceIndex: introduction.sourceIndex, kind: 'content',
-          title: introduction.title, body: remainder, points: introduction.points });
-        introduction.body = lead;
-        introduction.points = [];
-      }
-    }
+  const gameIndex = pages.findIndex(page => page.body && !page.continued && isTutorialGamePage(page));
+  const continues = index => pages[index + 1]?.continued && pages[index + 1].sourceIndex === pages[index].sourceIndex;
+  if (introduction?.sourceIndex === 0 && gameIndex > 0
+    && !isTutorialGamePage(introduction)
+    && !introduction.points.length && !continues(0) && !continues(gameIndex)
+    && introduction.body.length + pages[gameIndex].body.length <= 320) {
+    introduction.callout = pages.splice(gameIndex, 1)[0];
   }
-  if (pages.length && card.cycle?.length) {
-    pages.push({ kind: 'cycle', title: card.cycleLabel || 'Ciclo ou etapas', body: '', points: [], cycle: card.cycle });
-  }
+  if (includeCycle && pages.length && card.cycle?.length) pages.push(cyclePage(card));
   return pages;
 }

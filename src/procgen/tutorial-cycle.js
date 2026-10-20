@@ -1,49 +1,9 @@
-// Contexto de cada etapa: índices das páginas existentes, nunca texto científico novo.
-const contextPages = {
-  'system-welcome': [0, 0, 1, 0],
-  'action-exudate': [0, 0, 1, 1],
-  'action-inoculation': [1, 1, 0, 2],
-  'power-double-jump': [1, 0, 1, 0],
-  'power-dash': [1, 0, 0, 2],
-  'power-jetpack': [1, 1, 1, 0],
-  'power-pulse': [0, 1, 2, 3, 3],
-  'process-root-health': [0, 1, 1, 1, 2],
-  'process-root-recovery': [1, 0, 2, 3],
-  'process-root-collapse': [1, 1, 0, 2, 3],
-  'organism-rhizobium': [1, 1, 1, 1, 2, 2],
-  'organism-azospirillum': [0, 1, 1, 2, 1, 3],
-  'organism-mycorrhiza': [0, 0, 2, 2, 1, 0],
-  'organism-bacillus': [1, 1, 2, 3, 0, 3],
-  'organism-pseudomonas': [0, 4, 0, 1, 2],
-  'organism-trichoderma': [0, 0, 1, 1, 1, 0],
-  'organism-phosphate-solubilizer': [0, 1, 1, 1, 4],
-  'organism-opportunistic-fungus': [1, 0, 1, 1, 1],
-  'organism-rhizoctonia': [0, 1, 1, 2, 1, 0],
-  'organism-ralstonia': [0, 0, 1, 2, 2, 4],
-  'organism-meloidogyne-j2': [0, 0, 0, 1, 1, 1],
-  'organism-meloidogyne-female': [0, 0, 0, 1, 2],
-  'structure-nodule': [0, 0, 0, 2, 1],
-  'process-fbn': [0, 1, 2, 2],
-  'structure-biofilm': [0, 0, 1, 2, 3],
-  'process-siderophore': [0, 1, 0, 1, 3],
-  'process-iron-competition': [0, 0, 1, 3],
-  'process-ralstonia-entry': [0, 1, 1, 1],
-  'process-vascular-obstruction': [0, 0, 0, 1],
-  'process-ralstonia-containment': [0, 1, 1, 2],
-  'process-ralstonia-spread': [0, 0, 2, 1],
-  'structure-arbuscule': [0, 0, 1, 3, 3],
-  'structure-mycorrhiza-path': [0, 0, 1, 3, 2],
-  'structure-lateral-root': [2, 0, 0, 1, 2],
-  'structure-egg-mass': [0, 1, 1, 1, 2],
-  'structure-gall': [3, 0, 0, 1, 2],
-  'process-mycoparasitism': [0, 1, 1, 1, 1, 2],
-};
-
-export function tutorialCycleContext(card, index, unlocked) {
-  const sourceIndex = contextPages[card.id]?.[index];
-  if (!unlocked.includes(sourceIndex)) return null;
-  const page = card.pages[sourceIndex];
-  return page ? { sourceIndex, title: page.title, body: page.body } : null;
+// Cada etapa traz a propria legenda (tutorial-text-revision.js): nenhuma etapa
+// fica "bloqueada" nem cai em texto generico.
+export function tutorialCycleStep(card, index) {
+  const step = card?.cycle?.[index];
+  if (!step) return null;
+  return typeof step === 'string' ? { label: step, caption: '' } : step;
 }
 
 export function tutorialCycleLayout(count, narrow = false) {
@@ -79,7 +39,7 @@ export function createTutorialCycle(block, onChange) {
   const detail = block.querySelector('.tutorial-cycle-detail');
   const detailTitle = detail.querySelector('strong'), detailBody = detail.querySelector('span');
   const media = window.matchMedia('(max-width: 400px)');
-  let card = null, unlocked = [], selected = 0;
+  let card = null, selected = 0;
   const colors = ['#ffc35a', '#e5d874', '#b9dd7e', '#a9dec3', '#86dfd1', '#6ce7df'];
   const element = (tag, attrs) => {
     const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -89,10 +49,11 @@ export function createTutorialCycle(block, onChange) {
   function select(index, notify = true) {
     selected = index;
     [...list.querySelectorAll('button')].forEach((button, i) => button.setAttribute('aria-pressed', i === selected));
-    caption.textContent = `Etapa ${selected + 1} de ${card.cycle.length}`;
-    const context = tutorialCycleContext(card, selected, unlocked);
-    detailTitle.textContent = context ? context.title + '. ' : card.cycle[selected] + '. ';
-    detailBody.textContent = context?.body || 'O conteúdo desta etapa será apresentado ao longo da descoberta.';
+    // Continuar fecha o cartao: as etapas se escolhem tocando nelas.
+    caption.textContent = `Etapa ${selected + 1} de ${card.cycle.length} · toque nas etapas`;
+    const step = tutorialCycleStep(card, selected);
+    detailTitle.textContent = step.label + '. ';
+    detailBody.textContent = step.caption;
     if (notify) onChange();
   }
   function render() {
@@ -106,7 +67,8 @@ export function createTutorialCycle(block, onChange) {
     defs.append(gradient); svg.append(defs);
     svg.append(element('path', { d: layout.path, class: 'tutorial-orbital-base' }), element('path', { d: layout.path, class: 'tutorial-orbital-flow' }));
     for (const arrow of layout.arrows) svg.append(element('path', { d: 'M-4 -5 L4 0 L-4 5 Z', class: 'tutorial-orbital-arrow', transform: `translate(${arrow.x} ${arrow.y}) rotate(${arrow.angle})` }));
-    card.cycle.forEach((step, index) => {
+    card.cycle.forEach((_, index) => {
+      const step = tutorialCycleStep(card, index).label;
       const row = document.createElement('li'), button = document.createElement('button');
       row.className = 'tutorial-cycle-step';
       row.style.left = layout.positions[index].x / 4 + '%';
@@ -124,11 +86,11 @@ export function createTutorialCycle(block, onChange) {
   }
   media.addEventListener('change', () => { if (card && !block.hidden) render(); });
   return {
-    show(nextCard, pages) {
+    show(nextCard) {
       block.hidden = !nextCard?.cycle?.length;
       if (block.hidden) { card = null; selected = 0; return; }
       if (card?.id !== nextCard.id) selected = 0;
-      card = nextCard; unlocked = pages;
+      card = nextCard;
       render();
     },
     move(delta) {

@@ -46,6 +46,8 @@ export function createTutorialTriggers({
         || sim.trichodermaColonies.followerCount > 0,
       doubleJump: Boolean(state.player.canDoubleJump),
       dash: Boolean(state.player.canDash),
+      // a Propulsao abre quando fica disponivel, nao no comeco da fase 5
+      jetpack: Boolean(state.player.canJetpack),
       phosphateSolubilization: Boolean(state.player.canPhosphateSolubilization),
     };
   }
@@ -247,6 +249,28 @@ export function createTutorialTriggers({
     return false;
   }
 
+  // Cartoes curtos de situacao: abrem na primeira vez que ela acontece.
+  function triggerPlayerSituations() {
+    const player = state.player;
+    const selectorOptions = sim.inoculumSelection?.options?.().length || 0;
+    const contaminated = (player.fungalContamination || 0) > .2 || (player.infection || 0) > .2;
+    const j2Carried = (sim.meloidogyneLifecycle?.juveniles || [])
+      .some(juvenile => juvenile.alive && juvenile.carriedByPlayer);
+    const calm = (state.calmZones || []).some(zone => zone.intensity >= .6);
+    const radar = (state.threatRadarSignals || 0) > 0;
+    const situations = [
+      ['action-selection', selectorOptions >= 2],
+      ['status-contamination', contaminated],
+      ['status-j2-carried', j2Carried],
+      ['event-calm', calm],
+      ['hud-radar', radar],
+    ];
+    for (const [id, active] of situations) {
+      if (active && !manager.hasSeen(id) && manager.trigger(id, tutorialContext())) return true;
+    }
+    return false;
+  }
+
   function triggerStateTransitions() {
     const current = conditionSnapshot();
     const transitions = [
@@ -254,6 +278,7 @@ export function createTutorialTriggers({
       ['action-inoculation', current.inoculation && !previousConditions.inoculation],
       ['power-double-jump', current.doubleJump && !previousConditions.doubleJump],
       ['power-dash', current.dash && !previousConditions.dash],
+      ['power-jetpack', current.jetpack && !previousConditions.jetpack],
       ['power-pulse', current.phosphateSolubilization && !previousConditions.phosphateSolubilization],
     ];
     previousConditions = current;
@@ -275,6 +300,7 @@ export function createTutorialTriggers({
     // Entre todos os organismos próximos, abre primeiro o mais perto de Miguelito.
     if (triggerNearestOrganism()) return;
     if (triggerStateTransitions()) return;
+    if (triggerPlayerSituations()) return;
 
     const eggMasses = sim.meloidogyneLifecycle.eggMasses || [];
     const nearbyEggMass = eggMasses.find(mass => (

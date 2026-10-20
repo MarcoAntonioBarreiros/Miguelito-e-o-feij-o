@@ -268,6 +268,13 @@ const kinds = Object.freeze({
   'process-vascular-obstruction': 'ralstonia',
   'process-ralstonia-containment': 'ralstonia',
   'process-ralstonia-spread': 'ralstonia',
+  // cartoes de situacao
+  'action-selection': 'exudate',
+  'hazard-necrotic-zone': 'rhizoctonia',
+  'status-contamination': 'oportunista',
+  'status-j2-carried': 'nematoide',
+  'event-calm': 'calm',
+  'hud-radar': 'ralstonia',
 });
 
 function drawPopulation(c, kind, time) {
@@ -304,9 +311,19 @@ function drawExudates(c, time) {
   }
 }
 
+// chave (objeto) das particulas da calmaria no microscopio
+const CALM_MOTES_KEY = {};
+
 function drawField(c, kind, time) {
   if (kind === 'nodule') drawNodule(c, time);
   else if (kind === 'exudate') drawExudates(c, time);
+  else if (kind === 'calm') {
+    // a calmaria: luz quente e o patogeno na versao zen
+    const glow = c.createRadialGradient(0, 0, 10, 0, 0, 200);
+    glow.addColorStop(0, 'rgba(255,196,150,.55)'); glow.addColorStop(.55, 'rgba(255,140,150,.22)'); glow.addColorStop(1, 'rgba(255,120,140,0)');
+    c.fillStyle = glow; c.fillRect(-220, -220, 440, 440);
+    organismSprites.draw(c, 'rhizoctonia', {height: 300, time, calm: 1, calmKey: CALM_MOTES_KEY});
+  }
   else if (kind === 'iron') {
     organismSprites.draw(c, 'pseudomonas', {height: 165, time});
     drawIron(c, time);

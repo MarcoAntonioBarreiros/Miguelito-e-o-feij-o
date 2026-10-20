@@ -830,10 +830,17 @@ const arrivalTour = createArrivalTour({
   onEnd: () => {
     for (const code of Object.keys(keys)) keys[code] = false;
     sim.setInputs({});
+    // A zona necrotica foi apresentada aqui: o cartao entra no GUIA ja lido.
+    window.miguelitoTutorial?.recordInGuide?.('hazard-necrotic-zone');
   },
 });
 window.miguelitoArrivalTour = arrivalTour;
 window.addEventListener('miguelito:tutorial-reset', () => arrivalTour.reset());
+// Pagina liberada num cartao ja lido: aviso curto com o ◈ para abrir.
+window.addEventListener('miguelito:tutorial-guide-updated', event => {
+  const { cardId, title } = event.detail || {};
+  if (cardId && title) narrate(sim.state, 'guide.updated', { cardId, title });
+});
 window.miguelitoViewport = responsiveCanvas;
 // A cinematica de fim de fase NAO tem mundo nem camera propria: ela assume a
 // camera real (`cameraView.beginCinematic`) e acrescenta ao mundo da fase so o
@@ -1746,6 +1753,11 @@ function maybeAdvanceCampaign() {
     && phaseFinale.mode !== 'done'
     && sim.state.time < (campaign.finaleDeadline || 0)) return false;
 
+  // Com o feijoeiro revelado, os ciclos dos organismos desta fase voltam como
+  // revisao (antes eram a ultima pagina da primeira apresentacao, cedo demais).
+  // O cartao pausa o mundo; a troca de fase so continua depois de fechado.
+  if (window.miguelitoTutorial?.openCycleReview?.(campaign.phase)) return false;
+
   // Com audio: espera o stinger terminar (ou o prazo de seguranca).
   if (campaign.waitingForVictoryAudio) {
     const noPrazo = sim.state.time < (campaign.victoryAudioDeadline || 0);
@@ -2571,8 +2583,9 @@ function loop(now) {
     phaseFinale.renderOverlay(ctx);
     // Radar de Ralstonia e nematoide (borda da tela; so alvos fora do quadro)
     if (!phaseFinale.active) {
-      drawThreatRadar(ctx, sim.state, canvas, now / 1000, Boolean(coarsePointerQuery?.matches));
-    }
+      // quantos sinais estao na borda: o cartao do radar abre no primeiro
+      sim.state.threatRadarSignals = drawThreatRadar(ctx, sim.state, canvas, now / 1000, Boolean(coarsePointerQuery?.matches));
+    } else sim.state.threatRadarSignals = 0;
     const finaleVisible = phaseFinale.active;
     if (finaleVisible !== hudHiddenByFinale) {
       hudHiddenByFinale = finaleVisible;

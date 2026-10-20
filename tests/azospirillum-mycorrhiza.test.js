@@ -517,7 +517,7 @@ test('Azo fornece N associativo pequeno, nao cria nodulo e so potencializa Rhizo
   nitrogen.update(1);
   assert.equal(site.fixationRate, .24);
   assert.equal(site.azospirillumSynergyActive, true);
-  assert.equal(state.toast, 'Co-inoculação: FBN potencializada');
+  assert.equal(state.toast, 'Co-inoculação pode favorecer a FBN');
 
   colony.dormant = true;
   nitrogen.update(1);
