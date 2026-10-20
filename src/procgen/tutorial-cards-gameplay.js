@@ -12,7 +12,7 @@ export const gameplayTutorialCards = {
     "◈",
     "#70e5d6",
     [
-      page("Bem-vindo à rizosfera", "Você encolheu até o tamanho de um microrganismo. Aqui, a superfície da raiz é um mundo vivo: bactérias, fungos e nematoides competem, cooperam e mudam a saúde da planta."),
+      // "Bem-vindo à rizosfera" passou para a chegada guiada (arrival-tour.js).
       page(
         "Cartões de descoberta",
         "Quando algo importante aparece pela primeira vez, o jogo pausa e abre um cartão. Leia no seu ritmo: nenhuma ameaça continua se movendo enquanto o cartão estiver aberto.",

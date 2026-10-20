@@ -174,3 +174,19 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   .tutorial-footer { padding-top: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { .tutorial-panel--card { animation: none; } }
+
+/* Chegada guiada (arrival-tour.js): balao curto no estilo dos cartoes */
+#arrival-tour { position: fixed; inset: 0; z-index: 60; touch-action: none; font-family: var(--tutorial-body, 'Atkinson Hyperlegible', system-ui, sans-serif); color: var(--tutorial-ink, #fbeedd); }
+#arrival-tour[hidden] { display: none; }
+#arrival-tour .arrival-ring { position: fixed; border: 3px solid var(--tutorial-amber, #ffc35a); border-radius: 999px; box-shadow: 0 0 0 9999px rgba(10,4,2,.38), 0 0 24px rgba(255,195,90,.65); pointer-events: none; transition: left .25s, top .25s, width .25s, height .25s; animation: arrival-pulse 1.6s ease-in-out infinite; }
+#arrival-tour .arrival-ring[hidden] { display: none; }
+@keyframes arrival-pulse { 50% { box-shadow: 0 0 0 9999px rgba(10,4,2,.38), 0 0 38px rgba(255,195,90,.95); } }
+#arrival-tour .arrival-bubble { position: fixed; width: min(340px, calc(100vw - 24px)); padding: 14px 16px 12px; border-radius: 16px; background: linear-gradient(160deg, #3a1a11, #2a130d 60%); border: 1px solid rgba(255,214,170,.25); box-shadow: 0 14px 30px rgba(0,0,0,.45); }
+#arrival-tour .arrival-text { margin: 0 0 10px; font-size: 1.02rem; line-height: 1.4; }
+#arrival-tour .arrival-footer { display: flex; align-items: center; gap: 8px; }
+#arrival-tour .arrival-count { color: var(--tutorial-muted, #dcbfa3); font-size: .8rem; margin-right: auto; }
+#arrival-tour .arrival-skip { background: none; border: 0; color: var(--tutorial-muted, #dcbfa3); font: 700 .85rem/1 inherit; padding: 8px; cursor: pointer; }
+#arrival-tour .arrival-next { border: 0; border-radius: 999px; padding: 8px 18px; background: var(--tutorial-amber, #ffc35a); color: #3a1608; font: 800 1rem/1.2 var(--tutorial-display, 'Grandstander', system-ui); box-shadow: 0 3px 0 #b3651f; cursor: pointer; }
+#arrival-tour .arrival-arrow { position: absolute; top: -9px; width: 0; height: 0; margin-left: -9px; border: 9px solid transparent; border-top: 0; border-bottom-color: #3a1a11; }
+#arrival-tour .arrival-bubble:not(.arrival-bubble--below) .arrival-arrow { top: auto; bottom: -9px; border-bottom: 0; border-top: 9px solid #2a130d; }
+#arrival-tour.arrival-tour--right .arrival-text::after { content: ' →'; color: var(--tutorial-amber, #ffc35a); font-weight: 800; }

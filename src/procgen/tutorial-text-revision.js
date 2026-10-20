@@ -19,7 +19,7 @@ const m = (body, points = []) => ({ body, points });
 
 export const PAGE_REVISION = {
   'system-welcome': [
-    p('Bem-vindo à rizosfera', 'Você encolheu até virar um micróbio! A rizosfera é o solo junto às raízes, onde micróbios competem, cooperam e influenciam a planta.'),
+    // a pagina de boas-vindas virou a primeira parada da chegada guiada
     p('Cartões de descoberta', 'Quando algo novo aparece, o jogo pausa e abre um cartão. Nada se move enquanto você lê.',
       ['Use as setas para avançar ou voltar.', 'Os cartões descobertos ficam no GUIA.']),
     p('Ciência + videogame', 'Algumas ações são processos reais. Outras são metáforas de plataforma para tornar visível o que é microscópico.',

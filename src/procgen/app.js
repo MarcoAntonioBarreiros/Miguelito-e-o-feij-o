@@ -53,6 +53,7 @@ import { BIOLOGICAL_PARALLAX_KEY } from '../render/rhizosphere-parallax.js';
 import { createPlatformVisuals } from './platform-visuals.js';
 import { createRhizosphereLighting, readLightingPreference } from '../render/rhizosphere-lighting.js';
 import { createCameraView } from './camera-view.js';
+import { createArrivalTour } from './arrival-tour.js';
 import { createResponsiveCanvas } from './responsive-canvas.js';
 import { getPrimaryTraversalPlatforms } from './traversal-route.js';
 import {
@@ -809,6 +810,30 @@ const campaign = createCampaign(phaseLab.enabled ? phaseLab.config.seed : undefi
 if (phaseLab.enabled) phaseLab.configureCampaign(campaign);
 sim.state.campaign = campaign;
 const cameraView = createCameraView({ canvas, state: sim.state });
+// Chegada guiada (primeira campanha): a camera apresenta Miguelito, as
+// plataformas, a zona necrotica, o zoom e a direcao. Congela o mundo como um
+// cartao aberto; o cartao de boas-vindas so abre depois.
+const arrivalTour = createArrivalTour({
+  state: sim.state,
+  canvas,
+  cameraView,
+  isTouch: () => Boolean(window.matchMedia?.('(pointer: coarse)').matches),
+  playerFraming: zoomValue => playerFraming(zoomValue),
+  // so depois que o cartao da fase ("Fase 1 ...") sai da tela
+  ready: () => !document.getElementById('phase-card')?.classList.contains('show'),
+  // Opcao (c): o cartao de boas-vindas fica so com "cartoes e GUIA" e abre
+  // logo depois da chegada guiada. Hoje ele nunca abria na campanha: pertence
+  // ao prologo e ja entrava como visto na fase 1.
+  onClosed: ({ replay }) => {
+    if (!replay) window.miguelitoTutorial?.openCard?.('system-welcome');
+  },
+  onEnd: () => {
+    for (const code of Object.keys(keys)) keys[code] = false;
+    sim.setInputs({});
+  },
+});
+window.miguelitoArrivalTour = arrivalTour;
+window.addEventListener('miguelito:tutorial-reset', () => arrivalTour.reset());
 window.miguelitoViewport = responsiveCanvas;
 // A cinematica de fim de fase NAO tem mundo nem camera propria: ela assume a
 // camera real (`cameraView.beginCinematic`) e acrescenta ao mundo da fase so o
@@ -1843,6 +1868,11 @@ const pauseMenu = createPauseMenu({
     sim.setInputs({});
   },
 });
+document.querySelector('[data-pause-action="arrival"]')?.addEventListener('click', () => {
+  if (sim.state.gameState !== 'play' || sim.state.introFall) return;
+  pauseMenu.close();
+  requestAnimationFrame(() => arrivalTour.start({ force: true }));
+});
 window.addEventListener('keydown', event => {
   if (event.code === 'Escape' && !event.repeat && !window.miguelitoTutorial?.isOpen) {
     event.preventDefault();
@@ -1942,8 +1972,11 @@ function updateIntroFall() {
     }
     return;
   }
-  // Pousou lá embaixo: a cena acaba.
-  if (player.onGround && player.y > intro.surface + 120) sim.state.introFall = null;
+  // Pousou lá embaixo: a cena acaba e começa a chegada guiada (uma vez).
+  if (player.onGround && player.y > intro.surface + 120) {
+    sim.state.introFall = null;
+    arrivalTour.start();
+  }
 }
 
 // TELA DE TÍTULO (início da campanha): a cena da superfície ao vivo faz o papel
@@ -2488,7 +2521,7 @@ function loop(now) {
     const advanced = advanceGameplayFrame({
       state: sim.state,
       // Menu de pausa aberto congela o mundo pelo mesmo caminho do tutorial.
-      manager: pauseMenu.isOpen ? { isOpen: true } : tutorialManager,
+      manager: pauseMenu.isOpen || arrivalTour.blocking ? { isOpen: true } : tutorialManager,
       sim,
       dt,
       advance: frameDt => {
@@ -2531,6 +2564,7 @@ function loop(now) {
     phaseFinale.update(dt);
     updateEventParticles(dt, pauseMenu.isOpen || Boolean(tutorialManager?.isOpen));
     updateNodulationShowcase(pauseMenu.isOpen || tutorialManager?.isOpen ? 0 : dt);
+    arrivalTour.update(pauseMenu.isOpen ? 0 : dt);
     announceLowTunnel();
     renderWorld();
     // Cartao em coordenadas de tela, fora da transformacao do mundo.

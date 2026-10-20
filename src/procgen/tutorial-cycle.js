@@ -1,6 +1,6 @@
 // Contexto de cada etapa: índices das páginas existentes, nunca texto científico novo.
 const contextPages = {
-  'system-welcome': [0, 1, 2, 1],
+  'system-welcome': [0, 0, 1, 0],
   'action-exudate': [0, 0, 1, 1],
   'action-inoculation': [1, 1, 0, 2],
   'power-double-jump': [1, 0, 1, 0],

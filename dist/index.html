@@ -1036,6 +1036,22 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   .tutorial-footer { padding-top: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { .tutorial-panel--card { animation: none; } }
+
+/* Chegada guiada (arrival-tour.js): balao curto no estilo dos cartoes */
+#arrival-tour { position: fixed; inset: 0; z-index: 60; touch-action: none; font-family: var(--tutorial-body, 'Atkinson Hyperlegible', system-ui, sans-serif); color: var(--tutorial-ink, #fbeedd); }
+#arrival-tour[hidden] { display: none; }
+#arrival-tour .arrival-ring { position: fixed; border: 3px solid var(--tutorial-amber, #ffc35a); border-radius: 999px; box-shadow: 0 0 0 9999px rgba(10,4,2,.38), 0 0 24px rgba(255,195,90,.65); pointer-events: none; transition: left .25s, top .25s, width .25s, height .25s; animation: arrival-pulse 1.6s ease-in-out infinite; }
+#arrival-tour .arrival-ring[hidden] { display: none; }
+@keyframes arrival-pulse { 50% { box-shadow: 0 0 0 9999px rgba(10,4,2,.38), 0 0 38px rgba(255,195,90,.95); } }
+#arrival-tour .arrival-bubble { position: fixed; width: min(340px, calc(100vw - 24px)); padding: 14px 16px 12px; border-radius: 16px; background: linear-gradient(160deg, #3a1a11, #2a130d 60%); border: 1px solid rgba(255,214,170,.25); box-shadow: 0 14px 30px rgba(0,0,0,.45); }
+#arrival-tour .arrival-text { margin: 0 0 10px; font-size: 1.02rem; line-height: 1.4; }
+#arrival-tour .arrival-footer { display: flex; align-items: center; gap: 8px; }
+#arrival-tour .arrival-count { color: var(--tutorial-muted, #dcbfa3); font-size: .8rem; margin-right: auto; }
+#arrival-tour .arrival-skip { background: none; border: 0; color: var(--tutorial-muted, #dcbfa3); font: 700 .85rem/1 inherit; padding: 8px; cursor: pointer; }
+#arrival-tour .arrival-next { border: 0; border-radius: 999px; padding: 8px 18px; background: var(--tutorial-amber, #ffc35a); color: #3a1608; font: 800 1rem/1.2 var(--tutorial-display, 'Grandstander', system-ui); box-shadow: 0 3px 0 #b3651f; cursor: pointer; }
+#arrival-tour .arrival-arrow { position: absolute; top: -9px; width: 0; height: 0; margin-left: -9px; border: 9px solid transparent; border-top: 0; border-bottom-color: #3a1a11; }
+#arrival-tour .arrival-bubble:not(.arrival-bubble--below) .arrival-arrow { top: auto; bottom: -9px; border-bottom: 0; border-top: 9px solid #2a130d; }
+#arrival-tour.arrival-tour--right .arrival-text::after { content: ' →'; color: var(--tutorial-amber, #ffc35a); font-weight: 800; }
 </style>
 </head>
 <body>
@@ -1083,6 +1099,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-parallax" aria-label="Ligar/desligar paralaxe biológico (tecla P)" aria-pressed="true">P</button><span>Paralaxe biológico <kbd>P</kbd></span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="toggle-recovery" aria-label="Ligar/desligar plataformas de segurança (tecla T)" aria-pressed="false">⛨</button><span>Plataformas de segurança <kbd>T</kbd></span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="debug" aria-label="Mostrar informações técnicas" aria-pressed="false">ⓘ</button><span>Informações técnicas <kbd>Tab</kbd></span></label>
+        <label class="pause-row"><button class="mobile-tool" data-pause-action="arrival" aria-label="Rever a chegada guiada">◎</button><span>Rever a chegada</span></label>
         <label class="pause-row"><button class="mobile-tool" data-mobile-action="reset" aria-label="Gerar nova fase">↻</button><span>Recomeçar campanha <kbd>R</kbd></span></label>
       </div>
     </div>
@@ -1108,7 +1125,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"dae4dfa","subject":"Miguelito: hifas da contaminacao por cima do corpo (rede que sobe dos pe","builtAt":"2026-10-19 22:29"};
+window.__BEANS_BUILD__ = {"commit":"6376c89","subject":"Revisao dos cartoes didaticos (dados, ainda nao ligados): textos enxutos","builtAt":"2026-10-20 13:01"};
 (() => {
 'use strict';
 const __modules = {
@@ -1148,6 +1165,7 @@ const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.j
 const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");
 const { createRhizosphereLighting, readLightingPreference } = __require("src/render/rhizosphere-lighting.js");
 const { createCameraView } = __require("src/procgen/camera-view.js");
+const { createArrivalTour } = __require("src/procgen/arrival-tour.js");
 const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");
 const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");
 const { ROUTE_GATE_KINDS, ROUTE_GATE_REQUIRED_ABILITY, ROUTE_GATE_REQUIRED_ORGANISM } = __require("src/procgen/phase-vertical-plan.js");
@@ -1886,6 +1904,30 @@ const campaign = createCampaign(phaseLab.enabled ? phaseLab.config.seed : undefi
 if (phaseLab.enabled) phaseLab.configureCampaign(campaign);
 sim.state.campaign = campaign;
 const cameraView = createCameraView({ canvas, state: sim.state });
+// Chegada guiada (primeira campanha): a camera apresenta Miguelito, as
+// plataformas, a zona necrotica, o zoom e a direcao. Congela o mundo como um
+// cartao aberto; o cartao de boas-vindas so abre depois.
+const arrivalTour = createArrivalTour({
+  state: sim.state,
+  canvas,
+  cameraView,
+  isTouch: () => Boolean(window.matchMedia?.('(pointer: coarse)').matches),
+  playerFraming: zoomValue => playerFraming(zoomValue),
+  // so depois que o cartao da fase ("Fase 1 ...") sai da tela
+  ready: () => !document.getElementById('phase-card')?.classList.contains('show'),
+  // Opcao (c): o cartao de boas-vindas fica so com "cartoes e GUIA" e abre
+  // logo depois da chegada guiada. Hoje ele nunca abria na campanha: pertence
+  // ao prologo e ja entrava como visto na fase 1.
+  onClosed: ({ replay }) => {
+    if (!replay) window.miguelitoTutorial?.openCard?.('system-welcome');
+  },
+  onEnd: () => {
+    for (const code of Object.keys(keys)) keys[code] = false;
+    sim.setInputs({});
+  },
+});
+window.miguelitoArrivalTour = arrivalTour;
+window.addEventListener('miguelito:tutorial-reset', () => arrivalTour.reset());
 window.miguelitoViewport = responsiveCanvas;
 // A cinematica de fim de fase NAO tem mundo nem camera propria: ela assume a
 // camera real (`cameraView.beginCinematic`) e acrescenta ao mundo da fase so o
@@ -2920,6 +2962,11 @@ const pauseMenu = createPauseMenu({
     sim.setInputs({});
   },
 });
+document.querySelector('[data-pause-action="arrival"]')?.addEventListener('click', () => {
+  if (sim.state.gameState !== 'play' || sim.state.introFall) return;
+  pauseMenu.close();
+  requestAnimationFrame(() => arrivalTour.start({ force: true }));
+});
 window.addEventListener('keydown', event => {
   if (event.code === 'Escape' && !event.repeat && !window.miguelitoTutorial?.isOpen) {
     event.preventDefault();
@@ -3019,8 +3066,11 @@ function updateIntroFall() {
     }
     return;
   }
-  // Pousou lá embaixo: a cena acaba.
-  if (player.onGround && player.y > intro.surface + 120) sim.state.introFall = null;
+  // Pousou lá embaixo: a cena acaba e começa a chegada guiada (uma vez).
+  if (player.onGround && player.y > intro.surface + 120) {
+    sim.state.introFall = null;
+    arrivalTour.start();
+  }
 }
 
 // TELA DE TÍTULO (início da campanha): a cena da superfície ao vivo faz o papel
@@ -3565,7 +3615,7 @@ function loop(now) {
     const advanced = advanceGameplayFrame({
       state: sim.state,
       // Menu de pausa aberto congela o mundo pelo mesmo caminho do tutorial.
-      manager: pauseMenu.isOpen ? { isOpen: true } : tutorialManager,
+      manager: pauseMenu.isOpen || arrivalTour.blocking ? { isOpen: true } : tutorialManager,
       sim,
       dt,
       advance: frameDt => {
@@ -3608,6 +3658,7 @@ function loop(now) {
     phaseFinale.update(dt);
     updateEventParticles(dt, pauseMenu.isOpen || Boolean(tutorialManager?.isOpen));
     updateNodulationShowcase(pauseMenu.isOpen || tutorialManager?.isOpen ? 0 : dt);
+    arrivalTour.update(pauseMenu.isOpen ? 0 : dt);
     announceLowTunnel();
     renderWorld();
     // Cartao em coordenadas de tela, fora da transformacao do mundo.
@@ -50470,6 +50521,317 @@ function zoomProfileFor(windowObject = typeof window === 'undefined' ? null : wi
 }
 Object.assign(__exports, { DESKTOP_ZOOM_PROFILE, TOUCH_ZOOM_PROFILE, isTouchDevice, zoomProfileFor });
 },
+"src/procgen/arrival-tour.js": (__exports, __require) => {
+// Chegada guiada: logo que Miguelito pousa na rizosfera (primeira campanha), a
+// camera passeia por cinco pontos e um balao curto explica cada um. O mundo
+// fica congelado (o app trata o tour como um cartao aberto); a camera usa o
+// modo cinematografico que o zoom do nodulo ja usa.
+//
+// Toque, Espaco, Enter ou seta para a direita avancam; Esc ou "Pular" saem.
+// Pode ser revisto pelo menu de pausa.
+
+const STORAGE_KEY = 'miguelito:arrival-tour:v1';
+const MOVE_SECONDS = .8;
+const ZOOM_DEMO_SECONDS = 2.6;
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = t => { const k = clamp(t, 0, 1); return k * k * (3 - 2 * k); };
+const mix = (a, b, t) => {
+  const k = ease(t);
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, zoom: a.zoom + (b.zoom - a.zoom) * k };
+};
+
+function arrivalTourSeen() {
+  try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch (_) { return false; }
+}
+function markSeen(value = true) {
+  try {
+    if (value) localStorage.setItem(STORAGE_KEY, '1');
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch (_) { /* sem armazenamento: o tour so nao lembra */ }
+}
+
+/** Textos curtos (ate ~90 caracteres), com variante para toque. */
+const ARRIVAL_TOUR_TEXT = Object.freeze({
+  player: {
+    keys: 'Bem-vindo à rizosfera! Você encolheu até virar um micróbio. ← → anda · Espaço salta.',
+    touch: 'Bem-vindo à rizosfera! Você encolheu até virar um micróbio. Use os botões para andar e saltar.',
+  },
+  platform: 'Raízes e torrões são suas plataformas. Ande e salte por eles.',
+  necrotic: 'Lá embaixo é a zona necrótica. Cair nela tira toda a Vitalidade.',
+  zoom: {
+    keys: 'Afaste ou aproxime a câmera: − e +, ou a roda do mouse.',
+    touch: 'Afaste ou aproxime a câmera com − e +.',
+  },
+  direction: 'Siga para a direita até a raiz principal.',
+});
+
+function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, playerFraming, onEnd = () => {}, ready = () => true, onClosed = () => {} }) {
+  let active = false;
+  // esperando o cartao da fase sair da tela (o mundo ja fica congelado)
+  let pending = false;
+  let pendingForce = false;
+  let steps = [];
+  let index = 0;
+  let t = 0;
+  let from = null;
+  let back = 1;
+  let leaving = false;
+  let root = null;
+  let forced = false;
+
+  // ---- DOM ------------------------------------------------------------------
+  function ensureDom() {
+    if (root) return;
+    root = document.createElement('div');
+    root.id = 'arrival-tour';
+    root.hidden = true;
+    root.innerHTML = `
+      <div class="arrival-ring" aria-hidden="true"></div>
+      <div class="arrival-bubble" role="dialog" aria-live="polite">
+        <p class="arrival-text"></p>
+        <div class="arrival-footer">
+          <span class="arrival-count"></span>
+          <button type="button" class="arrival-skip">Pular</button>
+          <button type="button" class="arrival-next">Continuar</button>
+        </div>
+        <span class="arrival-arrow" aria-hidden="true"></span>
+      </div>`;
+    document.body.appendChild(root);
+    root.addEventListener('pointerdown', event => {
+      event.preventDefault();
+      if (event.target.closest('.arrival-skip')) finish(true);
+      else next();
+    });
+  }
+
+  function onKey(event) {
+    if (!active) return;
+    const codes = ['Space', 'Enter', 'ArrowRight', 'Escape', 'NumpadEnter'];
+    if (!codes.includes(event.code)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (event.type !== 'keydown' || event.repeat) return;
+    if (event.code === 'Escape') finish(true);
+    else next();
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
+  }
+
+  // ---- alvos -----------------------------------------------------------------
+  function viewSize(zoom) {
+    return { w: (canvas.width || 1280) / zoom, h: (canvas.height || 720) / zoom };
+  }
+  function frameOn(x, y, zoom, anchorY = .5) {
+    const { w, h } = viewSize(zoom);
+    return { x: Math.max(0, x - w / 2), y: y - h * anchorY, zoom };
+  }
+  function supportPlatform() {
+    const pl = state.player;
+    const cx = pl.x + pl.w / 2;
+    const feet = pl.y + pl.h;
+    return (state.level.platforms || [])
+      .filter(p => cx >= p.x - 4 && cx <= p.x + p.w + 4 && Math.abs(feet - p.y) < 24)
+      .sort((a, b) => Math.abs(feet - a.y) - Math.abs(feet - b.y))[0] || null;
+  }
+  function necroticTop(x) {
+    const hz = (state.level.hazards || []).filter(h => x >= h.x - 400 && x <= h.x + h.w + 400);
+    const list = hz.length ? hz : (state.level.hazards || []);
+    return list.length ? Math.min(...list.map(h => h.y)) : 700;
+  }
+  function zoomButtonsRect() {
+    const els = ['out', 'reset', 'in']
+      .map(a => document.querySelector(`[data-camera-action="${a}"]`))
+      .filter(el => el && el.offsetParent !== null);
+    if (!els.length) return null;
+    const rects = els.map(el => el.getBoundingClientRect());
+    const left = Math.min(...rects.map(r => r.left)), top = Math.min(...rects.map(r => r.top));
+    const right = Math.max(...rects.map(r => r.right)), bottom = Math.max(...rects.map(r => r.bottom));
+    return { left, top, width: right - left, height: bottom - top };
+  }
+
+  function buildSteps() {
+    const pl = state.player;
+    const px = pl.x + pl.w / 2, py = pl.y + pl.h / 2;
+    const support = supportPlatform();
+    const touch = isTouch();
+    const nx = px + 260;
+    const ny = necroticTop(nx);
+    return [
+      { id: 'player', text: touch ? ARRIVAL_TOUR_TEXT.player.touch : ARRIVAL_TOUR_TEXT.player.keys,
+        frame: () => frameOn(px, py, back * 1.35), point: () => ({ x: px, y: py, r: 44 }) },
+      { id: 'platform', text: ARRIVAL_TOUR_TEXT.platform,
+        frame: () => frameOn(support ? support.x + support.w / 2 : px, (support ? support.y : pl.y + pl.h) + 20, back),
+        point: () => support
+          ? { x: support.x + support.w / 2, y: support.y + Math.min(30, support.h * .4), r: Math.min(220, support.w * .55), flat: true }
+          : { x: px, y: pl.y + pl.h + 12, r: 90, flat: true } },
+      { id: 'necrotic', text: ARRIVAL_TOUR_TEXT.necrotic,
+        frame: () => frameOn(nx, ny - 40, back * .9, .45), point: () => ({ x: nx, y: ny + 30, r: 200, flat: true }) },
+      { id: 'zoom', text: touch ? ARRIVAL_TOUR_TEXT.zoom.touch : ARRIVAL_TOUR_TEXT.zoom.keys,
+        frame: () => frameOn(px, py, back), dom: zoomButtonsRect, zoomDemo: true },
+      { id: 'direction', text: ARRIVAL_TOUR_TEXT.direction,
+        frame: () => frameOn(px + 620, py, back * .8), point: () => ({ x: px + 820, y: py, r: 70 }), arrowRight: true },
+    ];
+  }
+
+  // ---- ciclo -----------------------------------------------------------------
+  function start({ force = false } = {}) {
+    if (active || pending || (!force && arrivalTourSeen())) return false;
+    if (!ready()) { pending = true; pendingForce = force; return true; }
+    return begin(force);
+  }
+
+  function begin(force = false) {
+    forced = force;
+    if (typeof document === 'undefined' || !state.player || !state.level) return false;
+    const begin = cameraView.beginCinematic();
+    if (!begin) return false;
+    ensureDom();
+    back = begin.zoom;
+    from = { x: begin.x, y: begin.y, zoom: begin.zoom };
+    steps = buildSteps();
+    index = 0;
+    t = 0;
+    leaving = false;
+    active = true;
+    root.hidden = false;
+    render();
+    return true;
+  }
+
+  function currentFrame() {
+    return { x: state.cameraX || 0, y: state.cameraY || 0, zoom: state.cameraZoom || back };
+  }
+
+  function next() {
+    if (!active || leaving) return;
+    if (index >= steps.length - 1) { finish(false); return; }
+    from = currentFrame();
+    index++;
+    t = 0;
+    render();
+  }
+
+  function finish(skipped) {
+    if (!active) return;
+    markSeen(true);
+    leaving = true;
+    from = currentFrame();
+    t = 0;
+    root.hidden = true;
+    onEnd({ skipped });
+  }
+
+  function update(dt) {
+    if (pending) {
+      if (!ready()) return;
+      pending = false;
+      begin(pendingForce);
+    }
+    if (!active) return;
+    t += dt;
+    if (leaving) {
+      const target = playerFraming ? playerFraming(back) : from;
+      cameraView.setCinematic(mix(from, target, t / MOVE_SECONDS));
+      if (t >= MOVE_SECONDS) {
+        cameraView.endCinematic();
+        active = false;
+        leaving = false;
+        onClosed({ replay: forced });
+      }
+      return;
+    }
+    const step = steps[index];
+    let frame = mix(from, step.frame(), t / MOVE_SECONDS);
+    if (step.zoomDemo && t > MOVE_SECONDS) {
+      // afasta e volta, uma vez, para mostrar o efeito do zoom
+      const k = clamp((t - MOVE_SECONDS) / ZOOM_DEMO_SECONDS, 0, 1);
+      const z = back * (1 - .32 * Math.sin(Math.PI * k));
+      const pl = state.player;
+      frame = frameOn(pl.x + pl.w / 2, pl.y + pl.h / 2, z);
+    }
+    cameraView.setCinematic(frame);
+    position();
+  }
+
+  // ---- desenho do balao --------------------------------------------------------
+  function toScreen(x, y) {
+    const rect = canvas.getBoundingClientRect();
+    const cw = canvas.width || 1280, ch = canvas.height || 720;
+    const scale = Math.min(rect.width / cw, rect.height / ch);
+    const ox = rect.left + (rect.width - cw * scale) / 2;
+    const oy = rect.top + (rect.height - ch * scale) / 2;
+    const zoom = state.cameraZoom || 1;
+    return {
+      x: ox + (x - (state.cameraX || 0)) * zoom * scale,
+      y: oy + (y - (state.cameraY || 0)) * zoom * scale,
+      s: zoom * scale,
+    };
+  }
+
+  function render() {
+    const step = steps[index];
+    root.querySelector('.arrival-text').textContent = step.text;
+    root.querySelector('.arrival-count').textContent = `${index + 1}/${steps.length}`;
+    root.querySelector('.arrival-next').textContent = index === steps.length - 1 ? 'Jogar' : 'Continuar';
+    root.classList.toggle('arrival-tour--right', Boolean(step.arrowRight));
+    position();
+  }
+
+  function position() {
+    if (!root || root.hidden) return;
+    const step = steps[index];
+    const ring = root.querySelector('.arrival-ring');
+    const bubble = root.querySelector('.arrival-bubble');
+    let target;
+    if (step.dom) {
+      const r = step.dom();
+      target = r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width + 16, h: r.height + 16 } : null;
+    } else {
+      const p = step.point();
+      const s = toScreen(p.x, p.y);
+      const radius = p.r * s.s;
+      target = { x: s.x, y: s.y, w: radius * 2, h: p.flat ? Math.max(40, radius * .55) : radius * 2 };
+    }
+    if (target) {
+      ring.hidden = false;
+      Object.assign(ring.style, {
+        left: `${target.x - target.w / 2}px`, top: `${target.y - target.h / 2}px`,
+        width: `${target.w}px`, height: `${target.h}px`,
+      });
+    } else ring.hidden = true;
+
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const bw = bubble.offsetWidth || 300, bh = bubble.offsetHeight || 110;
+    const tx = target ? target.x : vw / 2;
+    const ty = target ? target.y : vh / 2;
+    const below = ty < vh * .5;
+    const gap = target ? target.h / 2 + 18 : 0;
+    let left = clamp(tx - bw / 2, 12, vw - bw - 12);
+    let top = below ? ty + gap : ty - gap - bh;
+    top = clamp(top, 12, vh - bh - 12);
+    bubble.style.left = `${left}px`;
+    bubble.style.top = `${top}px`;
+    bubble.classList.toggle('arrival-bubble--below', below);
+    const arrow = root.querySelector('.arrival-arrow');
+    arrow.style.left = `${clamp(tx - left, 18, bw - 18)}px`;
+  }
+
+  return {
+    start,
+    update,
+    skip: () => finish(true),
+    reset: () => markSeen(false),
+    get active() { return active; },
+    // congela o mundo tambem enquanto espera o cartao da fase sair
+    get blocking() { return active || pending; },
+    get stepId() { return active ? steps[index]?.id : null; },
+  };
+}
+Object.assign(__exports, { arrivalTourSeen, ARRIVAL_TOUR_TEXT, createArrivalTour });
+},
 "src/procgen/responsive-canvas.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");
 function calculateResponsiveCanvasSize(
@@ -57467,7 +57829,7 @@ Object.assign(__exports, { TUTORIAL_STORAGE_KEYS, isHardReloadShortcut, isTutori
 "src/procgen/tutorial-cycle.js": (__exports, __require) => {
 // Contexto de cada etapa: índices das páginas existentes, nunca texto científico novo.
 const contextPages = {
-  'system-welcome': [0, 1, 2, 1],
+  'system-welcome': [0, 0, 1, 0],
   'action-exudate': [0, 0, 1, 1],
   'action-inoculation': [1, 1, 0, 2],
   'power-double-jump': [1, 0, 1, 0],
@@ -58072,7 +58434,7 @@ const gameplayTutorialCards = {
     "◈",
     "#70e5d6",
     [
-      page("Bem-vindo à rizosfera", "Você encolheu até o tamanho de um microrganismo. Aqui, a superfície da raiz é um mundo vivo: bactérias, fungos e nematoides competem, cooperam e mudam a saúde da planta."),
+      // "Bem-vindo à rizosfera" passou para a chegada guiada (arrival-tour.js).
       page(
         "Cartões de descoberta",
         "Quando algo importante aparece pela primeira vez, o jogo pausa e abre um cartão. Leia no seu ritmo: nenhuma ameaça continua se movendo enquanto o cartão estiver aberto.",
