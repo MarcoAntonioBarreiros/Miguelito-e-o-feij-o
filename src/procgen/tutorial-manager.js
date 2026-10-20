@@ -366,7 +366,8 @@ export function createTutorialManager({ state }) {
     pageBody.hidden = !currentPage.body || gamePage;
     pageDots.parentElement.hidden = availablePages.length <= 1;
     pageDots.parentElement.classList.toggle('tutorial-pagination--many', availablePages.length > 6);
-    previousButton.hidden = availablePages.length <= 1;
+    // no cartao de revisao (uma pagina so) a seta volta etapas do ciclo
+    previousButton.hidden = availablePages.length <= 1 && currentPage.kind !== 'cycle';
     renderDots(card);
 
     // A pagina nova comeca do comeco. Sem isto a rolagem da pagina anterior
@@ -377,22 +378,23 @@ export function createTutorialManager({ state }) {
     updateNavigation();
   }
 
-  // No ciclo, as etapas se escolhem tocando nelas (ou com as setas do
-  // teclado); Continuar segue para a proxima pagina ou fecha o cartao.
+  // No ciclo, Continuar percorre as etapas uma a uma e so fecha o cartao na
+  // ultima: o objetivo e didatico, nao ha atalho para pular etapas.
   function updateNavigation() {
     const availablePages = displayPages();
-    const finalPage = pageIndex >= availablePages.length - 1;
+    const finalStage = !cycleView.length || cycleView.index === cycleView.length - 1;
+    const finalPage = pageIndex >= availablePages.length - 1 && finalStage;
     const nextActionLabel = finalPage
       ? (returnToLibrary ? 'Voltar à biblioteca' : 'Continuar')
-      : 'Próxima página';
+      : (cycleView.length ? 'Próxima etapa' : 'Próxima página');
 
     nextButton.setAttribute('aria-label', nextActionLabel);
     nextButton.title = nextActionLabel;
     setText(nextButton.querySelector('.tutorial-button-label'), finalPage ? nextActionLabel : 'Continuar');
     nextButton.dataset.action = finalPage ? 'finish' : 'next';
 
-    previousButton.disabled = pageIndex === 0;
-    const previousLabel = 'Página anterior';
+    previousButton.disabled = pageIndex === 0 && cycleView.index === 0;
+    const previousLabel = cycleView.length && cycleView.index > 0 ? 'Etapa anterior' : 'Página anterior';
     previousButton.setAttribute('aria-label', previousLabel);
     previousButton.title = previousLabel;
   }
@@ -455,6 +457,7 @@ export function createTutorialManager({ state }) {
   }
 
   function nextPage() {
+    if (cycleView.move(1)) return;
     const card = getTutorialCard(activeId);
     if (!card) return;
     const availablePages = displayPages();
@@ -467,6 +470,7 @@ export function createTutorialManager({ state }) {
   }
 
   function previousPage() {
+    if (cycleView.move(-1)) return;
     if (pageIndex <= 0) return;
     pageIndex--;
     renderCard();

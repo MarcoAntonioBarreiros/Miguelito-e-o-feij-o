@@ -54,8 +54,7 @@ export function createTutorialCycle(block, onChange) {
   function select(index, notify = true) {
     selected = index;
     [...list.querySelectorAll('button')].forEach((button, i) => button.setAttribute('aria-pressed', i === selected));
-    // Continuar fecha o cartao: as etapas se escolhem tocando nelas.
-    caption.textContent = `Etapa ${selected + 1} de ${card.cycle.length} · toque nas etapas`;
+    caption.textContent = `Etapa ${selected + 1} de ${card.cycle.length}`;
     const step = tutorialCycleStep(card, selected);
     detailTitle.textContent = step.label + '. ';
     detailBody.textContent = step.caption;

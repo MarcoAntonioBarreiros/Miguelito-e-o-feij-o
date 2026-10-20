@@ -1158,7 +1158,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"98c784b","subject":"Ciclos explicam cada etapa (legenda ate 140 com o termo novo: AIA, nitro","builtAt":"2026-10-20 15:50"};
+window.__BEANS_BUILD__ = {"commit":"998066e","subject":"Chegada: cartao Rizosfera Viva antes do tour e jogo comeca na volta da r","builtAt":"2026-10-20 18:04"};
 (() => {
 'use strict';
 const __modules = {
@@ -57657,7 +57657,8 @@ function createTutorialManager({ state }) {
     pageBody.hidden = !currentPage.body || gamePage;
     pageDots.parentElement.hidden = availablePages.length <= 1;
     pageDots.parentElement.classList.toggle('tutorial-pagination--many', availablePages.length > 6);
-    previousButton.hidden = availablePages.length <= 1;
+    // no cartao de revisao (uma pagina so) a seta volta etapas do ciclo
+    previousButton.hidden = availablePages.length <= 1 && currentPage.kind !== 'cycle';
     renderDots(card);
 
     // A pagina nova comeca do comeco. Sem isto a rolagem da pagina anterior
@@ -57668,22 +57669,23 @@ function createTutorialManager({ state }) {
     updateNavigation();
   }
 
-  // No ciclo, as etapas se escolhem tocando nelas (ou com as setas do
-  // teclado); Continuar segue para a proxima pagina ou fecha o cartao.
+  // No ciclo, Continuar percorre as etapas uma a uma e so fecha o cartao na
+  // ultima: o objetivo e didatico, nao ha atalho para pular etapas.
   function updateNavigation() {
     const availablePages = displayPages();
-    const finalPage = pageIndex >= availablePages.length - 1;
+    const finalStage = !cycleView.length || cycleView.index === cycleView.length - 1;
+    const finalPage = pageIndex >= availablePages.length - 1 && finalStage;
     const nextActionLabel = finalPage
       ? (returnToLibrary ? 'Voltar à biblioteca' : 'Continuar')
-      : 'Próxima página';
+      : (cycleView.length ? 'Próxima etapa' : 'Próxima página');
 
     nextButton.setAttribute('aria-label', nextActionLabel);
     nextButton.title = nextActionLabel;
     setText(nextButton.querySelector('.tutorial-button-label'), finalPage ? nextActionLabel : 'Continuar');
     nextButton.dataset.action = finalPage ? 'finish' : 'next';
 
-    previousButton.disabled = pageIndex === 0;
-    const previousLabel = 'Página anterior';
+    previousButton.disabled = pageIndex === 0 && cycleView.index === 0;
+    const previousLabel = cycleView.length && cycleView.index > 0 ? 'Etapa anterior' : 'Página anterior';
     previousButton.setAttribute('aria-label', previousLabel);
     previousButton.title = previousLabel;
   }
@@ -57746,6 +57748,7 @@ function createTutorialManager({ state }) {
   }
 
   function nextPage() {
+    if (cycleView.move(1)) return;
     const card = getTutorialCard(activeId);
     if (!card) return;
     const availablePages = displayPages();
@@ -57758,6 +57761,7 @@ function createTutorialManager({ state }) {
   }
 
   function previousPage() {
+    if (cycleView.move(-1)) return;
     if (pageIndex <= 0) return;
     pageIndex--;
     renderCard();
@@ -58115,8 +58119,7 @@ function createTutorialCycle(block, onChange) {
   function select(index, notify = true) {
     selected = index;
     [...list.querySelectorAll('button')].forEach((button, i) => button.setAttribute('aria-pressed', i === selected));
-    // Continuar fecha o cartao: as etapas se escolhem tocando nelas.
-    caption.textContent = `Etapa ${selected + 1} de ${card.cycle.length} · toque nas etapas`;
+    caption.textContent = `Etapa ${selected + 1} de ${card.cycle.length}`;
     const step = tutorialCycleStep(card, selected);
     detailTitle.textContent = step.label + '. ';
     detailBody.textContent = step.caption;
