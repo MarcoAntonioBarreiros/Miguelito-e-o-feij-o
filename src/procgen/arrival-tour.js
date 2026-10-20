@@ -27,20 +27,40 @@ function markSeen(value = true) {
   } catch (_) { /* sem armazenamento: o tour so nao lembra */ }
 }
 
-/** Textos curtos (ate ~90 caracteres), com variante para toque. */
+/** Textos curtos, com variante para toque. As teclas aparecem desenhadas
+ *  (teclas de verdade com icone), nunca como seta de texto. */
 export const ARRIVAL_TOUR_TEXT = Object.freeze({
   player: {
-    keys: 'Bem-vindo à rizosfera! Você encolheu até virar um micróbio. ← → anda · Espaço salta.',
-    touch: 'Bem-vindo à rizosfera! Você encolheu até virar um micróbio. Use os botões para andar e saltar.',
+    text: 'Bem-vindo à rizosfera! Você encolheu até virar um micróbio.',
+    keys: [{ caps: ['left', 'right'], label: 'anda' }, { caps: ['space'], label: 'salta' }],
+    touchKeys: [{ caps: ['left', 'right'], label: 'anda' }, { caps: ['jump'], label: 'salta' }],
   },
-  platform: 'Raízes e torrões são suas plataformas. Ande e salte por eles.',
-  necrotic: 'Lá embaixo é a zona necrótica. Cair nela tira toda a Vitalidade.',
+  platform: { text: 'Raízes e torrões são suas plataformas. Ande e salte por eles.' },
+  necrotic: { text: 'Lá embaixo é a zona necrótica. Cair nela tira toda a Vitalidade.' },
   zoom: {
-    keys: 'Afaste ou aproxime a câmera: − e +, ou a roda do mouse.',
-    touch: 'Afaste ou aproxime a câmera com − e +.',
+    text: 'Afaste ou aproxime a câmera.',
+    keys: [{ caps: ['minus', 'plus'], label: 'teclado' }, { caps: ['wheel'], label: 'roda do mouse' }],
+    touchText: 'Afaste ou aproxime a câmera com os botões em destaque.',
   },
-  direction: 'Siga para a direita até a raiz principal.',
+  direction: { text: 'Siga para a direita até a raiz principal.' },
 });
+
+const ICON = {
+  left: '<svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg>',
+  right: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
+  jump: '<svg viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"/></svg>',
+  minus: '<svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M6 12h12M12 6v12"/></svg>',
+  wheel: '<svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="5"/><path d="M12 7v4"/></svg>',
+};
+function keycaps(groups = []) {
+  return groups.map(group => {
+    const caps = group.caps.map(cap => cap === 'space'
+      ? '<kbd class="arrival-key arrival-key--wide">Espaço</kbd>'
+      : `<kbd class="arrival-key">${ICON[cap]}</kbd>`).join('');
+    return `<span class="arrival-keygroup">${caps}<small>${group.label}</small></span>`;
+  }).join('');
+}
 
 export function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, playerFraming, onEnd = () => {}, ready = () => true, onClosed = () => {} }) {
   let active = false;
@@ -63,9 +83,14 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     root.id = 'arrival-tour';
     root.hidden = true;
     root.innerHTML = `
+      <div class="arrival-spot" aria-hidden="true"></div>
       <div class="arrival-ring" aria-hidden="true"></div>
+      <div class="arrival-bigarrow" aria-hidden="true">
+        <svg viewBox="0 0 120 80"><path d="M14 10l30 30-30 30"/><path d="M48 10l30 30-30 30"/><path d="M82 10l30 30-30 30"/></svg>
+      </div>
       <div class="arrival-bubble" role="dialog" aria-live="polite">
         <p class="arrival-text"></p>
+        <div class="arrival-keys"></div>
         <div class="arrival-footer">
           <span class="arrival-count"></span>
           <button type="button" class="arrival-skip">Pular</button>
@@ -136,19 +161,21 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     const nx = px + 260;
     const ny = necroticTop(nx);
     return [
-      { id: 'player', text: touch ? ARRIVAL_TOUR_TEXT.player.touch : ARRIVAL_TOUR_TEXT.player.keys,
-        frame: () => frameOn(px, py, back * 1.35), point: () => ({ x: px, y: py, r: 44 }) },
-      { id: 'platform', text: ARRIVAL_TOUR_TEXT.platform,
+      { id: 'player', text: ARRIVAL_TOUR_TEXT.player.text,
+        keys: touch ? ARRIVAL_TOUR_TEXT.player.touchKeys : ARRIVAL_TOUR_TEXT.player.keys,
+        frame: () => frameOn(px, py, back * 1.35), point: () => ({ x: px, y: py, r: 46 }), spot: true },
+      { id: 'platform', text: ARRIVAL_TOUR_TEXT.platform.text,
         frame: () => frameOn(support ? support.x + support.w / 2 : px, (support ? support.y : pl.y + pl.h) + 20, back),
         point: () => support
           ? { x: support.x + support.w / 2, y: support.y + Math.min(30, support.h * .4), r: Math.min(220, support.w * .55), flat: true }
           : { x: px, y: pl.y + pl.h + 12, r: 90, flat: true } },
-      { id: 'necrotic', text: ARRIVAL_TOUR_TEXT.necrotic,
+      { id: 'necrotic', text: ARRIVAL_TOUR_TEXT.necrotic.text,
         frame: () => frameOn(nx, ny - 40, back * .9, .45), point: () => ({ x: nx, y: ny + 30, r: 200, flat: true }) },
-      { id: 'zoom', text: touch ? ARRIVAL_TOUR_TEXT.zoom.touch : ARRIVAL_TOUR_TEXT.zoom.keys,
+      { id: 'zoom', text: touch ? ARRIVAL_TOUR_TEXT.zoom.touchText : ARRIVAL_TOUR_TEXT.zoom.text,
+        keys: touch ? [] : ARRIVAL_TOUR_TEXT.zoom.keys,
         frame: () => frameOn(px, py, back), dom: zoomButtonsRect, zoomDemo: true },
-      { id: 'direction', text: ARRIVAL_TOUR_TEXT.direction,
-        frame: () => frameOn(px + 620, py, back * .8), point: () => ({ x: px + 820, y: py, r: 70 }), arrowRight: true },
+      { id: 'direction', text: ARRIVAL_TOUR_TEXT.direction.text,
+        frame: () => frameOn(px + 620, py, back * .8), point: () => ({ x: px + 620, y: py, r: 70 }), bigArrow: true },
     ];
   }
 
@@ -250,9 +277,13 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
   function render() {
     const step = steps[index];
     root.querySelector('.arrival-text').textContent = step.text;
+    const keysBox = root.querySelector('.arrival-keys');
+    keysBox.innerHTML = keycaps(step.keys);
+    keysBox.hidden = !step.keys?.length;
     root.querySelector('.arrival-count').textContent = `${index + 1}/${steps.length}`;
     root.querySelector('.arrival-next').textContent = index === steps.length - 1 ? 'Jogar' : 'Continuar';
-    root.classList.toggle('arrival-tour--right', Boolean(step.arrowRight));
+    root.classList.toggle('arrival-tour--spot', Boolean(step.spot));
+    root.classList.toggle('arrival-tour--arrow', Boolean(step.bigArrow));
     position();
   }
 
@@ -271,7 +302,25 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
       const radius = p.r * s.s;
       target = { x: s.x, y: s.y, w: radius * 2, h: p.flat ? Math.max(40, radius * .55) : radius * 2 };
     }
-    if (target) {
+    const spot = root.querySelector('.arrival-spot');
+    if (step.spot && target) {
+      // foco de luz: escurece a cena e deixa claro so o miolo
+      const r = target.w / 2;
+      spot.style.background = `radial-gradient(circle at ${target.x}px ${target.y}px, rgba(8,3,2,0) ${r * .9}px, rgba(8,3,2,.35) ${r * 1.35}px, rgba(8,3,2,.78) ${r * 2.4}px)`;
+      spot.hidden = false;
+      ring.hidden = true;
+    } else {
+      spot.hidden = true;
+    }
+    const bigArrow = root.querySelector('.arrival-bigarrow');
+    bigArrow.hidden = !step.bigArrow || !target;
+    if (step.bigArrow && target) {
+      bigArrow.style.left = `${target.x - 60}px`;
+      bigArrow.style.top = `${target.y - 40}px`;
+    }
+    if (step.spot || step.bigArrow) {
+      ring.hidden = true;
+    } else if (target) {
       ring.hidden = false;
       Object.assign(ring.style, {
         left: `${target.x - target.w / 2}px`, top: `${target.y - target.h / 2}px`,

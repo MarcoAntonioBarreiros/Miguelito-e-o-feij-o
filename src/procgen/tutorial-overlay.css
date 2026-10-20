@@ -178,7 +178,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
 /* Chegada guiada (arrival-tour.js): balao curto no estilo dos cartoes */
 #arrival-tour { position: fixed; inset: 0; z-index: 60; touch-action: none; font-family: var(--tutorial-body, 'Atkinson Hyperlegible', system-ui, sans-serif); color: var(--tutorial-ink, #fbeedd); }
 #arrival-tour[hidden] { display: none; }
-#arrival-tour .arrival-ring { position: fixed; border: 3px solid var(--tutorial-amber, #ffc35a); border-radius: 999px; box-shadow: 0 0 0 9999px rgba(10,4,2,.38), 0 0 24px rgba(255,195,90,.65); pointer-events: none; transition: left .25s, top .25s, width .25s, height .25s; animation: arrival-pulse 1.6s ease-in-out infinite; }
+#arrival-tour .arrival-ring { position: fixed; border: 3px solid var(--tutorial-amber, #ffc35a); border-radius: 999px; box-shadow: 0 0 0 9999px rgba(10,4,2,.38), 0 0 24px rgba(255,195,90,.65); pointer-events: none; animation: arrival-pulse 1.6s ease-in-out infinite; }
 #arrival-tour .arrival-ring[hidden] { display: none; }
 @keyframes arrival-pulse { 50% { box-shadow: 0 0 0 9999px rgba(10,4,2,.38), 0 0 38px rgba(255,195,90,.95); } }
 #arrival-tour .arrival-bubble { position: fixed; width: min(340px, calc(100vw - 24px)); padding: 14px 16px 12px; border-radius: 16px; background: linear-gradient(160deg, #3a1a11, #2a130d 60%); border: 1px solid rgba(255,214,170,.25); box-shadow: 0 14px 30px rgba(0,0,0,.45); }
@@ -189,4 +189,20 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
 #arrival-tour .arrival-next { border: 0; border-radius: 999px; padding: 8px 18px; background: var(--tutorial-amber, #ffc35a); color: #3a1608; font: 800 1rem/1.2 var(--tutorial-display, 'Grandstander', system-ui); box-shadow: 0 3px 0 #b3651f; cursor: pointer; }
 #arrival-tour .arrival-arrow { position: absolute; top: -9px; width: 0; height: 0; margin-left: -9px; border: 9px solid transparent; border-top: 0; border-bottom-color: #3a1a11; }
 #arrival-tour .arrival-bubble:not(.arrival-bubble--below) .arrival-arrow { top: auto; bottom: -9px; border-bottom: 0; border-top: 9px solid #2a130d; }
-#arrival-tour.arrival-tour--right .arrival-text::after { content: ' →'; color: var(--tutorial-amber, #ffc35a); font-weight: 800; }
+#arrival-tour .arrival-spot { position: fixed; inset: 0; pointer-events: none; }
+#arrival-tour .arrival-spot[hidden] { display: none; }
+#arrival-tour .arrival-keys { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: -2px 0 12px; }
+#arrival-tour .arrival-keys[hidden] { display: none; }
+#arrival-tour .arrival-keygroup { display: inline-flex; align-items: center; gap: 5px; }
+#arrival-tour .arrival-keygroup small { margin-left: 3px; color: var(--tutorial-muted, #dcbfa3); font-size: .85rem; font-weight: 700; }
+#arrival-tour .arrival-key { display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 6px; border-radius: 8px; background: linear-gradient(#fff3df, #e9cfae); color: #3a1608; border: 1px solid #b98b5e; box-shadow: 0 3px 0 #8a5a30; font: 800 .8rem/1 var(--tutorial-body, system-ui); }
+#arrival-tour .arrival-key--wide { min-width: 76px; }
+#arrival-tour .arrival-key svg { width: 20px; height: 20px; fill: none; stroke: #3a1608; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+#arrival-tour .arrival-bigarrow { position: fixed; width: 120px; height: 80px; pointer-events: none; filter: drop-shadow(0 0 10px rgba(255,195,90,.8)); }
+#arrival-tour .arrival-bigarrow[hidden] { display: none; }
+#arrival-tour .arrival-bigarrow svg { width: 100%; height: 100%; fill: none; stroke: var(--tutorial-amber, #ffc35a); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+#arrival-tour .arrival-bigarrow path { animation: arrival-chevron 1.2s ease-in-out infinite; opacity: .25; }
+#arrival-tour .arrival-bigarrow path:nth-child(2) { animation-delay: .2s; }
+#arrival-tour .arrival-bigarrow path:nth-child(3) { animation-delay: .4s; }
+@keyframes arrival-chevron { 0%, 100% { opacity: .2; } 40% { opacity: 1; } }
+#arrival-tour.arrival-tour--arrow::before { content: ''; position: fixed; inset: 0; background: rgba(8,3,2,.3); pointer-events: none; }

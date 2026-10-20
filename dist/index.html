@@ -1040,7 +1040,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
 /* Chegada guiada (arrival-tour.js): balao curto no estilo dos cartoes */
 #arrival-tour { position: fixed; inset: 0; z-index: 60; touch-action: none; font-family: var(--tutorial-body, 'Atkinson Hyperlegible', system-ui, sans-serif); color: var(--tutorial-ink, #fbeedd); }
 #arrival-tour[hidden] { display: none; }
-#arrival-tour .arrival-ring { position: fixed; border: 3px solid var(--tutorial-amber, #ffc35a); border-radius: 999px; box-shadow: 0 0 0 9999px rgba(10,4,2,.38), 0 0 24px rgba(255,195,90,.65); pointer-events: none; transition: left .25s, top .25s, width .25s, height .25s; animation: arrival-pulse 1.6s ease-in-out infinite; }
+#arrival-tour .arrival-ring { position: fixed; border: 3px solid var(--tutorial-amber, #ffc35a); border-radius: 999px; box-shadow: 0 0 0 9999px rgba(10,4,2,.38), 0 0 24px rgba(255,195,90,.65); pointer-events: none; animation: arrival-pulse 1.6s ease-in-out infinite; }
 #arrival-tour .arrival-ring[hidden] { display: none; }
 @keyframes arrival-pulse { 50% { box-shadow: 0 0 0 9999px rgba(10,4,2,.38), 0 0 38px rgba(255,195,90,.95); } }
 #arrival-tour .arrival-bubble { position: fixed; width: min(340px, calc(100vw - 24px)); padding: 14px 16px 12px; border-radius: 16px; background: linear-gradient(160deg, #3a1a11, #2a130d 60%); border: 1px solid rgba(255,214,170,.25); box-shadow: 0 14px 30px rgba(0,0,0,.45); }
@@ -1051,7 +1051,23 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
 #arrival-tour .arrival-next { border: 0; border-radius: 999px; padding: 8px 18px; background: var(--tutorial-amber, #ffc35a); color: #3a1608; font: 800 1rem/1.2 var(--tutorial-display, 'Grandstander', system-ui); box-shadow: 0 3px 0 #b3651f; cursor: pointer; }
 #arrival-tour .arrival-arrow { position: absolute; top: -9px; width: 0; height: 0; margin-left: -9px; border: 9px solid transparent; border-top: 0; border-bottom-color: #3a1a11; }
 #arrival-tour .arrival-bubble:not(.arrival-bubble--below) .arrival-arrow { top: auto; bottom: -9px; border-bottom: 0; border-top: 9px solid #2a130d; }
-#arrival-tour.arrival-tour--right .arrival-text::after { content: ' →'; color: var(--tutorial-amber, #ffc35a); font-weight: 800; }
+#arrival-tour .arrival-spot { position: fixed; inset: 0; pointer-events: none; }
+#arrival-tour .arrival-spot[hidden] { display: none; }
+#arrival-tour .arrival-keys { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: -2px 0 12px; }
+#arrival-tour .arrival-keys[hidden] { display: none; }
+#arrival-tour .arrival-keygroup { display: inline-flex; align-items: center; gap: 5px; }
+#arrival-tour .arrival-keygroup small { margin-left: 3px; color: var(--tutorial-muted, #dcbfa3); font-size: .85rem; font-weight: 700; }
+#arrival-tour .arrival-key { display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 6px; border-radius: 8px; background: linear-gradient(#fff3df, #e9cfae); color: #3a1608; border: 1px solid #b98b5e; box-shadow: 0 3px 0 #8a5a30; font: 800 .8rem/1 var(--tutorial-body, system-ui); }
+#arrival-tour .arrival-key--wide { min-width: 76px; }
+#arrival-tour .arrival-key svg { width: 20px; height: 20px; fill: none; stroke: #3a1608; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+#arrival-tour .arrival-bigarrow { position: fixed; width: 120px; height: 80px; pointer-events: none; filter: drop-shadow(0 0 10px rgba(255,195,90,.8)); }
+#arrival-tour .arrival-bigarrow[hidden] { display: none; }
+#arrival-tour .arrival-bigarrow svg { width: 100%; height: 100%; fill: none; stroke: var(--tutorial-amber, #ffc35a); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+#arrival-tour .arrival-bigarrow path { animation: arrival-chevron 1.2s ease-in-out infinite; opacity: .25; }
+#arrival-tour .arrival-bigarrow path:nth-child(2) { animation-delay: .2s; }
+#arrival-tour .arrival-bigarrow path:nth-child(3) { animation-delay: .4s; }
+@keyframes arrival-chevron { 0%, 100% { opacity: .2; } 40% { opacity: 1; } }
+#arrival-tour.arrival-tour--arrow::before { content: ''; position: fixed; inset: 0; background: rgba(8,3,2,.3); pointer-events: none; }
 </style>
 </head>
 <body>
@@ -1125,7 +1141,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"6376c89","subject":"Revisao dos cartoes didaticos (dados, ainda nao ligados): textos enxutos","builtAt":"2026-10-20 13:01"};
+window.__BEANS_BUILD__ = {"commit":"68c89ea","subject":"Chegada guiada: ao pousar na rizosfera (fase 1), camera apresenta Miguel","builtAt":"2026-10-20 13:30"};
 (() => {
 'use strict';
 const __modules = {
@@ -50551,20 +50567,40 @@ function markSeen(value = true) {
   } catch (_) { /* sem armazenamento: o tour so nao lembra */ }
 }
 
-/** Textos curtos (ate ~90 caracteres), com variante para toque. */
+/** Textos curtos, com variante para toque. As teclas aparecem desenhadas
+ *  (teclas de verdade com icone), nunca como seta de texto. */
 const ARRIVAL_TOUR_TEXT = Object.freeze({
   player: {
-    keys: 'Bem-vindo à rizosfera! Você encolheu até virar um micróbio. ← → anda · Espaço salta.',
-    touch: 'Bem-vindo à rizosfera! Você encolheu até virar um micróbio. Use os botões para andar e saltar.',
+    text: 'Bem-vindo à rizosfera! Você encolheu até virar um micróbio.',
+    keys: [{ caps: ['left', 'right'], label: 'anda' }, { caps: ['space'], label: 'salta' }],
+    touchKeys: [{ caps: ['left', 'right'], label: 'anda' }, { caps: ['jump'], label: 'salta' }],
   },
-  platform: 'Raízes e torrões são suas plataformas. Ande e salte por eles.',
-  necrotic: 'Lá embaixo é a zona necrótica. Cair nela tira toda a Vitalidade.',
+  platform: { text: 'Raízes e torrões são suas plataformas. Ande e salte por eles.' },
+  necrotic: { text: 'Lá embaixo é a zona necrótica. Cair nela tira toda a Vitalidade.' },
   zoom: {
-    keys: 'Afaste ou aproxime a câmera: − e +, ou a roda do mouse.',
-    touch: 'Afaste ou aproxime a câmera com − e +.',
+    text: 'Afaste ou aproxime a câmera.',
+    keys: [{ caps: ['minus', 'plus'], label: 'teclado' }, { caps: ['wheel'], label: 'roda do mouse' }],
+    touchText: 'Afaste ou aproxime a câmera com os botões em destaque.',
   },
-  direction: 'Siga para a direita até a raiz principal.',
+  direction: { text: 'Siga para a direita até a raiz principal.' },
 });
+
+const ICON = {
+  left: '<svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg>',
+  right: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
+  jump: '<svg viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"/></svg>',
+  minus: '<svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M6 12h12M12 6v12"/></svg>',
+  wheel: '<svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="5"/><path d="M12 7v4"/></svg>',
+};
+function keycaps(groups = []) {
+  return groups.map(group => {
+    const caps = group.caps.map(cap => cap === 'space'
+      ? '<kbd class="arrival-key arrival-key--wide">Espaço</kbd>'
+      : `<kbd class="arrival-key">${ICON[cap]}</kbd>`).join('');
+    return `<span class="arrival-keygroup">${caps}<small>${group.label}</small></span>`;
+  }).join('');
+}
 
 function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, playerFraming, onEnd = () => {}, ready = () => true, onClosed = () => {} }) {
   let active = false;
@@ -50587,9 +50623,14 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
     root.id = 'arrival-tour';
     root.hidden = true;
     root.innerHTML = `
+      <div class="arrival-spot" aria-hidden="true"></div>
       <div class="arrival-ring" aria-hidden="true"></div>
+      <div class="arrival-bigarrow" aria-hidden="true">
+        <svg viewBox="0 0 120 80"><path d="M14 10l30 30-30 30"/><path d="M48 10l30 30-30 30"/><path d="M82 10l30 30-30 30"/></svg>
+      </div>
       <div class="arrival-bubble" role="dialog" aria-live="polite">
         <p class="arrival-text"></p>
+        <div class="arrival-keys"></div>
         <div class="arrival-footer">
           <span class="arrival-count"></span>
           <button type="button" class="arrival-skip">Pular</button>
@@ -50660,19 +50701,21 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
     const nx = px + 260;
     const ny = necroticTop(nx);
     return [
-      { id: 'player', text: touch ? ARRIVAL_TOUR_TEXT.player.touch : ARRIVAL_TOUR_TEXT.player.keys,
-        frame: () => frameOn(px, py, back * 1.35), point: () => ({ x: px, y: py, r: 44 }) },
-      { id: 'platform', text: ARRIVAL_TOUR_TEXT.platform,
+      { id: 'player', text: ARRIVAL_TOUR_TEXT.player.text,
+        keys: touch ? ARRIVAL_TOUR_TEXT.player.touchKeys : ARRIVAL_TOUR_TEXT.player.keys,
+        frame: () => frameOn(px, py, back * 1.35), point: () => ({ x: px, y: py, r: 46 }), spot: true },
+      { id: 'platform', text: ARRIVAL_TOUR_TEXT.platform.text,
         frame: () => frameOn(support ? support.x + support.w / 2 : px, (support ? support.y : pl.y + pl.h) + 20, back),
         point: () => support
           ? { x: support.x + support.w / 2, y: support.y + Math.min(30, support.h * .4), r: Math.min(220, support.w * .55), flat: true }
           : { x: px, y: pl.y + pl.h + 12, r: 90, flat: true } },
-      { id: 'necrotic', text: ARRIVAL_TOUR_TEXT.necrotic,
+      { id: 'necrotic', text: ARRIVAL_TOUR_TEXT.necrotic.text,
         frame: () => frameOn(nx, ny - 40, back * .9, .45), point: () => ({ x: nx, y: ny + 30, r: 200, flat: true }) },
-      { id: 'zoom', text: touch ? ARRIVAL_TOUR_TEXT.zoom.touch : ARRIVAL_TOUR_TEXT.zoom.keys,
+      { id: 'zoom', text: touch ? ARRIVAL_TOUR_TEXT.zoom.touchText : ARRIVAL_TOUR_TEXT.zoom.text,
+        keys: touch ? [] : ARRIVAL_TOUR_TEXT.zoom.keys,
         frame: () => frameOn(px, py, back), dom: zoomButtonsRect, zoomDemo: true },
-      { id: 'direction', text: ARRIVAL_TOUR_TEXT.direction,
-        frame: () => frameOn(px + 620, py, back * .8), point: () => ({ x: px + 820, y: py, r: 70 }), arrowRight: true },
+      { id: 'direction', text: ARRIVAL_TOUR_TEXT.direction.text,
+        frame: () => frameOn(px + 620, py, back * .8), point: () => ({ x: px + 620, y: py, r: 70 }), bigArrow: true },
     ];
   }
 
@@ -50774,9 +50817,13 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
   function render() {
     const step = steps[index];
     root.querySelector('.arrival-text').textContent = step.text;
+    const keysBox = root.querySelector('.arrival-keys');
+    keysBox.innerHTML = keycaps(step.keys);
+    keysBox.hidden = !step.keys?.length;
     root.querySelector('.arrival-count').textContent = `${index + 1}/${steps.length}`;
     root.querySelector('.arrival-next').textContent = index === steps.length - 1 ? 'Jogar' : 'Continuar';
-    root.classList.toggle('arrival-tour--right', Boolean(step.arrowRight));
+    root.classList.toggle('arrival-tour--spot', Boolean(step.spot));
+    root.classList.toggle('arrival-tour--arrow', Boolean(step.bigArrow));
     position();
   }
 
@@ -50795,7 +50842,25 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
       const radius = p.r * s.s;
       target = { x: s.x, y: s.y, w: radius * 2, h: p.flat ? Math.max(40, radius * .55) : radius * 2 };
     }
-    if (target) {
+    const spot = root.querySelector('.arrival-spot');
+    if (step.spot && target) {
+      // foco de luz: escurece a cena e deixa claro so o miolo
+      const r = target.w / 2;
+      spot.style.background = `radial-gradient(circle at ${target.x}px ${target.y}px, rgba(8,3,2,0) ${r * .9}px, rgba(8,3,2,.35) ${r * 1.35}px, rgba(8,3,2,.78) ${r * 2.4}px)`;
+      spot.hidden = false;
+      ring.hidden = true;
+    } else {
+      spot.hidden = true;
+    }
+    const bigArrow = root.querySelector('.arrival-bigarrow');
+    bigArrow.hidden = !step.bigArrow || !target;
+    if (step.bigArrow && target) {
+      bigArrow.style.left = `${target.x - 60}px`;
+      bigArrow.style.top = `${target.y - 40}px`;
+    }
+    if (step.spot || step.bigArrow) {
+      ring.hidden = true;
+    } else if (target) {
       ring.hidden = false;
       Object.assign(ring.style, {
         left: `${target.x - target.w / 2}px`, top: `${target.y - target.h / 2}px`,
