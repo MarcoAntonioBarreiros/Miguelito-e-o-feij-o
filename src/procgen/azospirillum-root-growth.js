@@ -403,7 +403,13 @@ export function generateAzospirillumRootLadders({
 
   if (!config?.enabled || config.count <= 0) return level.azospirillumRootLadders;
   const knownSkill = phase > 3 && Boolean(config.knownSkill);
-  if (phase > 3 && !knownSkill && !Number.isInteger(config.recapAccessChunk)) {
+  // Sem demonstracao pre-gerada na fase 3. Ela convertia uma plataforma de
+  // seguranca (baixa, sem desnivel de verdade) em "raiz de teste", com texto, e
+  // o jogador aprendia a escada onde ela nao fazia falta. A escada nasce de
+  // qualquer raiz inoculada (runtime), e o texto agora fica na primeira raiz
+  // que realmente precisa dela: o hospedeiro da prova (`render`).
+  // (`demonstration: true` religa a geracao antiga; so os testes de mecanica usam.)
+  if (!knownSkill && !Number.isInteger(config.recapAccessChunk) && config.demonstration !== true) {
     return level.azospirillumRootLadders;
   }
 
@@ -1286,7 +1292,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
           ? 'Teste o Azospirillum nesta raiz'
           : 'Inocule Azospirillum nesta raiz',
         ladder.host.x + ladder.host.w / 2,
-        ladder.host.y - 30,
+        ladder.host.y - 104,
       );
     }
     for (const step of ladder.steps) {
@@ -1386,10 +1392,27 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ctx.restore();
   }
 
+  // Antes de a escada nascer, a raiz da prova ja diz o que fazer.
+  function drawChallengeHint(ctx) {
+    const challenge = mandatoryChallenge();
+    const host = challenge?.hostPlatform;
+    if (!host || challenge.developed) return;
+    if (ladders().some(ladder => ladder.host === host && ladder.progress > 0)) return;
+    if (ladders().some(ladder => ladder.host === host && ladder.mandatoryChallenge)) return;
+    const x = host.x + host.w / 2;
+    if (x < state.cameraX - 200 || x > state.cameraX + W + 200) return;
+    ctx.font = '700 12px Inter,system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f3ce68';
+    // acima da cabeca do Miguelito parado na raiz (em -30 ficava atras dele)
+    ctx.fillText('Inocule Azospirillum nesta raiz', x, host.y - 104);
+  }
+
   function render(ctx) {
-    if (!ladders().length) return;
+    if (!ladders().length && !mandatoryChallenge()) return;
     ctx.save();
     ctx.translate(-state.cameraX, 0);
+    drawChallengeHint(ctx);
     for (const ladder of ladders()) {
       const minX = Math.min(ladder.startX, ladder.endX) - 100;
       const maxX = Math.max(ladder.startX, ladder.endX) + 100;

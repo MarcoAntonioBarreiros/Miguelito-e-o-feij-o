@@ -23,8 +23,11 @@ import { createAzospirillumNitrogen } from '../src/procgen/azospirillum-nitrogen
 import { createMycorrhizaStructures } from '../src/procgen/mycorrhiza-structures.js';
 import { applyPhaseFourMycorrhizaIntro } from '../src/procgen/phase-four-mycorrhiza-intro.js';
 
+// `demonstration: true`: a fase 3 do jogo nao pre-gera mais a escada de
+// demonstracao, mas estes testes usam a geracao para exercitar a mecanica.
 const LADDER_CONFIG = {
   enabled: true,
+  demonstration: true,
   count: 1,
   stepCount: 4,
   verticalSpacing: 85,
@@ -358,6 +361,25 @@ test('degraus maduros atravessam de baixo para cima e colidem somente na queda',
   assert.equal(landedFromAbove, true);
 });
 
+test('fase 3 do jogo nao pre-gera escada de demonstracao nem converte plataforma de seguranca', () => {
+  for (let index = 0; index < 6; index++) {
+    const campaign = createCampaign(`azo-sem-demo-${index}`);
+    campaign.phase = 3;
+    Object.assign(campaign.unlocks, getPersistentUnlocksBeforePhase(3));
+    const profile = prepareCampaignGeneration(campaign);
+    const seedValue = campaignPhaseSeed(campaign);
+    const level = decorateCampaignLevel(generateLevel(seedValue), campaign, profile);
+    const recoveries = level.platforms.filter(platform => platform.recovery).length;
+    const encounters = generateCampaignEncounters({ platforms: level.platforms, phase: 3, seedValue });
+    const ladders = generateAzospirillumRootLadders({
+      level, phase: 3, seedValue, encounters, config: getPhaseManifest(3).azospirillumRootLadder,
+    });
+    assert.equal(ladders.length, 0);
+    assert.equal(level.platforms.filter(platform => platform.recovery).length, recoveries);
+    assert.equal(level.platforms.some(platform => platform.azospirillumLadderHost), false);
+  }
+});
+
 test('geracao da escada permanece deterministica em multiplas seeds da Fase 3', () => {
   for (let index = 0; index < 12; index++) {
     const snapshot = () => {
@@ -373,7 +395,7 @@ test('geracao da escada permanece deterministica em multiplas seeds da Fase 3', 
         phase: 3,
         seedValue,
         encounters,
-        config: getPhaseManifest(3).azospirillumRootLadder,
+        config: { ...getPhaseManifest(3).azospirillumRootLadder, demonstration: true },
       });
       for (const ladder of ladders) {
         const route = [

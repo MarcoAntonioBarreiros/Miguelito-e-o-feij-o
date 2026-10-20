@@ -53,7 +53,7 @@ import { BIOLOGICAL_PARALLAX_KEY } from '../render/rhizosphere-parallax.js';
 import { createPlatformVisuals } from './platform-visuals.js';
 import { createRhizosphereLighting, readLightingPreference } from '../render/rhizosphere-lighting.js';
 import { createCameraView } from './camera-view.js';
-import { createArrivalTour } from './arrival-tour.js';
+import { arrivalTourSeen, createArrivalTour } from './arrival-tour.js';
 import { createResponsiveCanvas } from './responsive-canvas.js';
 import { getPrimaryTraversalPlatforms } from './traversal-route.js';
 import {
@@ -821,12 +821,9 @@ const arrivalTour = createArrivalTour({
   playerFraming: zoomValue => playerFraming(zoomValue),
   // o balao so aparece depois que o cartao da fase ("Fase 1 ...") sai da tela
   ready: () => !document.getElementById('phase-card')?.classList.contains('show'),
-  // Opcao (c): o cartao de boas-vindas fica so com "cartoes e GUIA" e abre
-  // logo depois da chegada guiada. Hoje ele nunca abria na campanha: pertence
-  // ao prologo e ja entrava como visto na fase 1.
-  onClosed: ({ replay }) => {
-    if (!replay) window.miguelitoTutorial?.openCard?.('system-welcome');
-  },
+  // O cartao de boas-vindas ("cartoes e GUIA") abre ANTES da chegada guiada
+  // (startArrival); quando a camera volta da raiz principal, o jogo comeca.
+  onClosed: () => {},
   onEnd: () => {
     for (const code of Object.keys(keys)) keys[code] = false;
     sim.setInputs({});
@@ -1995,9 +1992,21 @@ function updateIntroFall() {
   // Pousou lá embaixo: a cena acaba e começa a chegada guiada (uma vez).
   if (player.onGround && player.y > intro.surface + 120) {
     sim.state.introFall = null;
-    // Sem espera parada: o cartao da fase ja sai e a chegada guiada comeca.
-    if (arrivalTour.start()) hurryPhaseCard();
+    // Sem espera parada: o cartao da fase ja sai, abre o cartao de boas-vindas
+    // e, quando ele fecha, comeca a chegada guiada.
+    startArrival();
   }
+}
+
+// Primeira chegada: cartao "Rizosfera Viva" (cartoes e GUIA) e depois o tour.
+// Ele nunca abria sozinho na campanha: pertence ao prologo e ja entrava como
+// visto na fase 1, por isso abre aqui explicitamente.
+function startArrival() {
+  if (arrivalTourSeen()) return;
+  hurryPhaseCard();
+  const guide = window.miguelitoTutorial;
+  if (!guide?.openCard?.('system-welcome')) { arrivalTour.start(); return; }
+  window.addEventListener('miguelito:tutorial-close', () => arrivalTour.start(), { once: true });
 }
 
 // TELA DE TÍTULO (início da campanha): a cena da superfície ao vivo faz o papel

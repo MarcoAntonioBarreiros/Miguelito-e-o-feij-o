@@ -133,7 +133,10 @@ test('pipeline real registra todas as etapas e preserva o desafio de 230 px', ()
   assert.deepEqual(level.routeGeometryTrace.map(entry => entry.stage), STAGES);
   assert.ok(level.signatureChallenge, 'o desafio-assinatura precisa existir');
   assert.equal(level.signatureChallenge.rise, 230);
-  assert.ok(level.azospirillumRootLadders.length > 0, 'o pipeline precisa incluir Azo');
+  // A escada de demonstracao pre-gerada saiu da fase 3: a escada nasce da
+  // inoculacao (runtime) e o texto fica no hospedeiro da prova.
+  assert.equal(level.azospirillumRootLadders.length, 0, 'sem escada de demonstracao pre-gerada');
+  assert.ok(level.azospirillumChallenge?.hostPlatform, 'o hospedeiro da prova existe');
   assert.ok(level.nitrogenRoots.length > 0, 'o pipeline precisa incluir a raiz nitrogenada');
 
   const finalRoute = route(level);

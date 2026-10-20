@@ -1158,7 +1158,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"f4fb28a","subject":"Build (dist) com os cartoes revisados","builtAt":"2026-10-20 15:13"};
+window.__BEANS_BUILD__ = {"commit":"98c784b","subject":"Ciclos explicam cada etapa (legenda ate 140 com o termo novo: AIA, nitro","builtAt":"2026-10-20 15:50"};
 (() => {
 'use strict';
 const __modules = {
@@ -1198,7 +1198,7 @@ const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.j
 const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");
 const { createRhizosphereLighting, readLightingPreference } = __require("src/render/rhizosphere-lighting.js");
 const { createCameraView } = __require("src/procgen/camera-view.js");
-const { createArrivalTour } = __require("src/procgen/arrival-tour.js");
+const { arrivalTourSeen, createArrivalTour } = __require("src/procgen/arrival-tour.js");
 const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");
 const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");
 const { ROUTE_GATE_KINDS, ROUTE_GATE_REQUIRED_ABILITY, ROUTE_GATE_REQUIRED_ORGANISM } = __require("src/procgen/phase-vertical-plan.js");
@@ -1948,12 +1948,9 @@ const arrivalTour = createArrivalTour({
   playerFraming: zoomValue => playerFraming(zoomValue),
   // o balao so aparece depois que o cartao da fase ("Fase 1 ...") sai da tela
   ready: () => !document.getElementById('phase-card')?.classList.contains('show'),
-  // Opcao (c): o cartao de boas-vindas fica so com "cartoes e GUIA" e abre
-  // logo depois da chegada guiada. Hoje ele nunca abria na campanha: pertence
-  // ao prologo e ja entrava como visto na fase 1.
-  onClosed: ({ replay }) => {
-    if (!replay) window.miguelitoTutorial?.openCard?.('system-welcome');
-  },
+  // O cartao de boas-vindas ("cartoes e GUIA") abre ANTES da chegada guiada
+  // (startArrival); quando a camera volta da raiz principal, o jogo comeca.
+  onClosed: () => {},
   onEnd: () => {
     for (const code of Object.keys(keys)) keys[code] = false;
     sim.setInputs({});
@@ -3122,9 +3119,21 @@ function updateIntroFall() {
   // Pousou lá embaixo: a cena acaba e começa a chegada guiada (uma vez).
   if (player.onGround && player.y > intro.surface + 120) {
     sim.state.introFall = null;
-    // Sem espera parada: o cartao da fase ja sai e a chegada guiada comeca.
-    if (arrivalTour.start()) hurryPhaseCard();
+    // Sem espera parada: o cartao da fase ja sai, abre o cartao de boas-vindas
+    // e, quando ele fecha, comeca a chegada guiada.
+    startArrival();
   }
+}
+
+// Primeira chegada: cartao "Rizosfera Viva" (cartoes e GUIA) e depois o tour.
+// Ele nunca abria sozinho na campanha: pertence ao prologo e ja entrava como
+// visto na fase 1, por isso abre aqui explicitamente.
+function startArrival() {
+  if (arrivalTourSeen()) return;
+  hurryPhaseCard();
+  const guide = window.miguelitoTutorial;
+  if (!guide?.openCard?.('system-welcome')) { arrivalTour.start(); return; }
+  window.addEventListener('miguelito:tutorial-close', () => arrivalTour.start(), { once: true });
 }
 
 // TELA DE TÍTULO (início da campanha): a cena da superfície ao vivo faz o papel
@@ -26059,7 +26068,13 @@ function generateAzospirillumRootLadders({
 
   if (!config?.enabled || config.count <= 0) return level.azospirillumRootLadders;
   const knownSkill = phase > 3 && Boolean(config.knownSkill);
-  if (phase > 3 && !knownSkill && !Number.isInteger(config.recapAccessChunk)) {
+  // Sem demonstracao pre-gerada na fase 3. Ela convertia uma plataforma de
+  // seguranca (baixa, sem desnivel de verdade) em "raiz de teste", com texto, e
+  // o jogador aprendia a escada onde ela nao fazia falta. A escada nasce de
+  // qualquer raiz inoculada (runtime), e o texto agora fica na primeira raiz
+  // que realmente precisa dela: o hospedeiro da prova (`render`).
+  // (`demonstration: true` religa a geracao antiga; so os testes de mecanica usam.)
+  if (!knownSkill && !Number.isInteger(config.recapAccessChunk) && config.demonstration !== true) {
     return level.azospirillumRootLadders;
   }
 
@@ -26942,7 +26957,7 @@ function createAzospirillumRootGrowth({ state, entities, inoculants }) {
           ? 'Teste o Azospirillum nesta raiz'
           : 'Inocule Azospirillum nesta raiz',
         ladder.host.x + ladder.host.w / 2,
-        ladder.host.y - 30,
+        ladder.host.y - 104,
       );
     }
     for (const step of ladder.steps) {
@@ -27042,10 +27057,27 @@ function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ctx.restore();
   }
 
+  // Antes de a escada nascer, a raiz da prova ja diz o que fazer.
+  function drawChallengeHint(ctx) {
+    const challenge = mandatoryChallenge();
+    const host = challenge?.hostPlatform;
+    if (!host || challenge.developed) return;
+    if (ladders().some(ladder => ladder.host === host && ladder.progress > 0)) return;
+    if (ladders().some(ladder => ladder.host === host && ladder.mandatoryChallenge)) return;
+    const x = host.x + host.w / 2;
+    if (x < state.cameraX - 200 || x > state.cameraX + W + 200) return;
+    ctx.font = '700 12px Inter,system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f3ce68';
+    // acima da cabeca do Miguelito parado na raiz (em -30 ficava atras dele)
+    ctx.fillText('Inocule Azospirillum nesta raiz', x, host.y - 104);
+  }
+
   function render(ctx) {
-    if (!ladders().length) return;
+    if (!ladders().length && !mandatoryChallenge()) return;
     ctx.save();
     ctx.translate(-state.cameraX, 0);
+    drawChallengeHint(ctx);
     for (const ladder of ladders()) {
       const minX = Math.min(ladder.startX, ladder.endX) - 100;
       const maxX = Math.max(ladder.startX, ladder.endX) + 100;
