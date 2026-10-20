@@ -200,6 +200,7 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     leaving = false;
     active = true;
     root.hidden = false;
+    root.querySelector('.arrival-bubble').classList.add('arrival-bubble--waiting');
     render();
     return true;
   }
@@ -214,6 +215,7 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     from = currentFrame();
     index++;
     t = 0;
+    root.querySelector('.arrival-bubble').classList.add('arrival-bubble--waiting');
     render();
   }
 
@@ -256,6 +258,9 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
       frame = frameOn(pl.x + pl.w / 2, pl.y + pl.h / 2, z);
     }
     cameraView.setCinematic(frame);
+    // o balao so aparece quando a camera termina de chegar: assim ja surge no
+    // lugar certo (antes nascia em cima e pulava para baixo durante o zoom)
+    root.querySelector('.arrival-bubble').classList.toggle('arrival-bubble--waiting', t < MOVE_SECONDS);
     position();
   }
 
@@ -332,8 +337,10 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     const bw = bubble.offsetWidth || 300, bh = bubble.offsetHeight || 110;
     const tx = target ? target.x : vw / 2;
     const ty = target ? target.y : vh / 2;
-    const below = ty < vh * .5;
     const gap = target ? target.h / 2 + 18 : 0;
+    // prefere embaixo; so vai para cima se nao couber
+    const below = step.placement === 'above' ? false
+      : step.placement === 'below' || ty + gap + bh <= vh - 12;
     let left = clamp(tx - bw / 2, 12, vw - bw - 12);
     let top = below ? ty + gap : ty - gap - bh;
     top = clamp(top, 12, vh - bh - 12);

@@ -206,3 +206,5 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
 #arrival-tour .arrival-bigarrow path:nth-child(3) { animation-delay: .4s; }
 @keyframes arrival-chevron { 0%, 100% { opacity: .2; } 40% { opacity: 1; } }
 #arrival-tour.arrival-tour--arrow::before { content: ''; position: fixed; inset: 0; background: rgba(8,3,2,.3); pointer-events: none; }
+#arrival-tour .arrival-bubble { transition: opacity .22s ease-out; }
+#arrival-tour .arrival-bubble.arrival-bubble--waiting { opacity: 0; visibility: hidden; transition: none; }
