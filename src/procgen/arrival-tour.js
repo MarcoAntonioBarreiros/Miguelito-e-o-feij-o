@@ -1,5 +1,5 @@
 // Chegada guiada: logo que Miguelito pousa na rizosfera (primeira campanha), a
-// camera passeia por cinco pontos e um balao curto explica cada um. O mundo
+// camera passeia por seis pontos (o ultimo e a raiz principal, no fim da fase) e um balao curto explica cada um. O mundo
 // fica congelado (o app trata o tour como um cartao aberto); a camera usa o
 // modo cinematografico que o zoom do nodulo ja usa.
 //
@@ -12,10 +12,20 @@ const ZOOM_DEMO_SECONDS = 2.6;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => { const k = clamp(t, 0, 1); return k * k * (3 - 2 * k); };
-const mix = (a, b, t) => {
+const mix = (a, b, t, dip = 0) => {
   const k = ease(t);
-  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, zoom: a.zoom + (b.zoom - a.zoom) * k };
+  // `dip`: num voo longo a camera se afasta no meio do caminho e volta a
+  // aproximar na chegada, para o jogador acompanhar o percurso
+  const out = 1 - dip * Math.sin(Math.PI * clamp(t, 0, 1));
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, zoom: (a.zoom + (b.zoom - a.zoom) * k) * out };
 };
+// Duracao do movimento pela distancia: os pontos perto do Miguelito seguem
+// rapidos; ir ate a raiz principal (e voltar) leva mais tempo e afasta a camera.
+function travel(a, b) {
+  const distance = Math.hypot(b.x - a.x, b.y - a.y);
+  if (distance < 1600) return { seconds: MOVE_SECONDS, dip: 0 };
+  return { seconds: clamp(distance / 3200, 1.4, 3.2), dip: clamp(distance / 20000, .25, .5) };
+}
 
 export function arrivalTourSeen() {
   try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch (_) { return false; }
@@ -43,6 +53,7 @@ export const ARRIVAL_TOUR_TEXT = Object.freeze({
     touchText: 'Afaste ou aproxime a câmera com os botões em destaque.',
   },
   direction: { text: 'Siga para a direita até a raiz principal.' },
+  goal: { text: 'Esta é a raiz principal. Chegue até ela para concluir a fase.' },
 });
 
 const ICON = {
@@ -73,6 +84,7 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
   let from = null;
   let back = 1;
   let leaving = false;
+  let move = { seconds: MOVE_SECONDS, dip: 0 };
   let root = null;
   let forced = false;
 
@@ -160,6 +172,7 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     const touch = isTouch();
     const nx = px + 260;
     const ny = necroticTop(nx);
+    const goal = state.level.goal && Number.isFinite(state.level.goal.x) ? state.level.goal : null;
     return [
       { id: 'player', text: ARRIVAL_TOUR_TEXT.player.text,
         keys: touch ? ARRIVAL_TOUR_TEXT.player.touchKeys : ARRIVAL_TOUR_TEXT.player.keys,
@@ -176,13 +189,17 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
         frame: () => frameOn(px, py, back), dom: zoomButtonsRect, zoomDemo: true },
       { id: 'direction', text: ARRIVAL_TOUR_TEXT.direction.text,
         frame: () => frameOn(px + 620, py, back * .8), point: () => ({ x: px + 620, y: py, r: 70 }), bigArrow: true },
+      ...(goal ? [{ id: 'goal', text: ARRIVAL_TOUR_TEXT.goal.text,
+        // o anel abraca o rotulo "RAIZ PRINCIPAL" e o colo da raiz; o balao fica embaixo
+        frame: () => frameOn(goal.x, goal.y - 120, back * .85, .38), point: () => ({ x: goal.x, y: goal.y - 120, r: 150 }) }] : []),
     ];
   }
 
   // ---- ciclo -----------------------------------------------------------------
   function start({ force = false } = {}) {
     if (active || pending || (!force && arrivalTourSeen())) return false;
-    if (!ready()) { pending = true; pendingForce = force; return true; }
+    // A camera ja comeca a andar (nada de tela parada esperando); so o balao
+    // espera o que estiver por cima (`ready`, ex.: o cartao da fase saindo).
     return begin(force);
   }
 
@@ -198,6 +215,7 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     index = 0;
     t = 0;
     leaving = false;
+    move = travel(from, steps[0].frame());
     active = true;
     root.hidden = false;
     root.querySelector('.arrival-bubble').classList.add('arrival-bubble--waiting');
@@ -215,6 +233,7 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     from = currentFrame();
     index++;
     t = 0;
+    move = travel(from, steps[index].frame());
     root.querySelector('.arrival-bubble').classList.add('arrival-bubble--waiting');
     render();
   }
@@ -225,6 +244,7 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     leaving = true;
     from = currentFrame();
     t = 0;
+    move = travel(from, playerFraming ? playerFraming(back) : from);
     root.hidden = true;
     onEnd({ skipped });
   }
@@ -239,8 +259,8 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     t += dt;
     if (leaving) {
       const target = playerFraming ? playerFraming(back) : from;
-      cameraView.setCinematic(mix(from, target, t / MOVE_SECONDS));
-      if (t >= MOVE_SECONDS) {
+      cameraView.setCinematic(mix(from, target, t / move.seconds, move.dip));
+      if (t >= move.seconds) {
         cameraView.endCinematic();
         active = false;
         leaving = false;
@@ -249,10 +269,10 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
       return;
     }
     const step = steps[index];
-    let frame = mix(from, step.frame(), t / MOVE_SECONDS);
-    if (step.zoomDemo && t > MOVE_SECONDS) {
+    let frame = mix(from, step.frame(), t / move.seconds, move.dip);
+    if (step.zoomDemo && t > move.seconds) {
       // afasta e volta, uma vez, para mostrar o efeito do zoom
-      const k = clamp((t - MOVE_SECONDS) / ZOOM_DEMO_SECONDS, 0, 1);
+      const k = clamp((t - move.seconds) / ZOOM_DEMO_SECONDS, 0, 1);
       const z = back * (1 - .32 * Math.sin(Math.PI * k));
       const pl = state.player;
       frame = frameOn(pl.x + pl.w / 2, pl.y + pl.h / 2, z);
@@ -260,7 +280,7 @@ export function createArrivalTour({ state, canvas, cameraView, isTouch = () => f
     cameraView.setCinematic(frame);
     // o balao so aparece quando a camera termina de chegar: assim ja surge no
     // lugar certo (antes nascia em cima e pulava para baixo durante o zoom)
-    root.querySelector('.arrival-bubble').classList.toggle('arrival-bubble--waiting', t < MOVE_SECONDS);
+    root.querySelector('.arrival-bubble').classList.toggle('arrival-bubble--waiting', t < move.seconds || !ready());
     position();
   }
 

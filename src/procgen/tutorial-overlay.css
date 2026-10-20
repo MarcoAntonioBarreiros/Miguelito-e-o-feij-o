@@ -93,8 +93,14 @@ html.tutorial-open, html.tutorial-open body { touch-action: pan-y; }
 .tutorial-cycle-detail strong { color: var(--tutorial-cyan); }
 .tutorial-cycle-block--narrow .tutorial-cycle-step { width: 44%; }
 .tutorial-cycle-block--narrow .tutorial-cycle-caption { display: none; }
+.tutorial-cycle-block--single .tutorial-cycle-caption { top: auto; bottom: 0; left: 0; width: 100%; }
 .tutorial-cycle-block--narrow .tutorial-cycle-diagram { margin-bottom: 40px; }
 .tutorial-card-view[data-page-kind="cycle"] .tutorial-page-scroll { max-height: 480px; }
+/* Ciclo: titulo numa linha so e legenda inteira sem rolagem */
+.tutorial-card-view[data-page-kind="cycle"] .tutorial-title { font-size: 1.7rem; }
+.tutorial-card-view[data-page-kind="cycle"] .tutorial-subtitle { margin-bottom: .5rem; }
+.tutorial-card-view[data-page-kind="cycle"] .tutorial-cycle-diagram { margin-bottom: 8px; }
+.tutorial-card-view[data-page-kind="cycle"] .tutorial-cycle-block--narrow .tutorial-cycle-diagram { margin-bottom: 14px; }
 @media (prefers-reduced-motion: reduce) { .tutorial-orbital-flow { animation: none; } }
 .tutorial-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 8px 10px 0; }
 .tutorial-button { color: var(--tutorial-ink); background: transparent; border: 1.5px solid var(--tutorial-line); border-radius: 999px; min-height: 44px; padding: .7rem 1rem; font: 700 .95rem/1.2 var(--tutorial-body); cursor: pointer; touch-action: manipulation; }
@@ -159,6 +165,15 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   .tutorial-library-grid { grid-template-columns: 1fr; }
   .tutorial-library-header { display: block; }
   .tutorial-library-footer { flex-direction: column-reverse; }
+}
+@media (max-height: 680px) and (min-width: 641px) {
+  /* tela baixa: o percurso encolhe para a legenda caber sem rolagem */
+  .tutorial-card-view[data-page-kind="cycle"] .tutorial-cycle-diagram { width: 78%; margin: 0 auto 4px; }
+  .tutorial-card-view[data-page-kind="cycle"] .tutorial-header { margin-bottom: 0; }
+}
+@media (max-width: 640px) {
+  .tutorial-card-view[data-page-kind="cycle"] { --tutorial-scope-size: min(110px,15dvh); gap: 14px; }
+  .tutorial-card-view[data-page-kind="cycle"] .tutorial-title { font-size: 1.45rem; }
 }
 @media (max-width: 640px) and (max-height: 640px) {
   .tutorial-card-view { --tutorial-scope-size: min(140px,20dvh); }

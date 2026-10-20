@@ -955,8 +955,14 @@ html.tutorial-open, html.tutorial-open body { touch-action: pan-y; }
 .tutorial-cycle-detail strong { color: var(--tutorial-cyan); }
 .tutorial-cycle-block--narrow .tutorial-cycle-step { width: 44%; }
 .tutorial-cycle-block--narrow .tutorial-cycle-caption { display: none; }
+.tutorial-cycle-block--single .tutorial-cycle-caption { top: auto; bottom: 0; left: 0; width: 100%; }
 .tutorial-cycle-block--narrow .tutorial-cycle-diagram { margin-bottom: 40px; }
 .tutorial-card-view[data-page-kind="cycle"] .tutorial-page-scroll { max-height: 480px; }
+/* Ciclo: titulo numa linha so e legenda inteira sem rolagem */
+.tutorial-card-view[data-page-kind="cycle"] .tutorial-title { font-size: 1.7rem; }
+.tutorial-card-view[data-page-kind="cycle"] .tutorial-subtitle { margin-bottom: .5rem; }
+.tutorial-card-view[data-page-kind="cycle"] .tutorial-cycle-diagram { margin-bottom: 8px; }
+.tutorial-card-view[data-page-kind="cycle"] .tutorial-cycle-block--narrow .tutorial-cycle-diagram { margin-bottom: 14px; }
 @media (prefers-reduced-motion: reduce) { .tutorial-orbital-flow { animation: none; } }
 .tutorial-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 8px 10px 0; }
 .tutorial-button { color: var(--tutorial-ink); background: transparent; border: 1.5px solid var(--tutorial-line); border-radius: 999px; min-height: 44px; padding: .7rem 1rem; font: 700 .95rem/1.2 var(--tutorial-body); cursor: pointer; touch-action: manipulation; }
@@ -1021,6 +1027,15 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   .tutorial-library-grid { grid-template-columns: 1fr; }
   .tutorial-library-header { display: block; }
   .tutorial-library-footer { flex-direction: column-reverse; }
+}
+@media (max-height: 680px) and (min-width: 641px) {
+  /* tela baixa: o percurso encolhe para a legenda caber sem rolagem */
+  .tutorial-card-view[data-page-kind="cycle"] .tutorial-cycle-diagram { width: 78%; margin: 0 auto 4px; }
+  .tutorial-card-view[data-page-kind="cycle"] .tutorial-header { margin-bottom: 0; }
+}
+@media (max-width: 640px) {
+  .tutorial-card-view[data-page-kind="cycle"] { --tutorial-scope-size: min(110px,15dvh); gap: 14px; }
+  .tutorial-card-view[data-page-kind="cycle"] .tutorial-title { font-size: 1.45rem; }
 }
 @media (max-width: 640px) and (max-height: 640px) {
   .tutorial-card-view { --tutorial-scope-size: min(140px,20dvh); }
@@ -1143,7 +1158,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"64ffb3b","subject":"Cartoes didaticos: textos revisados no jogo, ciclos como revisao no fim ","builtAt":"2026-10-20 14:49"};
+window.__BEANS_BUILD__ = {"commit":"f4fb28a","subject":"Build (dist) com os cartoes revisados","builtAt":"2026-10-20 15:13"};
 (() => {
 'use strict';
 const __modules = {
@@ -1931,7 +1946,7 @@ const arrivalTour = createArrivalTour({
   cameraView,
   isTouch: () => Boolean(window.matchMedia?.('(pointer: coarse)').matches),
   playerFraming: zoomValue => playerFraming(zoomValue),
-  // so depois que o cartao da fase ("Fase 1 ...") sai da tela
+  // o balao so aparece depois que o cartao da fase ("Fase 1 ...") sai da tela
   ready: () => !document.getElementById('phase-card')?.classList.contains('show'),
   // Opcao (c): o cartao de boas-vindas fica so com "cartoes e GUIA" e abre
   // logo depois da chegada guiada. Hoje ele nunca abria na campanha: pertence
@@ -2642,6 +2657,14 @@ function initGame({ announce = false } = {}) {
 
 let phaseCardTimer = null;
 
+// Tira o cartao da fase agora (mesma animacao de saida).
+function hurryPhaseCard() {
+  if (!phaseCardDiv?.classList.contains('show') || phaseCardDiv.classList.contains('leaving')) return;
+  clearTimeout(phaseCardTimer);
+  phaseCardDiv.classList.add('leaving');
+  phaseCardTimer = setTimeout(() => phaseCardDiv.classList.remove('show', 'leaving'), 1100);
+}
+
 function showPhaseCard(eyebrow, title, subtitle) {
   if (!phaseCardDiv) return;
   phaseCardDiv.innerHTML = `<span class="eyebrow">${eyebrow}</span>`
@@ -3099,7 +3122,8 @@ function updateIntroFall() {
   // Pousou lá embaixo: a cena acaba e começa a chegada guiada (uma vez).
   if (player.onGround && player.y > intro.surface + 120) {
     sim.state.introFall = null;
-    arrivalTour.start();
+    // Sem espera parada: o cartao da fase ja sai e a chegada guiada comeca.
+    if (arrivalTour.start()) hurryPhaseCard();
   }
 }
 
@@ -50558,7 +50582,7 @@ Object.assign(__exports, { DESKTOP_ZOOM_PROFILE, TOUCH_ZOOM_PROFILE, isTouchDevi
 },
 "src/procgen/arrival-tour.js": (__exports, __require) => {
 // Chegada guiada: logo que Miguelito pousa na rizosfera (primeira campanha), a
-// camera passeia por cinco pontos e um balao curto explica cada um. O mundo
+// camera passeia por seis pontos (o ultimo e a raiz principal, no fim da fase) e um balao curto explica cada um. O mundo
 // fica congelado (o app trata o tour como um cartao aberto); a camera usa o
 // modo cinematografico que o zoom do nodulo ja usa.
 //
@@ -50571,10 +50595,20 @@ const ZOOM_DEMO_SECONDS = 2.6;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => { const k = clamp(t, 0, 1); return k * k * (3 - 2 * k); };
-const mix = (a, b, t) => {
+const mix = (a, b, t, dip = 0) => {
   const k = ease(t);
-  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, zoom: a.zoom + (b.zoom - a.zoom) * k };
+  // `dip`: num voo longo a camera se afasta no meio do caminho e volta a
+  // aproximar na chegada, para o jogador acompanhar o percurso
+  const out = 1 - dip * Math.sin(Math.PI * clamp(t, 0, 1));
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, zoom: (a.zoom + (b.zoom - a.zoom) * k) * out };
 };
+// Duracao do movimento pela distancia: os pontos perto do Miguelito seguem
+// rapidos; ir ate a raiz principal (e voltar) leva mais tempo e afasta a camera.
+function travel(a, b) {
+  const distance = Math.hypot(b.x - a.x, b.y - a.y);
+  if (distance < 1600) return { seconds: MOVE_SECONDS, dip: 0 };
+  return { seconds: clamp(distance / 3200, 1.4, 3.2), dip: clamp(distance / 20000, .25, .5) };
+}
 
 function arrivalTourSeen() {
   try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch (_) { return false; }
@@ -50602,6 +50636,7 @@ const ARRIVAL_TOUR_TEXT = Object.freeze({
     touchText: 'Afaste ou aproxime a câmera com os botões em destaque.',
   },
   direction: { text: 'Siga para a direita até a raiz principal.' },
+  goal: { text: 'Esta é a raiz principal. Chegue até ela para concluir a fase.' },
 });
 
 const ICON = {
@@ -50632,6 +50667,7 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
   let from = null;
   let back = 1;
   let leaving = false;
+  let move = { seconds: MOVE_SECONDS, dip: 0 };
   let root = null;
   let forced = false;
 
@@ -50719,6 +50755,7 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
     const touch = isTouch();
     const nx = px + 260;
     const ny = necroticTop(nx);
+    const goal = state.level.goal && Number.isFinite(state.level.goal.x) ? state.level.goal : null;
     return [
       { id: 'player', text: ARRIVAL_TOUR_TEXT.player.text,
         keys: touch ? ARRIVAL_TOUR_TEXT.player.touchKeys : ARRIVAL_TOUR_TEXT.player.keys,
@@ -50735,13 +50772,17 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
         frame: () => frameOn(px, py, back), dom: zoomButtonsRect, zoomDemo: true },
       { id: 'direction', text: ARRIVAL_TOUR_TEXT.direction.text,
         frame: () => frameOn(px + 620, py, back * .8), point: () => ({ x: px + 620, y: py, r: 70 }), bigArrow: true },
+      ...(goal ? [{ id: 'goal', text: ARRIVAL_TOUR_TEXT.goal.text,
+        // o anel abraca o rotulo "RAIZ PRINCIPAL" e o colo da raiz; o balao fica embaixo
+        frame: () => frameOn(goal.x, goal.y - 120, back * .85, .38), point: () => ({ x: goal.x, y: goal.y - 120, r: 150 }) }] : []),
     ];
   }
 
   // ---- ciclo -----------------------------------------------------------------
   function start({ force = false } = {}) {
     if (active || pending || (!force && arrivalTourSeen())) return false;
-    if (!ready()) { pending = true; pendingForce = force; return true; }
+    // A camera ja comeca a andar (nada de tela parada esperando); so o balao
+    // espera o que estiver por cima (`ready`, ex.: o cartao da fase saindo).
     return begin(force);
   }
 
@@ -50757,6 +50798,7 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
     index = 0;
     t = 0;
     leaving = false;
+    move = travel(from, steps[0].frame());
     active = true;
     root.hidden = false;
     root.querySelector('.arrival-bubble').classList.add('arrival-bubble--waiting');
@@ -50774,6 +50816,7 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
     from = currentFrame();
     index++;
     t = 0;
+    move = travel(from, steps[index].frame());
     root.querySelector('.arrival-bubble').classList.add('arrival-bubble--waiting');
     render();
   }
@@ -50784,6 +50827,7 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
     leaving = true;
     from = currentFrame();
     t = 0;
+    move = travel(from, playerFraming ? playerFraming(back) : from);
     root.hidden = true;
     onEnd({ skipped });
   }
@@ -50798,8 +50842,8 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
     t += dt;
     if (leaving) {
       const target = playerFraming ? playerFraming(back) : from;
-      cameraView.setCinematic(mix(from, target, t / MOVE_SECONDS));
-      if (t >= MOVE_SECONDS) {
+      cameraView.setCinematic(mix(from, target, t / move.seconds, move.dip));
+      if (t >= move.seconds) {
         cameraView.endCinematic();
         active = false;
         leaving = false;
@@ -50808,10 +50852,10 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
       return;
     }
     const step = steps[index];
-    let frame = mix(from, step.frame(), t / MOVE_SECONDS);
-    if (step.zoomDemo && t > MOVE_SECONDS) {
+    let frame = mix(from, step.frame(), t / move.seconds, move.dip);
+    if (step.zoomDemo && t > move.seconds) {
       // afasta e volta, uma vez, para mostrar o efeito do zoom
-      const k = clamp((t - MOVE_SECONDS) / ZOOM_DEMO_SECONDS, 0, 1);
+      const k = clamp((t - move.seconds) / ZOOM_DEMO_SECONDS, 0, 1);
       const z = back * (1 - .32 * Math.sin(Math.PI * k));
       const pl = state.player;
       frame = frameOn(pl.x + pl.w / 2, pl.y + pl.h / 2, z);
@@ -50819,7 +50863,7 @@ function createArrivalTour({ state, canvas, cameraView, isTouch = () => false, p
     cameraView.setCinematic(frame);
     // o balao so aparece quando a camera termina de chegar: assim ja surge no
     // lugar certo (antes nascia em cima e pulava para baixo durante o zoom)
-    root.querySelector('.arrival-bubble').classList.toggle('arrival-bubble--waiting', t < MOVE_SECONDS);
+    root.querySelector('.arrival-bubble').classList.toggle('arrival-bubble--waiting', t < move.seconds || !ready());
     position();
   }
 
@@ -57172,7 +57216,7 @@ function ensureTutorialInterface() {
   if (!document.querySelector('[data-tutorial-styles]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = './src/procgen/tutorial-overlay.css?v=20260924-orbital-rounded-5';
+    link.href = './src/procgen/tutorial-overlay.css?v=20261020-ciclos-legenda';
     link.dataset.tutorialStyles = 'true';
     document.head.appendChild(link);
   }
@@ -57993,13 +58037,16 @@ function tutorialCycleStep(card, index) {
 
 function tutorialCycleLayout(count, narrow = false) {
   if (!count) return { height: 0, positions: [], path: '', arrows: [] };
+  // distancia entre as linhas do percurso: mais curta que antes para sobrar
+  // espaco para a legenda de cada etapa, que agora explica o termo
+  const gap = narrow ? 118 : 128;
   const top = count <= 3 ? count : Math.ceil(count / 2);
   const positions = Array.from({ length: count }, (_, index) => {
     const row = narrow ? Math.floor(index / 2) : Number(index >= top);
     const length = narrow ? Math.min(2, count - row * 2) : row ? count - top : top;
     const local = narrow ? index % 2 : row ? index - top : index;
     const column = row % 2 ? length - 1 - local : local;
-    return { x: length === 1 ? 175 : (narrow ? 90 : 58) + column / (length - 1) * (narrow ? 202 : 234), y: 64 + row * 156 };
+    return { x: length === 1 ? 175 : (narrow ? 90 : 58) + column / (length - 1) * (narrow ? 202 : 234), y: 64 + row * gap };
   });
   let path = `M${positions[0].x} ${positions[0].y}`;
   const arrows = [];
@@ -58011,11 +58058,13 @@ function tutorialCycleLayout(count, narrow = false) {
     } else {
       const right = a.x > 175;
       const edge = right ? 366 : 12;
-      path += ` Q${edge} ${a.y} ${edge} ${a.y + 75} V${b.y - 75} Q${edge} ${b.y} ${b.x} ${b.y}`;
+      path += ` Q${edge} ${a.y} ${edge} ${a.y + gap / 2} Q${edge} ${b.y} ${b.x} ${b.y}`;
       arrows.push({ x: edge, y: (a.y + b.y) / 2, angle: 90 });
     }
   }
-  return { height: positions.at(-1).y + 80, positions, path, arrows };
+  // uma linha so: sobra uma faixa embaixo para a legenda "Etapa N de M"
+  const singleRow = positions.every(position => position.y === positions[0].y);
+  return { height: positions.at(-1).y + 80 + (singleRow ? 26 : 0), positions, path, arrows, singleRow };
 }
 
 function createTutorialCycle(block, onChange) {
@@ -58044,6 +58093,7 @@ function createTutorialCycle(block, onChange) {
   function render() {
     const layout = tutorialCycleLayout(card.cycle.length, media.matches);
     block.classList.toggle('tutorial-cycle-block--narrow', media.matches);
+    block.classList.toggle('tutorial-cycle-block--single', layout.singleRow);
     block.style.setProperty('--cycle-ratio', `400 / ${layout.height}`);
     svg.setAttribute('viewBox', `0 0 400 ${layout.height}`);
     svg.replaceChildren(); list.replaceChildren();
@@ -59965,86 +60015,87 @@ const PAGE_REVISION = {
 
 // Ciclos: so 13 cartoes mantem ciclo. O ciclo NAO entra na primeira
 // apresentacao: aparece no fim da fase indicada (cartao de revisao) e depois
-// fica no GUIA. Cada etapa tem legenda propria (ate 70 caracteres).
+// fica no GUIA. Cada etapa tem legenda propria (ate 140 caracteres): o que
+// acontece e, quando ha termo novo (AIA, nitrogenase, escleródio...), o que ele e.
 // Os demais cartoes perdem o ciclo.
 const s = (label, caption) => ({ label, caption });
 const CYCLE_REVISION = {
   'organism-bacillus': { phase: 1, label: 'Ciclo do Bacillus', steps: [
-    s('Célula ativa', 'A célula cresce e se divide perto da raiz.'),
-    s('Biofilme', 'As células aderem e produzem a matriz que protege a raiz.'),
-    s('Endósporo', 'Sob estresse, algumas células viram endósporos resistentes.'),
-    s('Germinação', 'Com alimento de novo, o endósporo germina e volta a crescer.'),
+    s('Célula ativa', 'Perto da raiz, a célula se alimenta de exsudatos, cresce e se divide em duas. Assim a população aumenta.'),
+    s('Biofilme', 'As células grudam na raiz e produzem uma matriz pegajosa. Esse conjunto, o biofilme, forma uma camada que protege a raiz.'),
+    s('Endósporo', 'Sem alimento, a célula forma um endósporo: uma cápsula dura e dormente que resiste à seca, ao calor e à falta de comida.'),
+    s('Germinação', 'Com exsudatos de novo, o endósporo germina: a cápsula se abre e sai uma célula ativa, pronta para crescer e se dividir.'),
   ] },
   'organism-rhizobium': { phase: 2, label: 'Formação do nódulo', steps: [
-    s('Reconhecimento', 'A raiz libera sinais; o rizóbio responde com fatores Nod.'),
-    s('Fio de infecção', 'O pelo se curva e um fio leva as bactérias para dentro.'),
-    s('Nódulo', 'A planta forma o nódulo e as bactérias viram bacteroides.'),
-    s('FBN', 'A nitrogenase transforma N₂ em amônia para a planta.'),
+    s('Reconhecimento', 'A raiz libera flavonoides, sinais químicos. O rizóbio responde com fatores Nod, moléculas que dizem à planta: sou parceiro.'),
+    s('Fio de infecção', 'O pelo da raiz se curva e prende as bactérias. Por dentro dele cresce um tubo, o fio de infecção, que as leva para dentro.'),
+    s('Nódulo', 'A raiz forma um órgão novo, o nódulo. Lá dentro, as bactérias mudam de forma e viram bacteroides, as fixadoras de nitrogênio.'),
+    s('FBN', 'Nos bacteroides, a enzima nitrogenase transforma o N₂ do ar em amônia. Em troca, a planta fornece açúcares à bactéria.'),
   ] },
   'process-fbn': { phase: 2, label: 'Do ar para a planta', steps: [
-    s('N₂ do ar', 'O nitrogênio do ar é abundante, mas a planta não o usa.'),
-    s('Nitrogenase', 'A enzima quebra a ligação forte do N₂, gastando energia.'),
-    s('Amônia', 'O produto é amônia, uma forma que a planta aproveita.'),
-    s('Planta', 'Vira aminoácidos, proteínas e clorofila.'),
+    s('N₂ do ar', 'Quase 80% do ar é nitrogênio (N₂). Mas a planta não usa o N₂: seus dois átomos estão presos por uma ligação tripla.'),
+    s('Nitrogenase', 'A nitrogenase é a enzima que quebra essa ligação. Gasta muita energia e para com oxigênio: a leghemoglobina o controla.'),
+    s('Amônia', 'O N₂ quebrado vira amônia (NH₃), uma forma de nitrogênio que a planta consegue absorver e usar.'),
+    s('Planta', 'Com a amônia, a planta produz aminoácidos, proteínas e clorofila. Por isso as folhas ficam verdes e a planta cresce.'),
   ] },
   'organism-azospirillum': { phase: 3, label: 'Novas raízes', steps: [
-    s('Colonização', 'Azospirillum se instala na superfície da raiz.'),
-    s('AIA', 'Produz AIA, um fitormônio de crescimento.'),
-    s('Raízes laterais', 'Novas ramificações e pelos aumentam o alcance da raiz.'),
+    s('Colonização', 'Azospirillum vive grudado na superfície da raiz, o rizoplano. Diferente do rizóbio, ele não forma nódulos.'),
+    s('AIA', 'Azospirillum produz AIA, um hormônio vegetal do grupo das auxinas. Ele avisa a raiz que é hora de crescer e ramificar.'),
+    s('Raízes laterais', 'Com mais AIA, nascem raízes laterais e pelos radiculares. A raiz explora mais solo e absorve mais água e nutrientes.'),
   ] },
   'organism-mycorrhiza': { phase: 4, label: 'Ciclo da micorriza', steps: [
-    s('Contato', 'A hifa encontra a raiz guiada por sinais químicos.'),
-    s('Córtex', 'O fungo cresce entre as células internas da raiz.'),
-    s('Arbúsculo', 'Dentro da célula, planta e fungo trocam carbono e nutrientes.'),
-    s('Rede no solo', 'Hifas externas buscam fósforo longe da raiz.'),
+    s('Contato', 'A raiz libera estrigolactonas, sinais que atraem o fungo. A hifa, o fio fino do fungo, cresce em direção à raiz.'),
+    s('Córtex', 'A hifa entra na raiz e cresce no córtex, a camada de células logo abaixo da superfície, sem causar doença.'),
+    s('Arbúsculo', 'Dentro da célula, a hifa se ramifica como uma arvorezinha: o arbúsculo. Ali a planta entrega açúcar e recebe fósforo.'),
+    s('Rede no solo', 'Hifas externas se espalham pelo solo, bem além da raiz. Elas alcançam fósforo e água onde a raiz não chega.'),
   ] },
   'organism-pseudomonas': { phase: 5, label: 'A caça ao ferro', steps: [
-    s('Colonização', 'Pseudomonas se instala perto da raiz.'),
-    s('Sideróforo', 'Libera moléculas que procuram ferro.'),
-    s('Captura de Fe³⁺', 'O sideróforo prende o ferro com força.'),
-    s('Retorno', 'A célula recolhe o ferro; o competidor fica sem.'),
+    s('Colonização', 'Pseudomonas se instala na raiz e se alimenta de exsudatos. Ela disputa esse espaço com outros micróbios.'),
+    s('Sideróforo', 'Com pouco ferro por perto, ela libera sideróforos: moléculas que saem da célula para procurar e agarrar ferro no solo.'),
+    s('Captura de Fe³⁺', 'O sideróforo prende o ferro (Fe³⁺) com muita força. Os outros micróbios não conseguem tirar esse ferro dele.'),
+    s('Retorno', 'A célula reconhece o sideróforo carregado e recolhe o ferro. Sem ferro, o fungo competidor perde força.'),
   ] },
   'organism-opportunistic-fungus': { phase: 5, label: 'Ciclo do oportunista', steps: [
-    s('Esporo', 'O esporo chega a uma raiz enfraquecida.'),
-    s('Contato', 'Germina e as hifas aderem ao tecido.'),
-    s('Colonização', 'A rede cresce pelas pontas e ramifica.'),
-    s('Novos esporos', 'A rede madura libera esporos para outras raízes.'),
+    s('Esporo', 'Esporos funcionam como sementes do fungo, levados pela água e pelo solo. Eles esperam uma raiz enfraquecida.'),
+    s('Contato', 'O esporo germina e solta uma hifa, um fio fino do fungo. Ela adere à superfície da raiz e começa a entrar no tecido.'),
+    s('Colonização', 'A hifa cresce pela ponta e se ramifica, formando uma rede: o micélio. O fungo se alimenta do tecido da raiz.'),
+    s('Novos esporos', 'O micélio maduro produz novos esporos. Eles se espalham e podem infectar outras raízes enfraquecidas.'),
   ] },
   'organism-trichoderma': { phase: 6, label: 'Micoparasitismo', steps: [
-    s('Reconhecimento', 'Trichoderma detecta o fungo-alvo antes do contato.'),
-    s('Enrolamento', 'A hifa cresce até o alvo e se enrola nele.'),
-    s('Enzimas', 'Enzimas degradam a parede celular do alvo.'),
-    s('Lise', 'O fungo-alvo é destruído.'),
+    s('Reconhecimento', 'Trichoderma percebe sinais químicos do fungo-alvo antes do contato. A hifa então cresce na direção dele.'),
+    s('Enrolamento', 'A hifa de Trichoderma chega ao alvo e se enrola nele, como uma trepadeira. Assim fica presa e pronta para atacar.'),
+    s('Enzimas', 'Ela libera quitinases e glucanases, enzimas que digerem a parede celular do alvo, feita de quitina e glucanos.'),
+    s('Lise', 'Sem parede, a célula do alvo se rompe: é a lise. Trichoderma aproveita os nutrientes e a raiz fica livre.'),
   ] },
   'organism-rhizoctonia': { phase: 6, label: 'Ciclo da Rhizoctonia', steps: [
-    s('Solo', 'Sobrevive no solo como micélio e escleródios.'),
-    s('Almofada de infecção', 'As hifas formam estruturas que penetram a raiz.'),
-    s('Lesão', 'O tecido é degradado e a raiz perde função.'),
-    s('Persistência', 'Escleródios garantem a volta na próxima oportunidade.'),
+    s('Solo', 'Rhizoctonia vive no solo como micélio (rede de hifas) e escleródios. Ela se espalha crescendo, quase sem formar esporos.'),
+    s('Almofada de infecção', 'Na raiz, as hifas se juntam numa almofada de infecção: um tufo que se prende ao tecido e abre caminho para dentro.'),
+    s('Lesão', 'O fungo libera enzimas que degradam as células. Surge uma lesão escura, e a raiz perde a capacidade de levar água.'),
+    s('Persistência', 'O fungo forma escleródios: bolinhas duras de hifas que resistem anos no solo. Com raiz por perto, germinam e atacam.'),
   ] },
   'organism-phosphate-solubilizer': { phase: 7, label: 'Caminho do fósforo', steps: [
-    s('Ácidos', 'A bactéria libera ácidos orgânicos junto ao mineral.'),
-    s('Fosfato livre', 'Parte do fosfato preso se solta no solo.'),
-    s('Raiz', 'A micorriza leva o fosfato até a raiz.'),
+    s('Ácidos', 'Muito fósforo do solo está preso em minerais, como o fosfato de cálcio. A bactéria libera ácidos orgânicos junto deles.'),
+    s('Fosfato livre', 'Os ácidos dissolvem o mineral e soltam o fosfato. Livre na água do solo, ele pode ser absorvido.'),
+    s('Raiz', 'As hifas da micorriza alcançam o fosfato liberado e o levam até a raiz. Com fósforo, a planta produz energia e cresce.'),
   ] },
   'organism-meloidogyne-j2': { phase: 8, label: 'Invasão do J2', steps: [
-    s('Eclosão', 'O J2 sai do ovo e procura uma raiz.'),
-    s('Penetração', 'Entra na raiz e migra até um bom ponto.'),
-    s('Células gigantes', 'Induz células gigantes que o alimentam.'),
+    s('Eclosão', 'J2 é o juvenil de segundo estágio: um verme microscópico que sai do ovo e nada na água do solo atrás de uma raiz.'),
+    s('Penetração', 'Com o estilete, uma agulha na boca, o J2 perfura a ponta da raiz. Lá dentro, migra até perto dos vasos.'),
+    s('Células gigantes', 'O J2 injeta substâncias que transformam células da raiz em células gigantes. Elas viram a fonte de alimento dele.'),
   ] },
   'organism-meloidogyne-female': { phase: 8, label: 'Ciclo do Meloidogyne', steps: [
-    s('Ovo', 'O J1 se desenvolve e muda dentro do ovo.'),
-    s('J2', 'O juvenil infectivo eclode e busca uma raiz.'),
-    s('Galha', 'Dentro da raiz, induz células gigantes e a galha cresce.'),
-    s('Fêmea', 'A fêmea cresce parada e protegida no tecido.'),
-    s('Massa de ovos', 'Ela deposita centenas de ovos: o ciclo recomeça.'),
+    s('Ovo', 'Dentro do ovo, o juvenil de primeiro estágio (J1) se desenvolve e troca de pele. Ele já sai do ovo como J2.'),
+    s('J2', 'O J2 eclode, procura uma raiz e entra nela. Esse é o único estágio que se move pelo solo.'),
+    s('Galha', 'As células gigantes e o tecido ao redor incham e formam a galha, um caroço na raiz. A raiz passa a levar menos água.'),
+    s('Fêmea', 'O juvenil cresce, perde a forma de verme e vira uma fêmea arredondada. Ela fica parada, presa às células gigantes.'),
+    s('Massa de ovos', 'A fêmea põe centenas de ovos numa geleia, a massa de ovos, na superfície da raiz. Dali sai a próxima geração.'),
   ] },
   'organism-ralstonia': { phase: 9, label: 'Ciclo da murcha', steps: [
-    s('Solo e água', 'Ralstonia sobrevive no solo e na água.'),
-    s('Entrada', 'Entra por feridas ou pela saída de raízes laterais.'),
-    s('Xilema', 'Multiplica-se nos vasos e produz exopolissacarídeos.'),
-    s('Murcha', 'O fluxo de água cai e a planta murcha.'),
-    s('Disseminação', 'A raiz doente solta bactérias que ameaçam outras raízes.'),
+    s('Solo e água', 'Ralstonia é uma bactéria que sobrevive no solo e na água de irrigação. Ela espera uma porta de entrada na raiz.'),
+    s('Entrada', 'Entra por ferimentos ou pelas aberturas onde nascem as raízes laterais. Dali chega ao xilema.'),
+    s('Xilema', 'Xilema são os vasos que levam água da raiz às folhas. Ali a bactéria se multiplica e produz uma goma, o exopolissacarídeo.'),
+    s('Murcha', 'A goma e as bactérias entopem os vasos. A água não sobe, e a planta murcha mesmo com o solo úmido.'),
+    s('Disseminação', 'A raiz doente libera bactérias no solo e na água. Elas podem chegar a outras raízes e reiniciar a infecção.'),
   ] },
 };
 

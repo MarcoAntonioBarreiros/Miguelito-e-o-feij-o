@@ -819,7 +819,7 @@ const arrivalTour = createArrivalTour({
   cameraView,
   isTouch: () => Boolean(window.matchMedia?.('(pointer: coarse)').matches),
   playerFraming: zoomValue => playerFraming(zoomValue),
-  // so depois que o cartao da fase ("Fase 1 ...") sai da tela
+  // o balao so aparece depois que o cartao da fase ("Fase 1 ...") sai da tela
   ready: () => !document.getElementById('phase-card')?.classList.contains('show'),
   // Opcao (c): o cartao de boas-vindas fica so com "cartoes e GUIA" e abre
   // logo depois da chegada guiada. Hoje ele nunca abria na campanha: pertence
@@ -1530,6 +1530,14 @@ function initGame({ announce = false } = {}) {
 
 let phaseCardTimer = null;
 
+// Tira o cartao da fase agora (mesma animacao de saida).
+function hurryPhaseCard() {
+  if (!phaseCardDiv?.classList.contains('show') || phaseCardDiv.classList.contains('leaving')) return;
+  clearTimeout(phaseCardTimer);
+  phaseCardDiv.classList.add('leaving');
+  phaseCardTimer = setTimeout(() => phaseCardDiv.classList.remove('show', 'leaving'), 1100);
+}
+
 function showPhaseCard(eyebrow, title, subtitle) {
   if (!phaseCardDiv) return;
   phaseCardDiv.innerHTML = `<span class="eyebrow">${eyebrow}</span>`
@@ -1987,7 +1995,8 @@ function updateIntroFall() {
   // Pousou lá embaixo: a cena acaba e começa a chegada guiada (uma vez).
   if (player.onGround && player.y > intro.surface + 120) {
     sim.state.introFall = null;
-    arrivalTour.start();
+    // Sem espera parada: o cartao da fase ja sai e a chegada guiada comeca.
+    if (arrivalTour.start()) hurryPhaseCard();
   }
 }
 

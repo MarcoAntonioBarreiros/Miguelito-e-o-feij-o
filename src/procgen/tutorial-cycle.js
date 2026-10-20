@@ -8,13 +8,16 @@ export function tutorialCycleStep(card, index) {
 
 export function tutorialCycleLayout(count, narrow = false) {
   if (!count) return { height: 0, positions: [], path: '', arrows: [] };
+  // distancia entre as linhas do percurso: mais curta que antes para sobrar
+  // espaco para a legenda de cada etapa, que agora explica o termo
+  const gap = narrow ? 118 : 128;
   const top = count <= 3 ? count : Math.ceil(count / 2);
   const positions = Array.from({ length: count }, (_, index) => {
     const row = narrow ? Math.floor(index / 2) : Number(index >= top);
     const length = narrow ? Math.min(2, count - row * 2) : row ? count - top : top;
     const local = narrow ? index % 2 : row ? index - top : index;
     const column = row % 2 ? length - 1 - local : local;
-    return { x: length === 1 ? 175 : (narrow ? 90 : 58) + column / (length - 1) * (narrow ? 202 : 234), y: 64 + row * 156 };
+    return { x: length === 1 ? 175 : (narrow ? 90 : 58) + column / (length - 1) * (narrow ? 202 : 234), y: 64 + row * gap };
   });
   let path = `M${positions[0].x} ${positions[0].y}`;
   const arrows = [];
@@ -26,11 +29,13 @@ export function tutorialCycleLayout(count, narrow = false) {
     } else {
       const right = a.x > 175;
       const edge = right ? 366 : 12;
-      path += ` Q${edge} ${a.y} ${edge} ${a.y + 75} V${b.y - 75} Q${edge} ${b.y} ${b.x} ${b.y}`;
+      path += ` Q${edge} ${a.y} ${edge} ${a.y + gap / 2} Q${edge} ${b.y} ${b.x} ${b.y}`;
       arrows.push({ x: edge, y: (a.y + b.y) / 2, angle: 90 });
     }
   }
-  return { height: positions.at(-1).y + 80, positions, path, arrows };
+  // uma linha so: sobra uma faixa embaixo para a legenda "Etapa N de M"
+  const singleRow = positions.every(position => position.y === positions[0].y);
+  return { height: positions.at(-1).y + 80 + (singleRow ? 26 : 0), positions, path, arrows, singleRow };
 }
 
 export function createTutorialCycle(block, onChange) {
@@ -59,6 +64,7 @@ export function createTutorialCycle(block, onChange) {
   function render() {
     const layout = tutorialCycleLayout(card.cycle.length, media.matches);
     block.classList.toggle('tutorial-cycle-block--narrow', media.matches);
+    block.classList.toggle('tutorial-cycle-block--single', layout.singleRow);
     block.style.setProperty('--cycle-ratio', `400 / ${layout.height}`);
     svg.setAttribute('viewBox', `0 0 400 ${layout.height}`);
     svg.replaceChildren(); list.replaceChildren();

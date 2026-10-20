@@ -51,7 +51,7 @@ test('ciclos: 13, de 3 a 5 etapas, legenda propria curta e sem repeticao', () =>
     assert.equal(new Set(captions).size, captions.length, `${id}: legenda repetida`);
     for (const step of cycle.steps) {
       assert.ok(step.label.length <= 22, `${id}: rotulo longo "${step.label}"`);
-      assert.ok(step.caption.length <= 70, `${id}: legenda ${step.caption.length} "${step.caption}"`);
+      assert.ok(step.caption.length <= 140, `${id}: legenda ${step.caption.length} "${step.caption}"`);
     }
   }
 });

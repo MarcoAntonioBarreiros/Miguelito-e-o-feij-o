@@ -11,95 +11,97 @@ Gerado de `src/procgen/tutorial-text-revision.js`. Ligado ao jogo em `tutorial-r
 
 ## 2. Ciclos (13) — aparecem no fim da fase, como revisão, e depois no GUIA
 
+Cada etapa: o que acontece e, quando há termo novo, o que ele é (até 140 caracteres).
+
 ### Bacillus — Ciclo do Bacillus (fim da fase 1)
 
-1. **Célula ativa** — A célula cresce e se divide perto da raiz.
-2. **Biofilme** — As células aderem e produzem a matriz que protege a raiz.
-3. **Endósporo** — Sob estresse, algumas células viram endósporos resistentes.
-4. **Germinação** — Com alimento de novo, o endósporo germina e volta a crescer.
+1. **Célula ativa** — Perto da raiz, a célula se alimenta de exsudatos, cresce e se divide em duas. Assim a população aumenta.
+2. **Biofilme** — As células grudam na raiz e produzem uma matriz pegajosa. Esse conjunto, o biofilme, forma uma camada que protege a raiz.
+3. **Endósporo** — Sem alimento, a célula forma um endósporo: uma cápsula dura e dormente que resiste à seca, ao calor e à falta de comida.
+4. **Germinação** — Com exsudatos de novo, o endósporo germina: a cápsula se abre e sai uma célula ativa, pronta para crescer e se dividir.
 
 ### Rhizobium — Formação do nódulo (fim da fase 2)
 
-1. **Reconhecimento** — A raiz libera sinais; o rizóbio responde com fatores Nod.
-2. **Fio de infecção** — O pelo se curva e um fio leva as bactérias para dentro.
-3. **Nódulo** — A planta forma o nódulo e as bactérias viram bacteroides.
-4. **FBN** — A nitrogenase transforma N₂ em amônia para a planta.
+1. **Reconhecimento** — A raiz libera flavonoides, sinais químicos. O rizóbio responde com fatores Nod, moléculas que dizem à planta: sou parceiro.
+2. **Fio de infecção** — O pelo da raiz se curva e prende as bactérias. Por dentro dele cresce um tubo, o fio de infecção, que as leva para dentro.
+3. **Nódulo** — A raiz forma um órgão novo, o nódulo. Lá dentro, as bactérias mudam de forma e viram bacteroides, as fixadoras de nitrogênio.
+4. **FBN** — Nos bacteroides, a enzima nitrogenase transforma o N₂ do ar em amônia. Em troca, a planta fornece açúcares à bactéria.
 
 ### Fixação biológica de nitrogênio — Do ar para a planta (fim da fase 2)
 
-1. **N₂ do ar** — O nitrogênio do ar é abundante, mas a planta não o usa.
-2. **Nitrogenase** — A enzima quebra a ligação forte do N₂, gastando energia.
-3. **Amônia** — O produto é amônia, uma forma que a planta aproveita.
-4. **Planta** — Vira aminoácidos, proteínas e clorofila.
+1. **N₂ do ar** — Quase 80% do ar é nitrogênio (N₂). Mas a planta não usa o N₂: seus dois átomos estão presos por uma ligação tripla.
+2. **Nitrogenase** — A nitrogenase é a enzima que quebra essa ligação. Gasta muita energia e para com oxigênio: a leghemoglobina o controla.
+3. **Amônia** — O N₂ quebrado vira amônia (NH₃), uma forma de nitrogênio que a planta consegue absorver e usar.
+4. **Planta** — Com a amônia, a planta produz aminoácidos, proteínas e clorofila. Por isso as folhas ficam verdes e a planta cresce.
 
 ### Azospirillum — Novas raízes (fim da fase 3)
 
-1. **Colonização** — Azospirillum se instala na superfície da raiz.
-2. **AIA** — Produz AIA, um fitormônio de crescimento.
-3. **Raízes laterais** — Novas ramificações e pelos aumentam o alcance da raiz.
+1. **Colonização** — Azospirillum vive grudado na superfície da raiz, o rizoplano. Diferente do rizóbio, ele não forma nódulos.
+2. **AIA** — Azospirillum produz AIA, um hormônio vegetal do grupo das auxinas. Ele avisa a raiz que é hora de crescer e ramificar.
+3. **Raízes laterais** — Com mais AIA, nascem raízes laterais e pelos radiculares. A raiz explora mais solo e absorve mais água e nutrientes.
 
 ### Micorriza arbuscular — Ciclo da micorriza (fim da fase 4)
 
-1. **Contato** — A hifa encontra a raiz guiada por sinais químicos.
-2. **Córtex** — O fungo cresce entre as células internas da raiz.
-3. **Arbúsculo** — Dentro da célula, planta e fungo trocam carbono e nutrientes.
-4. **Rede no solo** — Hifas externas buscam fósforo longe da raiz.
+1. **Contato** — A raiz libera estrigolactonas, sinais que atraem o fungo. A hifa, o fio fino do fungo, cresce em direção à raiz.
+2. **Córtex** — A hifa entra na raiz e cresce no córtex, a camada de células logo abaixo da superfície, sem causar doença.
+3. **Arbúsculo** — Dentro da célula, a hifa se ramifica como uma arvorezinha: o arbúsculo. Ali a planta entrega açúcar e recebe fósforo.
+4. **Rede no solo** — Hifas externas se espalham pelo solo, bem além da raiz. Elas alcançam fósforo e água onde a raiz não chega.
 
 ### Pseudomonas — A caça ao ferro (fim da fase 5)
 
-1. **Colonização** — Pseudomonas se instala perto da raiz.
-2. **Sideróforo** — Libera moléculas que procuram ferro.
-3. **Captura de Fe³⁺** — O sideróforo prende o ferro com força.
-4. **Retorno** — A célula recolhe o ferro; o competidor fica sem.
+1. **Colonização** — Pseudomonas se instala na raiz e se alimenta de exsudatos. Ela disputa esse espaço com outros micróbios.
+2. **Sideróforo** — Com pouco ferro por perto, ela libera sideróforos: moléculas que saem da célula para procurar e agarrar ferro no solo.
+3. **Captura de Fe³⁺** — O sideróforo prende o ferro (Fe³⁺) com muita força. Os outros micróbios não conseguem tirar esse ferro dele.
+4. **Retorno** — A célula reconhece o sideróforo carregado e recolhe o ferro. Sem ferro, o fungo competidor perde força.
 
 ### Fungo oportunista — Ciclo do oportunista (fim da fase 5)
 
-1. **Esporo** — O esporo chega a uma raiz enfraquecida.
-2. **Contato** — Germina e as hifas aderem ao tecido.
-3. **Colonização** — A rede cresce pelas pontas e ramifica.
-4. **Novos esporos** — A rede madura libera esporos para outras raízes.
+1. **Esporo** — Esporos funcionam como sementes do fungo, levados pela água e pelo solo. Eles esperam uma raiz enfraquecida.
+2. **Contato** — O esporo germina e solta uma hifa, um fio fino do fungo. Ela adere à superfície da raiz e começa a entrar no tecido.
+3. **Colonização** — A hifa cresce pela ponta e se ramifica, formando uma rede: o micélio. O fungo se alimenta do tecido da raiz.
+4. **Novos esporos** — O micélio maduro produz novos esporos. Eles se espalham e podem infectar outras raízes enfraquecidas.
 
 ### Trichoderma — Micoparasitismo (fim da fase 6)
 
-1. **Reconhecimento** — Trichoderma detecta o fungo-alvo antes do contato.
-2. **Enrolamento** — A hifa cresce até o alvo e se enrola nele.
-3. **Enzimas** — Enzimas degradam a parede celular do alvo.
-4. **Lise** — O fungo-alvo é destruído.
+1. **Reconhecimento** — Trichoderma percebe sinais químicos do fungo-alvo antes do contato. A hifa então cresce na direção dele.
+2. **Enrolamento** — A hifa de Trichoderma chega ao alvo e se enrola nele, como uma trepadeira. Assim fica presa e pronta para atacar.
+3. **Enzimas** — Ela libera quitinases e glucanases, enzimas que digerem a parede celular do alvo, feita de quitina e glucanos.
+4. **Lise** — Sem parede, a célula do alvo se rompe: é a lise. Trichoderma aproveita os nutrientes e a raiz fica livre.
 
 ### Rhizoctonia — Ciclo da Rhizoctonia (fim da fase 6)
 
-1. **Solo** — Sobrevive no solo como micélio e escleródios.
-2. **Almofada de infecção** — As hifas formam estruturas que penetram a raiz.
-3. **Lesão** — O tecido é degradado e a raiz perde função.
-4. **Persistência** — Escleródios garantem a volta na próxima oportunidade.
+1. **Solo** — Rhizoctonia vive no solo como micélio (rede de hifas) e escleródios. Ela se espalha crescendo, quase sem formar esporos.
+2. **Almofada de infecção** — Na raiz, as hifas se juntam numa almofada de infecção: um tufo que se prende ao tecido e abre caminho para dentro.
+3. **Lesão** — O fungo libera enzimas que degradam as células. Surge uma lesão escura, e a raiz perde a capacidade de levar água.
+4. **Persistência** — O fungo forma escleródios: bolinhas duras de hifas que resistem anos no solo. Com raiz por perto, germinam e atacam.
 
 ### Bacillus — cepa solubilizadora — Caminho do fósforo (fim da fase 7)
 
-1. **Ácidos** — A bactéria libera ácidos orgânicos junto ao mineral.
-2. **Fosfato livre** — Parte do fosfato preso se solta no solo.
-3. **Raiz** — A micorriza leva o fosfato até a raiz.
+1. **Ácidos** — Muito fósforo do solo está preso em minerais, como o fosfato de cálcio. A bactéria libera ácidos orgânicos junto deles.
+2. **Fosfato livre** — Os ácidos dissolvem o mineral e soltam o fosfato. Livre na água do solo, ele pode ser absorvido.
+3. **Raiz** — As hifas da micorriza alcançam o fosfato liberado e o levam até a raiz. Com fósforo, a planta produz energia e cresce.
 
 ### Meloidogyne — juvenil J2 — Invasão do J2 (fim da fase 8)
 
-1. **Eclosão** — O J2 sai do ovo e procura uma raiz.
-2. **Penetração** — Entra na raiz e migra até um bom ponto.
-3. **Células gigantes** — Induz células gigantes que o alimentam.
+1. **Eclosão** — J2 é o juvenil de segundo estágio: um verme microscópico que sai do ovo e nada na água do solo atrás de uma raiz.
+2. **Penetração** — Com o estilete, uma agulha na boca, o J2 perfura a ponta da raiz. Lá dentro, migra até perto dos vasos.
+3. **Células gigantes** — O J2 injeta substâncias que transformam células da raiz em células gigantes. Elas viram a fonte de alimento dele.
 
 ### Meloidogyne — fêmea adulta — Ciclo do Meloidogyne (fim da fase 8)
 
-1. **Ovo** — O J1 se desenvolve e muda dentro do ovo.
-2. **J2** — O juvenil infectivo eclode e busca uma raiz.
-3. **Galha** — Dentro da raiz, induz células gigantes e a galha cresce.
-4. **Fêmea** — A fêmea cresce parada e protegida no tecido.
-5. **Massa de ovos** — Ela deposita centenas de ovos: o ciclo recomeça.
+1. **Ovo** — Dentro do ovo, o juvenil de primeiro estágio (J1) se desenvolve e troca de pele. Ele já sai do ovo como J2.
+2. **J2** — O J2 eclode, procura uma raiz e entra nela. Esse é o único estágio que se move pelo solo.
+3. **Galha** — As células gigantes e o tecido ao redor incham e formam a galha, um caroço na raiz. A raiz passa a levar menos água.
+4. **Fêmea** — O juvenil cresce, perde a forma de verme e vira uma fêmea arredondada. Ela fica parada, presa às células gigantes.
+5. **Massa de ovos** — A fêmea põe centenas de ovos numa geleia, a massa de ovos, na superfície da raiz. Dali sai a próxima geração.
 
 ### Ralstonia — Ciclo da murcha (fim da fase 9)
 
-1. **Solo e água** — Ralstonia sobrevive no solo e na água.
-2. **Entrada** — Entra por feridas ou pela saída de raízes laterais.
-3. **Xilema** — Multiplica-se nos vasos e produz exopolissacarídeos.
-4. **Murcha** — O fluxo de água cai e a planta murcha.
-5. **Disseminação** — A raiz doente solta bactérias que ameaçam outras raízes.
+1. **Solo e água** — Ralstonia é uma bactéria que sobrevive no solo e na água de irrigação. Ela espera uma porta de entrada na raiz.
+2. **Entrada** — Entra por ferimentos ou pelas aberturas onde nascem as raízes laterais. Dali chega ao xilema.
+3. **Xilema** — Xilema são os vasos que levam água da raiz às folhas. Ali a bactéria se multiplica e produz uma goma, o exopolissacarídeo.
+4. **Murcha** — A goma e as bactérias entopem os vasos. A água não sobe, e a planta murcha mesmo com o solo úmido.
+5. **Disseminação** — A raiz doente libera bactérias no solo e na água. Elas podem chegar a outras raízes e reiniciar a infecção.
 
 **Perdem o ciclo:** Rizosfera Viva, Exsudato radicular, Inoculação, Salto duplo, Dash, Propulsão da Rizósfera, Pulso de solubilização, Saúde da raiz, Recuperação radicular, Perda de sustentação, Nódulo radicular, Biofilme, Sideróforo, Pseudomonas × fungo oportunista, Entrada pelo ferimento, Obstrução do xilema, Contenção vascular, Disseminação bacteriana, Arbúsculo, Ponte micorrízica horizontal, Raiz lateral, Massa de ovos de Meloidogyne, Galha radicular, Micoparasitismo.
 
