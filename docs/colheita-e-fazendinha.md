@@ -40,3 +40,11 @@ A fase não avança mais sozinha: espera o Continuar. O Phase Lab mantém o flux
 Crédito único: cada colheita tem o id `semente-da-campanha:fase-N`; um id já pago não paga de novo (recarga da página, fase repetida).
 
 Também abre pelo menu de pausa (Fazendinha). O canteiro mostra o feijoeiro da última colheita.
+
+## Arte da lavoura por nota — `src/farm/bean-field.js`
+
+`fieldLevelFromScore(score)`: seca (<35), doente (35–59), saudável (60–84), super (≥85). O feijoeiro do boletim continua com os três estados de `phase-score.js`.
+
+Arquivos em `assets/farm`: `feijao-seco-1`, `feijao-doente-1..2`, `feijao-saudavel-1..3` (as variações se alternam ao longo da fileira) e, no super, `feijao-1` (fim de fase) / `feijao-1..4` (fazendinha). Substitui o tingimento por filtro/shader.
+
+Na fazendinha a lavoura só aparece quando há colheita pendente (fim de fase interrompido antes da colheitadeira); normalmente fica a área arada.

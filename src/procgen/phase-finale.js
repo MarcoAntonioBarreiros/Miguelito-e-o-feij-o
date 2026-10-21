@@ -24,6 +24,7 @@
 //
 // A PLANTA É O BOLETIM: o porte sai de `buildPhaseReport().score`.
 
+import { FIELD_ART, fieldLevelFromScore } from '../farm/bean-field.js';
 import {
   beanPlantHeight,
   drawBeanPlant,
@@ -75,34 +76,25 @@ export function phaseFinaleSeconds(celebrationSeconds = 0) {
 // a lavoura vira moeda. A arte vem de assets/farm; sem ela (testes), a cena
 // segue exatamente como antes, so com o feijoeiro.
 export const FINALE_HARVEST_SECONDS = 6.5;
-const FIELD_ROWS = [
-  { src: './assets/farm/feijao-1.webp', height: 1, lift: 0, haze: 0 },
-];
+const FIELD_ROW = { height: 1, lift: 0, haze: 0 };
 const HARVESTER_SRC = './assets/farm/colheitadeira.webp';
-// tom da lavoura por estado do feijoeiro (doente amarela)
-const FIELD_TONE = ['sepia(0.5) saturate(1.15) hue-rotate(-14deg) brightness(0.96)', 'saturate(0.92)', 'none'];
 
+// Arte da lavoura nos quatro niveis (bean-field.js): seca, doente, saudavel e
+// super. Cada nivel fica pronto quando todas as suas variacoes carregam.
 function loadFieldArt() {
   if (typeof Image === 'undefined' || typeof document === 'undefined') return null;
-  const art = { rows: [], harvester: null, ready: false };
-  let pending = FIELD_ROWS.length + 1;
+  const art = { levels: FIELD_ART.map(() => null), harvester: null, ready: false };
+  let pending = FIELD_ART.length + 1;
   const done = () => { if (--pending === 0) art.ready = true; };
-  FIELD_ROWS.forEach((row, i) => {
-    const img = new Image();
-    img.onload = () => {
-      // tres versoes ja tingidas (doente, saudavel, super): nada de filtro por quadro
-      art.rows[i] = FIELD_TONE.map(filter => {
-        const c = document.createElement('canvas');
-        c.width = img.naturalWidth; c.height = img.naturalHeight;
-        const g = c.getContext('2d');
-        g.filter = filter;
-        g.drawImage(img, 0, 0);
-        return c;
-      });
-      done();
-    };
-    img.onerror = () => { pending = Infinity; };
-    img.src = row.src;
+  FIELD_ART.forEach((files, level) => {
+    const imgs = [];
+    let left = files.length;
+    files.forEach((file, i) => {
+      const img = new Image();
+      img.onload = () => { imgs[i] = img; if (--left === 0) { art.levels[level] = imgs; done(); } };
+      img.onerror = () => { pending = Infinity; };
+      img.src = `./assets/farm/${file}`;
+    });
   });
   const tractor = new Image();
   tractor.onload = () => { art.harvester = tractor; done(); };
@@ -125,6 +117,7 @@ export function createPhaseFinale({ state, cameraView, getViewport, onHarvested 
   let clock = 0;
   let report = null;
   let plantState = 1;
+  let fieldLevel = 2;
   let celebrateSeconds = 0;
   let celebratedFrom = 0;
   let goal = null;
@@ -161,6 +154,7 @@ export function createPhaseFinale({ state, cameraView, getViewport, onHarvested 
     clock = 0;
     report = null;
     plantState = 1;
+    fieldLevel = 2;
     celebrateSeconds = 0;
     celebratedFrom = 0;
     goal = null;
@@ -221,6 +215,7 @@ export function createPhaseFinale({ state, cameraView, getViewport, onHarvested 
     report = phaseReport;
     // a nota nova (phase-score.js) ja traz o estado; relatorio antigo cai na regra antiga
     plantState = Number.isInteger(phaseReport?.plantState) ? phaseReport.plantState : plantStateFromScore(phaseReport?.score);
+    fieldLevel = fieldLevelFromScore(phaseReport?.score);
     celebrateSeconds = Math.max(0, Number(celebrationSeconds) || 0);
     const bounds = finalRootBounds(goal, FINAL_ROOT_SCALE);
     collar = { x: bounds.collarX, y: bounds.collarY };
@@ -434,9 +429,10 @@ export function createPhaseFinale({ state, cameraView, getViewport, onHarvested 
     // o feijoeiro da fase (o boletim) fica num vao proprio, a vista: as
     // fileiras nascem das bordas do vao para fora, com a ponta natural da arte
     const gap = rowH * .7;
-    FIELD_ROWS.forEach((row, r) => {
-      const tex = fieldArt.rows[r]?.[plantState] || fieldArt.rows[r]?.[1];
-      if (!tex) return;
+    [FIELD_ROW].forEach(row => {
+      const texs = fieldArt.levels[fieldLevel] || fieldArt.levels[2];
+      if (!texs?.length) return;
+      let tex = texs[0];
       const h = rowH * row.height;
       const w = tex.width * h / (tex.height * .9);
       const step = w * .9;
@@ -446,6 +442,8 @@ export function createPhaseFinale({ state, cameraView, getViewport, onHarvested 
       for (let x = collar.x - gap - w, k = 0; x > view.x0 - w * 2; x -= step, k++) tiles.push({ x, k: -k - 1, flip: k % 2 === 0 });
       for (const tile of tiles) {
         const { x, k } = tile;
+        // as variacoes do nivel se alternam ao longo da fileira
+        tex = texs[Math.abs(k) % texs.length];
         // cresce do chao, cada pe com um pequeno atraso
         const g = smooth(clamp(growth * 1.25 - (((k % 5) + 5) % 5) * .05));
         if (g <= 0) continue;
@@ -603,6 +601,7 @@ export function createPhaseFinale({ state, cameraView, getViewport, onHarvested 
     get active() { return mode !== 'idle'; },
     get mode() { return mode; },
     get plantState() { return plantState; },
+    get fieldLevel() { return fieldLevel; },
     get growth() { return growth; },
     get harvesting() { return mode === 'harvest'; },
     get cardAlpha() { return cardAlpha; },

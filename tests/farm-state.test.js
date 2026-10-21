@@ -62,3 +62,16 @@ test('estado salvo e restaurado; lixo no storage nao quebra', () => {
   storage.setItem(FARM_STORAGE_KEY, '{quebrado');
   assert.deepEqual(loadFarm(storage), blankFarm());
 });
+
+test('lavoura: quatro niveis de arte pela nota da colheita', async () => {
+  const { fieldLevelFromScore, FIELD_ART } = await import('../src/farm/bean-field.js');
+  assert.equal(fieldLevelFromScore(0), 0);
+  assert.equal(fieldLevelFromScore(34.9), 0);
+  assert.equal(fieldLevelFromScore(35), 1);
+  assert.equal(fieldLevelFromScore(59), 1);
+  assert.equal(fieldLevelFromScore(60), 2);
+  assert.equal(fieldLevelFromScore(84), 2);
+  assert.equal(fieldLevelFromScore(85), 3);
+  assert.equal(fieldLevelFromScore(undefined), 2);
+  assert.equal(FIELD_ART.length, 4);
+});

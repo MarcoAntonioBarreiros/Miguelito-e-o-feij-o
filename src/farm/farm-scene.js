@@ -16,6 +16,7 @@
 //
 // Coordenadas da cena: 1920 x 1080. O enquadramento cobre a tela (cover).
 
+import { FIELD_ART, FIELD_LEVEL } from './bean-field.js';
 import { generateSpriteNormalMap } from '../../experimental/2_5d/gl/sprite-normals.js';
 
 export const SCENE_W = 1920;
@@ -37,6 +38,8 @@ const LAYERS = {
   bean2: { src: 'feijao-2.webp', normal: true },
   bean3: { src: 'feijao-3.webp', normal: true },
   bean4: { src: 'feijao-4.webp', normal: true },
+  // lavoura seca, doente e saudavel (o super usa as quatro acima)
+  ...Object.fromEntries(FIELD_ART.slice(0, FIELD_LEVEL.SUPER).flat().map(src => [src, { src, normal: true }])),
   tractor: { src: 'colheitadeira.webp', normal: true },
   foreground: { src: 'primeiro-plano.webp', blur: 3.2 },
   ground: { src: 'chao.webp' },
@@ -473,9 +476,10 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
     gl.enable(gl.BLEND);
 
     // tudo que pousa no chao, de tras para frente
+    // a nota da colheita decide a lavoura (bean-field.js: 0 seca .. 3 super);
+    // -1 = ja colhida (so terra)
     const state = plantState();
-    // a nota da colheita decide a cara da lavoura; -1 = ja colhida (so terra)
-    const sick = state === 0 ? .85 : state === 1 ? .18 : 0;
+    const levelArt = state >= 0 && state < FIELD_LEVEL.SUPER ? FIELD_ART[state].map(src => textures[src]) : null;
     const run = harvest();
     const pose = run ? harvestPose(run.t) : null;
     const cut = state < 0 ? Infinity : pose ? pose.cut : -Infinity;
@@ -485,7 +489,7 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
       { id: 'treeA', y: LAYERS.treeA.at[1], draw: () => drawSprite(textures.treeA, anchoredRect(LAYERS.treeA, textures.treeA), { depth: .46, sway: 1, swayAmp: LAYERS.treeA.swayAmp, seed: 4.1, rim: .75 }) },
     ];
     BEAN_ROWS.forEach((row, r) => {
-      const tex = textures[row.tex];
+      const tex = levelArt ? levelArt[r % levelArt.length] : textures[row.tex];
       const scale = row.height / (tex.h * .9);
       const w = tex.w * scale, h = tex.h * scale;
       const step = w * .9; // pedacos se sobrepoem para nao mostrar emenda
@@ -493,8 +497,10 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
         for (let x = row.x0, k = 0; x < BEAN_X1; x += step, k++) {
           // espelha um pedaco sim, outro nao: a repeticao nao fica obvia
           const flip = k % 2 === 1;
-          drawSprite(tex, flip ? [x + w, row.base - h * .97, -w, h] : [x, row.base - h * .97, w, h],
-            { depth: depthAt(row.base), sway: 2, swayAmp: .006, seed: r * 2.1 + k * 1.3, rim: .55, sick, cut });
+          // nos niveis com mais de uma arte, as variacoes se alternam
+          const t = levelArt ? levelArt[(r + k) % levelArt.length] : tex;
+          drawSprite(t, flip ? [x + w, row.base - h * .97, -w, h] : [x, row.base - h * .97, w, h],
+            { depth: depthAt(row.base), sway: 2, swayAmp: .006, seed: r * 2.1 + k * 1.3, rim: .55, cut });
         }
       } });
     });

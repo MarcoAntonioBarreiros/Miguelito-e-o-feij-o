@@ -9,6 +9,7 @@ import { FARM_ITEMS, FARM_SLOT_COUNT, getFarmItem } from './farm-items.js';
 import {
   buyItem, canBuy, collectHarvests, loadFarm, pendingCoins, pendingHarvests, pickUpItem, placeItem, saveFarm,
 } from './farm-state.js';
+import { fieldLevelFromScore } from './bean-field.js';
 import { createFarmScene, depthAt, FARM_SLOTS, HARVEST_PATH, harvestPose } from './farm-scene.js';
 
 
@@ -90,7 +91,7 @@ export function createFarmView({ onClose = () => {} } = {}) {
   function plantState() {
     const score = run ? run.score : null;
     if (!Number.isFinite(score)) return -1;
-    return score >= 85 ? 2 : score >= 60 ? 1 : 0;
+    return fieldLevelFromScore(score);
   }
 
   function startHarvest() {
