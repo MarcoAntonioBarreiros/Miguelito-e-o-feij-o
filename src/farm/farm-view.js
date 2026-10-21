@@ -7,41 +7,51 @@
 
 import { FARM_ITEMS, FARM_SLOT_COUNT, getFarmItem } from './farm-items.js';
 import { buyItem, canBuy, loadFarm, pickUpItem, placeItem, saveFarm } from './farm-state.js';
+import { createFarmScene, depthAt, FARM_SLOTS } from './farm-scene.js';
 
-const W = 960, H = 540;
-// base (chao) de cada espaco de melhoria, em coordenadas da cena
-const SLOTS = [
-  { x: 676, y: 392, s: .72 },
-  { x: 860, y: 392, s: .72 },
-  { x: 650, y: 500, s: .86 },
-  { x: 850, y: 500, s: .86 },
-];
 
 const STYLE = `
-#farm-overlay { position: fixed; inset: 0; z-index: 240; display: flex; flex-direction: column; align-items: center;
-  gap: 10px; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); overflow-y: auto;
-  background: rgba(14,8,5,.92); color: #fbeedd; font-family: 'Tutorial Atkinson','Atkinson Hyperlegible',system-ui,sans-serif; }
+#farm-overlay { position: fixed; inset: 0; z-index: 240; background: #1b120c; color: #fbeedd; overflow: hidden;
+  font-family: 'Tutorial Atkinson','Atkinson Hyperlegible',system-ui,sans-serif; touch-action: none; }
 #farm-overlay[hidden] { display: none; }
-#farm-overlay .farm-top { width: min(960px,100%); display: flex; align-items: center; gap: 12px; }
-#farm-overlay h1 { margin: 0; font: 800 1.7rem/1 'Tutorial Grandstander','Grandstander',system-ui; color: #fff4e2; }
-#farm-overlay .farm-coins { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px;
-  border-radius: 999px; background: #3a1a11; border: 1px solid rgba(255,214,170,.25); font: 800 1.15rem/1 system-ui; }
+#farm-overlay .farm-stage, #farm-overlay .farm-gl, #farm-overlay .farm-marks { position: absolute; inset: 0; width: 100%; height: 100%; }
+#farm-overlay .farm-marks { cursor: pointer; }
+#farm-overlay .farm-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 16px; right: 16px; display: flex; align-items: center; gap: 12px; pointer-events: none; }
+#farm-overlay .farm-top > * { pointer-events: auto; }
+#farm-overlay h1 { margin: 0; font: 800 1.8rem/1 'Tutorial Grandstander','Grandstander',system-ui; color: #fff8e8;
+  text-shadow: 0 2px 0 rgba(80,40,10,.45), 0 0 18px rgba(0,0,0,.25); }
+#farm-overlay .farm-coins { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
+  background: rgba(42,19,13,.82); border: 1px solid rgba(255,214,170,.3); font: 800 1.15rem/1 system-ui; backdrop-filter: blur(4px); }
 .farm-coin { display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff2a8, #f2b63c 60%, #b97a17);
   box-shadow: inset 0 0 0 2px #c98a1d; vertical-align: -3px; }
-#farm-overlay .farm-back { border: 1.5px solid rgba(255,214,170,.3); background: transparent; color: #fbeedd; border-radius: 999px;
-  padding: 8px 16px; font: 700 .95rem/1 inherit; cursor: pointer; }
-#farm-overlay > canvas { flex: none; height: auto; width: min(960px, 100%, max(calc((100dvh - 230px) * 16 / 9), 320px)); aspect-ratio: 16/9; border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.5); cursor: pointer; touch-action: manipulation; }
-#farm-overlay .farm-msg { min-height: 1.3em; margin: 0; color: #ffc35a; font-weight: 700; text-align: center; }
-#farm-overlay .farm-shop { width: min(960px,100%); display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; }
-#farm-overlay .farm-item { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; padding: 10px; border-radius: 14px;
-  background: linear-gradient(160deg,#3a1a11,#2a130d 60%); border: 1px solid rgba(255,214,170,.2); }
-#farm-overlay .farm-item canvas { width: 64px; height: 64px; aspect-ratio: auto; border-radius: 10px; box-shadow: none; background: #f6ecd2; cursor: default; }
-#farm-overlay .farm-item strong { display: block; font-size: 1rem; }
-#farm-overlay .farm-item small { display: block; color: #dcbfa3; font-size: .8rem; line-height: 1.3; margin: 2px 0 6px; }
+#farm-overlay .farm-back { border: 1px solid rgba(255,214,170,.35); background: rgba(42,19,13,.82); color: #fbeedd; border-radius: 999px;
+  padding: 9px 16px; font: 700 .95rem/1 inherit; cursor: pointer; backdrop-filter: blur(4px); }
+#farm-overlay .farm-bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 16px max(14px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+#farm-overlay .farm-msg { margin: 0; padding: 6px 14px; border-radius: 999px; background: rgba(42,19,13,.78); color: #ffd36f; font-weight: 700;
+  text-align: center; min-height: 1.2em; }
+#farm-overlay .farm-msg:empty { display: none; }
+#farm-overlay .farm-shop-toggle { pointer-events: auto; border: 0; border-radius: 999px; padding: 11px 22px; background: #ffc35a; color: #3a1608;
+  font: 800 1.05rem/1 'Tutorial Grandstander','Grandstander',system-ui; box-shadow: 0 4px 0 #b3651f, 0 10px 24px rgba(0,0,0,.3); cursor: pointer; }
+#farm-overlay:not(.shop-open) .farm-shop { display: none; }
+#farm-overlay.shop-open .farm-shop-toggle { background: rgba(42,19,13,.86); color: #fbeedd; box-shadow: none; border: 1px solid rgba(255,214,170,.3); }
+#farm-overlay .farm-shop { width: min(980px,100%); display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; pointer-events: auto; }
+#farm-overlay .farm-item { display: grid; grid-template-columns: 58px 1fr; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 14px;
+  background: rgba(42,19,13,.86); border: 1px solid rgba(255,214,170,.22); backdrop-filter: blur(6px); }
+#farm-overlay .farm-item canvas { width: 58px; height: 46px; }
+#farm-overlay .farm-item strong { display: block; font-size: .98rem; }
+#farm-overlay .farm-item small { display: block; color: #dcbfa3; font-size: .78rem; line-height: 1.3; margin: 2px 0 6px; }
 #farm-overlay .farm-buy { border: 0; border-radius: 999px; padding: 7px 14px; background: #ffc35a; color: #3a1608; font: 800 .9rem/1 system-ui;
   box-shadow: 0 3px 0 #b3651f; cursor: pointer; }
 #farm-overlay .farm-buy:disabled { opacity: .4; cursor: default; box-shadow: none; }
-@media (max-width: 700px) { #farm-overlay .farm-shop { grid-template-columns: 1fr; } }
+#farm-overlay .farm-loading[hidden] { display: none; }
+#farm-overlay .farm-loading { position: absolute; inset: 0; display: grid; place-items: center; color: #dcbfa3; pointer-events: none; }
+@media (max-width: 760px) {
+  #farm-overlay .farm-shop { grid-template-columns: repeat(3, minmax(150px, 1fr)); overflow-x: auto; }
+  #farm-overlay .farm-item { grid-template-columns: 1fr; text-align: center; justify-items: center; }
+  #farm-overlay .farm-item small { display: none; }
+  #farm-overlay h1 { font-size: 1.4rem; }
+}
 `;
 
 function ensureStyle() {
@@ -52,129 +62,86 @@ function ensureStyle() {
   document.head.appendChild(style);
 }
 
-// ---- cena -----------------------------------------------------------------
-function drawSky(c, t) {
-  const g = c.createLinearGradient(0, 0, 0, 320);
-  g.addColorStop(0, '#8fd0ee'); g.addColorStop(1, '#fdf1d2');
-  c.fillStyle = g; c.fillRect(0, 0, W, H);
-  c.fillStyle = 'rgba(255,236,150,.9)'; c.beginPath(); c.arc(820, 86, 42, 0, Math.PI * 2); c.fill();
-  c.fillStyle = 'rgba(255,255,255,.85)';
-  for (const [x, y, k] of [[180, 80, 1], [470, 60, .8], [690, 130, .7]]) {
-    const dx = ((x + t * 6 * k) % (W + 200)) - 100;
-    for (const [ox, oy, r] of [[0, 0, 26], [26, -10, 22], [50, 2, 24], [24, 8, 22]]) {
-      c.beginPath(); c.arc(dx + ox * k, y + oy * k, r * k, 0, Math.PI * 2); c.fill();
-    }
-  }
-}
-
-function drawHills(c) {
-  c.fillStyle = '#9fd17a';
-  c.beginPath(); c.moveTo(0, 300); c.quadraticCurveTo(220, 210, 470, 290); c.quadraticCurveTo(720, 220, 960, 280); c.lineTo(960, 360); c.lineTo(0, 360); c.fill();
-  c.fillStyle = '#7fbf5b';
-  c.beginPath(); c.moveTo(0, 340); c.quadraticCurveTo(300, 290, 600, 330); c.quadraticCurveTo(800, 300, 960, 330); c.lineTo(960, 400); c.lineTo(0, 400); c.fill();
-  const g = c.createLinearGradient(0, 360, 0, H);
-  g.addColorStop(0, '#6cad49'); g.addColorStop(1, '#4f8f36');
-  c.fillStyle = g; c.fillRect(0, 370, W, H - 370);
-}
-
-function drawHouse(c) {
-  c.save(); c.translate(40, 430);
-  c.fillStyle = 'rgba(0,0,0,.12)'; c.beginPath(); c.ellipse(130, 6, 150, 14, 0, 0, Math.PI * 2); c.fill();
-  c.fillStyle = '#f3e3c3'; c.strokeStyle = '#8a6a48'; c.lineWidth = 3;
-  c.fillRect(20, -150, 220, 150); c.strokeRect(20, -150, 220, 150);
-  c.fillStyle = '#c4553a'; c.strokeStyle = '#7d2f1f';
-  c.beginPath(); c.moveTo(0, -146); c.lineTo(130, -236); c.lineTo(260, -146); c.closePath(); c.fill(); c.stroke();
-  c.fillStyle = '#8a6a48'; c.fillRect(186, -222, 22, 46);
-  c.fillStyle = '#7a4a2a'; c.fillRect(100, -86, 54, 86);
-  c.fillStyle = '#ffd36f'; c.beginPath(); c.arc(144, -42, 4, 0, Math.PI * 2); c.fill();
-  c.fillStyle = '#bfe4f4'; c.strokeStyle = '#8a6a48';
-  for (const wx of [38, 180]) { c.fillRect(wx, -118, 46, 40); c.strokeRect(wx, -118, 46, 40); c.beginPath(); c.moveTo(wx + 23, -118); c.lineTo(wx + 23, -78); c.moveTo(wx, -98); c.lineTo(wx + 46, -98); c.stroke(); }
-  c.restore();
-}
-
-// O canteiro mostra o feijoeiro da ultima colheita: doente, saudavel ou super.
-function drawBed(c, plantState, t) {
-  c.save(); c.translate(318, 470);
-  c.fillStyle = '#7a4f2c'; c.beginPath(); c.roundRect(0, -26, 270, 46, 12); c.fill();
-  c.fillStyle = '#5e3a1f';
-  for (let r = 0; r < 3; r++) c.fillRect(14, -18 + r * 13, 242, 4);
-  const conf = [
-    { h: 34, leaf: '#b9b65a', pods: 0 },
-    { h: 52, leaf: '#4fa63a', pods: 1 },
-    { h: 70, leaf: '#2f9a34', pods: 2 },
-  ][plantState ?? 1];
-  for (let i = 0; i < 6; i++) {
-    const px = 28 + i * 43, sway = Math.sin(t * 1.4 + i) * 3;
-    c.strokeStyle = '#3f7d2a'; c.lineWidth = 3;
-    c.beginPath(); c.moveTo(px, -18); c.quadraticCurveTo(px + sway, -18 - conf.h / 2, px + sway, -18 - conf.h); c.stroke();
-    c.fillStyle = conf.leaf;
-    for (let k = 1; k <= 3; k++) {
-      const ly = -18 - conf.h * k / 3.4;
-      c.beginPath(); c.ellipse(px + sway - 9, ly, 10, 6, -.5, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.ellipse(px + sway + 9, ly - 3, 10, 6, .5, 0, Math.PI * 2); c.fill();
-    }
-    for (let k = 0; k < conf.pods; k++) {
-      c.fillStyle = '#8bc34a';
-      c.beginPath(); c.ellipse(px + sway + 4, -30 - k * 14, 3, 9, .3, 0, Math.PI * 2); c.fill();
-    }
-  }
-  c.restore();
-}
-
-function drawSlot(c, slot, index, farm, placing, hover, t) {
-  const itemId = farm.slots[index];
-  if (itemId) {
-    c.fillStyle = 'rgba(0,0,0,.14)'; c.beginPath(); c.ellipse(slot.x, slot.y + 2, 70 * slot.s, 10 * slot.s, 0, 0, Math.PI * 2); c.fill();
-    getFarmItem(itemId).draw(c, slot.x, slot.y, slot.s);
-    if (hover === index && !placing) {
-      c.fillStyle = 'rgba(255,255,255,.9)'; c.font = '700 14px system-ui'; c.textAlign = 'center';
-      c.fillText('toque para mudar de lugar', slot.x, slot.y + 22);
-    }
-    return;
-  }
-  const pulse = placing ? .55 + .45 * Math.sin(t * 5) : .5;
-  c.save();
-  c.setLineDash([8, 6]); c.lineWidth = 3;
-  c.strokeStyle = placing ? `rgba(255,214,110,${pulse})` : 'rgba(255,255,255,.45)';
-  c.fillStyle = placing ? 'rgba(255,214,110,.16)' : 'rgba(255,255,255,.08)';
-  c.beginPath(); c.ellipse(slot.x, slot.y - 4, 72 * slot.s, 20 * slot.s, 0, 0, Math.PI * 2); c.fill(); c.stroke();
-  c.setLineDash([]);
-  c.fillStyle = placing ? '#ffd36f' : 'rgba(255,255,255,.7)'; c.font = '800 22px system-ui'; c.textAlign = 'center';
-  c.fillText('+', slot.x, slot.y + 4);
-  c.restore();
-}
-
-function slotAt(x, y) {
-  return SLOTS.findIndex(slot => Math.abs(x - slot.x) < 86 * slot.s + 10 && y < slot.y + 26 && y > slot.y - 150 * slot.s);
+// Item da loja desenhado num canvas proprio (vira textura com relevo na cena).
+function itemImage(itemId) {
+  const c = document.createElement('canvas');
+  c.width = 420; c.height = 330;
+  getFarmItem(itemId).draw(c.getContext('2d'), 210, 318, 2.1);
+  return c;
 }
 
 export function createFarmView({ onClose = () => {} } = {}) {
-  let root = null, canvas = null, ctx = null, frame = null, farm = null, hover = -1, elapsed = 0, last = 0;
+  let root = null, glCanvas = null, marks = null, mctx = null, scene = null;
+  let frame = null, farm = null, hover = -1, last = 0, time = 0;
+  const images = new Map();
 
   function message(text) { root.querySelector('.farm-msg').textContent = text || ''; }
 
   function plantState() {
-    const score = farm.lastHarvest?.score;
+    const score = farm?.lastHarvest?.score;
     if (!Number.isFinite(score)) return 1;
     return score >= 85 ? 2 : score >= 60 ? 1 : 0;
   }
 
-  function draw(now = performance.now()) {
+  function placedItems() {
+    if (!farm) return [];
+    return farm.slots.map((itemId, slot) => {
+      if (!itemId) return null;
+      if (!images.has(itemId)) images.set(itemId, itemImage(itemId));
+      return { slot, key: itemId, image: images.get(itemId) };
+    }).filter(Boolean);
+  }
+
+  // marcas dos espacos (vazios pulsam quando ha item para colocar)
+  function drawMarks() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cw = marks.clientWidth, ch = marks.clientHeight;
+    if (marks.width !== Math.round(cw * dpr)) { marks.width = Math.round(cw * dpr); marks.height = Math.round(ch * dpr); }
+    mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    mctx.clearRect(0, 0, cw, ch);
+    const placing = farm.inventory.length > 0;
+    FARM_SLOTS.forEach((slot, index) => {
+      const p = scene.sceneToScreen(slot.x, slot.y, depthAt(slot.y));
+      const r = 88 * slot.s * p.scale;
+      if (farm.slots[index]) {
+        if (hover === index && !placing) {
+          mctx.font = '700 13px system-ui'; mctx.textAlign = 'center';
+          mctx.fillStyle = 'rgba(30,14,8,.7)';
+          mctx.fillRect(p.x - 92, p.y + 8, 184, 22);
+          mctx.fillStyle = '#fff4e2';
+          mctx.fillText('toque para mudar de lugar', p.x, p.y + 24);
+        }
+        return;
+      }
+      const pulse = placing ? .6 + .4 * Math.sin(time * 5) : .45;
+      mctx.save();
+      mctx.setLineDash([7, 6]); mctx.lineWidth = 2.5;
+      mctx.strokeStyle = placing ? `rgba(255,214,110,${pulse})` : 'rgba(255,255,255,.55)';
+      mctx.fillStyle = placing ? 'rgba(255,214,110,.18)' : 'rgba(255,255,255,.1)';
+      mctx.beginPath(); mctx.ellipse(p.x, p.y - 4, r, r * .28, 0, 0, Math.PI * 2); mctx.fill(); mctx.stroke();
+      mctx.setLineDash([]);
+      mctx.fillStyle = placing ? '#ffd36f' : 'rgba(255,255,255,.85)';
+      mctx.font = `800 ${Math.round(Math.max(16, 26 * slot.s * p.scale / .6))}px system-ui`; mctx.textAlign = 'center';
+      mctx.fillText('+', p.x, p.y + 4);
+      mctx.restore();
+    });
+  }
+
+  function slotAt(px, py) {
+    return FARM_SLOTS.findIndex(slot => {
+      const p = scene.sceneToScreen(slot.x, slot.y, depthAt(slot.y));
+      const r = 95 * slot.s * p.scale;
+      return Math.abs(px - p.x) < r && py < p.y + 24 * p.scale && py > p.y - 230 * slot.s * p.scale;
+    });
+  }
+
+  function loop(now) {
     frame = null;
     if (!root || root.hidden) return;
-    elapsed += last ? Math.min(.05, (now - last) / 1000) : 0;
-    last = now;
-    ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
-    drawSky(ctx, elapsed);
-    drawHills(ctx);
-    drawHouse(ctx);
-    // fundo primeiro (espacos de tras), depois o canteiro e os da frente
-    drawSlot(ctx, SLOTS[0], 0, farm, farm.inventory.length > 0, hover, elapsed);
-    drawSlot(ctx, SLOTS[1], 1, farm, farm.inventory.length > 0, hover, elapsed);
-    drawBed(ctx, plantState(), elapsed);
-    drawSlot(ctx, SLOTS[2], 2, farm, farm.inventory.length > 0, hover, elapsed);
-    drawSlot(ctx, SLOTS[3], 3, farm, farm.inventory.length > 0, hover, elapsed);
-    frame = requestAnimationFrame(draw);
+    const dt = last ? Math.min(.05, (now - last) / 1000) : 0;
+    last = now; time += dt;
+    if (scene) { scene.render(dt); drawMarks(); }
+    frame = requestAnimationFrame(loop);
   }
 
   function renderShop() {
@@ -190,6 +157,15 @@ export function createFarmView({ onClose = () => {} } = {}) {
 
   function persist() { saveFarm(farm); renderShop(); }
 
+  // A lojinha abre por cima da parte de baixo da cena; fechada, a fazenda
+  // fica inteira a vista (e os espacos da frente ficam livres para tocar).
+  function setShop(open) {
+    root.classList.toggle('shop-open', open);
+    const toggle = root.querySelector('.farm-shop-toggle');
+    toggle.textContent = open ? 'Fechar lojinha' : 'Lojinha';
+    toggle.setAttribute('aria-expanded', String(open));
+  }
+
   function ensureDom() {
     if (root) return;
     ensureStyle();
@@ -199,47 +175,71 @@ export function createFarmView({ onClose = () => {} } = {}) {
     root.setAttribute('role', 'dialog');
     root.setAttribute('aria-label', 'Fazendinha');
     root.innerHTML = `
+      <div class="farm-stage">
+        <canvas class="farm-gl" aria-label="Cena da fazendinha"></canvas>
+        <canvas class="farm-marks" aria-hidden="true"></canvas>
+        <div class="farm-loading">Preparando a fazendinha…</div>
+      </div>
       <div class="farm-top">
         <h1>Fazendinha</h1>
         <span class="farm-coins" aria-label="Moedas"><span class="farm-coin"></span><span class="farm-coins-value">0</span></span>
         <button type="button" class="farm-back">Voltar</button>
       </div>
-      <canvas width="1920" height="1080" aria-label="Cena da fazendinha"></canvas>
-      <p class="farm-msg" aria-live="polite"></p>
-      <div class="farm-shop">${FARM_ITEMS.map(item => `
-        <div class="farm-item" data-item="${item.id}">
-          <canvas width="128" height="128" aria-hidden="true"></canvas>
-          <div><strong>${item.name}</strong><small>${item.blurb}</small>
-            <button type="button" class="farm-buy"><span class="farm-coin"></span> ${item.price}</button></div>
-        </div>`).join('')}</div>`;
+      <div class="farm-bottom">
+        <p class="farm-msg" aria-live="polite"></p>
+        <button type="button" class="farm-shop-toggle" aria-expanded="false">Lojinha</button>
+        <div class="farm-shop">${FARM_ITEMS.map(item => `
+          <div class="farm-item" data-item="${item.id}">
+            <canvas width="116" height="92" aria-hidden="true"></canvas>
+            <div><strong>${item.name}</strong><small>${item.blurb}</small>
+              <button type="button" class="farm-buy"><span class="farm-coin"></span> ${item.price}</button></div>
+          </div>`).join('')}</div>
+      </div>`;
     document.body.appendChild(root);
-    canvas = root.querySelector(':scope > canvas');
-    ctx = canvas.getContext('2d');
-    // miniaturas da loja
+    glCanvas = root.querySelector('.farm-gl');
+    marks = root.querySelector('.farm-marks');
+    mctx = marks.getContext('2d');
+    scene = createFarmScene(glCanvas, { items: placedItems, plantState });
+    if (!scene) root.querySelector('.farm-loading').textContent = 'Este navegador não tem WebGL.';
+    else scene.loading.then(() => { root.querySelector('.farm-loading').hidden = true; })
+      .catch(() => { root.querySelector('.farm-loading').textContent = 'Não foi possível carregar a fazendinha.'; });
     for (const card of root.querySelectorAll('.farm-item')) {
       const item = getFarmItem(card.dataset.item);
       const c = card.querySelector('canvas').getContext('2d');
-      item.draw(c, 64, 118, item.id === 'fence' ? .7 : .78);
+      item.draw(c, 58, 88, item.id === 'fence' ? .62 : .58);
       card.querySelector('.farm-buy').addEventListener('click', () => {
         const result = buyItem(farm, item.id);
         if (!result.ok) {
-          message(result.reason === 'coins' ? 'Moedas insuficientes: jogue mais uma fase para colher mais.' : 'Não há espaço livre na fazendinha.');
+          message(result.reason === 'coins' ? 'Moedas insuficientes: conclua mais uma fase para colher mais.' : 'Não há espaço livre na fazendinha.');
           return;
         }
         persist();
+        setShop(false);
         message(`${item.name} comprado! Toque num espaço livre para colocar.`);
       });
     }
+    root.querySelector('.farm-shop-toggle').addEventListener('click', () => setShop(!root.classList.contains('shop-open')));
     root.querySelector('.farm-back').addEventListener('click', close);
-    const toScene = event => {
-      const rect = canvas.getBoundingClientRect();
-      return { x: (event.clientX - rect.left) * W / rect.width, y: (event.clientY - rect.top) * H / rect.height };
-    };
-    canvas.addEventListener('pointermove', event => { const p = toScene(event); hover = slotAt(p.x, p.y); });
-    canvas.addEventListener('pointerleave', () => { hover = -1; });
-    canvas.addEventListener('click', event => {
-      const p = toScene(event);
-      const index = slotAt(p.x, p.y);
+
+    // paralaxe pelo mouse; no toque, arrastar desliza a cena
+    let drag = null;
+    marks.addEventListener('pointermove', event => {
+      const rect = marks.getBoundingClientRect();
+      const x = event.clientX - rect.left, y = event.clientY - rect.top;
+      if (event.pointerType === 'mouse') scene?.setPointer((x / rect.width) * 2 - 1, (y / rect.height) * 2 - 1);
+      if (drag) { scene?.panBy(x - drag.x); drag.moved += Math.abs(x - drag.x); drag.x = x; }
+      hover = scene ? slotAt(x, y) : -1;
+    });
+    marks.addEventListener('pointerleave', () => { hover = -1; scene?.releasePointer(); });
+    marks.addEventListener('pointerdown', event => {
+      const rect = marks.getBoundingClientRect();
+      if (event.pointerType !== 'mouse') drag = { x: event.clientX - rect.left, moved: 0 };
+    });
+    marks.addEventListener('pointerup', () => { setTimeout(() => { drag = null; }, 0); });
+    marks.addEventListener('click', event => {
+      if (!scene || (drag && drag.moved > 8)) return;
+      const rect = marks.getBoundingClientRect();
+      const index = slotAt(event.clientX - rect.left, event.clientY - rect.top);
       if (index < 0) return;
       if (farm.inventory.length && !farm.slots[index]) {
         const name = getFarmItem(farm.inventory[0]).name;
@@ -267,10 +267,13 @@ export function createFarmView({ onClose = () => {} } = {}) {
     farm = loadFarm();
     root.hidden = false;
     hover = -1; last = 0;
+    setShop(false);
     renderShop();
+    const touch = window.matchMedia?.('(pointer: coarse)').matches;
     message(farm.inventory.length ? 'Toque num espaço livre para colocar o item.'
+      : touch ? 'Arraste para ver a fazenda toda.'
       : farm.coins ? 'Use as moedas da colheita na lojinha.' : 'Conclua fases para colher moedas.');
-    if (!frame) frame = requestAnimationFrame(draw);
+    if (!frame) frame = requestAnimationFrame(loop);
     root.querySelector('.farm-back').focus();
   }
 

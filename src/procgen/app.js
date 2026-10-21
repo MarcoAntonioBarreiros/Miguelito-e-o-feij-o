@@ -2640,6 +2640,13 @@ function renderWorldProfiled() {
 }
 
 function loop(now) {
+  // A fazendinha cobre a tela inteira e tem a propria cena: o jogo nem simula
+  // nem desenha enquanto ela esta aberta (o mundo fica congelado).
+  if (farmView.isOpen) {
+    lastTime = now;
+    requestAnimationFrame(loop);
+    return;
+  }
   try {
     const dt = Math.max(0, Math.min((now - lastTime) / 1000, .1));
     lastTime = now;
