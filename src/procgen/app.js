@@ -57,7 +57,7 @@ import { arrivalTourSeen, createArrivalTour } from './arrival-tour.js';
 import { buildPhaseScoreReport } from './phase-score.js';
 import { createPhaseResultPanel } from './phase-result-panel.js';
 import { createFarmView } from '../farm/farm-view.js';
-import { creditHarvest, harvestIdFor, loadFarm, saveFarm } from '../farm/farm-state.js';
+import { harvestIdFor, loadFarm, pendingCoins, registerHarvest, saveFarm } from '../farm/farm-state.js';
 import { createResponsiveCanvas } from './responsive-canvas.js';
 import { getPrimaryTraversalPlatforms } from './traversal-route.js';
 import {
@@ -1750,17 +1750,18 @@ function maybeAdvanceCampaign() {
   if (!campaign.transitionCaptured) {
     const report = buildPhaseReport();
     recordPhaseResult(campaign, report);
-    // Colheita: a nota vira moedas na fazendinha, uma vez por fase (o id da
-    // colheita impede pagar de novo se a pagina recarregar). Phase Lab nao paga.
-    campaign.harvest = { report, credited: false, totalCoins: null, shown: false, continued: false };
+    // Colheita: a nota planta a lavoura da fazendinha, uma vez por fase (o id
+    // impede plantar de novo se a pagina recarregar). As moedas entram quando a
+    // colheitadeira colhe, na fazendinha. Phase Lab nao planta.
+    campaign.harvest = { report, credited: false, pending: 0, shown: false, continued: false };
     if (!phaseLab.enabled) {
       const farm = loadFarm();
-      const paid = creditHarvest(farm, {
+      const planted = registerHarvest(farm, {
         harvestId: harvestIdFor(campaign.seed, displayPhaseNumber(campaign)),
         coins: report.coinsEarned, score: report.score, phase: displayPhaseNumber(campaign),
       });
       saveFarm(farm);
-      Object.assign(campaign.harvest, { credited: paid.credited, totalCoins: farm.coins });
+      Object.assign(campaign.harvest, { credited: planted.registered, pending: pendingCoins(farm) });
     }
     // A fase inteira acontece embaixo da terra. Aqui — e so aqui, com os
     // objetivos ja validados pelo guard do `goal-system` — a camera sobe e
@@ -1810,7 +1811,7 @@ function maybeAdvanceCampaign() {
   if (harvest && !phaseLab.enabled && !harvest.continued) {
     if (!harvest.shown) {
       harvest.shown = true;
-      phaseResultPanel.show(harvest.report, { credited: harvest.credited, totalCoins: harvest.totalCoins });
+      phaseResultPanel.show(harvest.report, { credited: harvest.credited, pending: harvest.pending });
     }
     return false;
   }
@@ -1954,7 +1955,7 @@ const farmView = createFarmView({
   onClose: () => {
     const harvest = campaign.harvest;
     if (harvest && harvest.shown && !harvest.continued) {
-      phaseResultPanel.show(harvest.report, { credited: harvest.credited, totalCoins: loadFarm().coins });
+      phaseResultPanel.show(harvest.report, { credited: harvest.credited, pending: pendingCoins(loadFarm()), visited: true });
     }
   },
 });

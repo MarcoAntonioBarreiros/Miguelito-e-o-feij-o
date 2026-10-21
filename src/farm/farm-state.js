@@ -1,9 +1,12 @@
 // ESTADO DA FAZENDINHA (moedas, compras, slots e colheitas ja creditadas)
 //
 // A campanha mora no sessionStorage; a fazendinha precisa durar entre sessoes,
-// entao fica no localStorage, em chave propria. Cada fase concluida credita as
-// moedas UMA vez: a colheita tem um id (campanha + fase) e um id repetido nao
-// paga de novo, mesmo recarregando a pagina no meio do fim de fase.
+// entao fica no localStorage, em chave propria.
+//
+// Cada fase concluida PLANTA uma lavoura (a nota decide como ela cresce). As
+// moedas so entram quando a colheitadeira colhe, na fazendinha. A colheita tem
+// um id (campanha + fase): um id repetido nao planta de novo, mesmo recarregando
+// a pagina no meio do fim de fase. Colheitas nao colhidas ficam guardadas.
 
 import { FARM_SLOT_COUNT, getFarmItem } from './farm-items.js';
 
@@ -28,7 +31,13 @@ function sanitize(raw) {
   if (!raw || typeof raw !== 'object') return farm;
   farm.coins = Math.max(0, Math.floor(Number(raw.coins) || 0));
   farm.totalEarned = Math.max(0, Math.floor(Number(raw.totalEarned) || 0));
-  farm.harvests = raw.harvests && typeof raw.harvests === 'object' ? { ...raw.harvests } : {};
+  farm.harvests = {};
+  if (raw.harvests && typeof raw.harvests === 'object') {
+    for (const [id, entry] of Object.entries(raw.harvests)) {
+      // registro antigo (sem `collected`) ja tinha pago as moedas
+      farm.harvests[id] = { ...entry, collected: entry?.collected !== false };
+    }
+  }
   farm.inventory = Array.isArray(raw.inventory) ? raw.inventory.filter(id => getFarmItem(id)) : [];
   if (Array.isArray(raw.slots)) {
     farm.slots = Array.from({ length: FARM_SLOT_COUNT }, (_, i) => (getFarmItem(raw.slots[i]) ? raw.slots[i] : null));
@@ -55,18 +64,37 @@ export function harvestIdFor(campaignSeed, phaseNumber) {
 }
 
 /**
- * Credita a colheita de uma fase. Devolve { credited, coins }: `credited` falso
- * quando esse id ja foi pago (recarga, fase repetida).
+ * Planta a colheita de uma fase (sem pagar ainda). Devolve { registered, coins }:
+ * `registered` falso quando esse id ja existia (recarga, fase repetida).
  */
-export function creditHarvest(farm, { harvestId, coins, score = null, phase = null, at = Date.now() }) {
-  if (!harvestId) return { credited: false, coins: 0 };
-  if (farm.harvests[harvestId]) return { credited: false, coins: farm.harvests[harvestId].coins || 0 };
+export function registerHarvest(farm, { harvestId, coins, score = null, phase = null, at = Date.now() }) {
+  if (!harvestId) return { registered: false, coins: 0 };
+  if (farm.harvests[harvestId]) return { registered: false, coins: farm.harvests[harvestId].coins || 0 };
   const amount = Math.max(0, Math.round(Number(coins) || 0));
-  farm.harvests[harvestId] = { coins: amount, score, phase, at };
-  farm.coins += amount;
-  farm.totalEarned += amount;
+  farm.harvests[harvestId] = { coins: amount, score, phase, at, collected: false };
   farm.lastHarvest = { harvestId, coins: amount, score, phase };
-  return { credited: true, coins: amount };
+  return { registered: true, coins: amount };
+}
+
+export function pendingHarvests(farm) {
+  return Object.entries(farm.harvests)
+    .filter(([, entry]) => entry.collected === false)
+    .map(([harvestId, entry]) => ({ harvestId, ...entry }))
+    .sort((a, b) => (a.at || 0) - (b.at || 0));
+}
+
+export function pendingCoins(farm) {
+  return pendingHarvests(farm).reduce((sum, entry) => sum + (entry.coins || 0), 0);
+}
+
+/** A colheitadeira passou: tudo o que estava plantado vira moeda. */
+export function collectHarvests(farm) {
+  const pending = pendingHarvests(farm);
+  const coins = pending.reduce((sum, entry) => sum + (entry.coins || 0), 0);
+  for (const entry of pending) farm.harvests[entry.harvestId].collected = true;
+  farm.coins += coins;
+  farm.totalEarned += coins;
+  return { coins, count: pending.length, score: pending.at(-1)?.score ?? null };
 }
 
 export function itemCount(farm) {

@@ -6,8 +6,10 @@
 // desenho de cada camada sem mexer no estado (farm-state.js).
 
 import { FARM_ITEMS, FARM_SLOT_COUNT, getFarmItem } from './farm-items.js';
-import { buyItem, canBuy, loadFarm, pickUpItem, placeItem, saveFarm } from './farm-state.js';
-import { createFarmScene, depthAt, FARM_SLOTS } from './farm-scene.js';
+import {
+  buyItem, canBuy, collectHarvests, loadFarm, pendingCoins, pendingHarvests, pickUpItem, placeItem, saveFarm,
+} from './farm-state.js';
+import { createFarmScene, depthAt, FARM_SLOTS, HARVEST_PATH, harvestPose } from './farm-scene.js';
 
 
 const STYLE = `
@@ -36,6 +38,7 @@ const STYLE = `
 #farm-overlay .farm-shop-toggle { pointer-events: auto; border: 0; border-radius: 999px; padding: 11px 22px; background: #ffc35a; color: #3a1608;
   font: 800 1.05rem/1 'Tutorial Grandstander','Grandstander',system-ui; box-shadow: 0 4px 0 #b3651f, 0 10px 24px rgba(0,0,0,.3); cursor: pointer; }
 #farm-overlay:not(.shop-open) .farm-shop { display: none; }
+#farm-overlay.harvesting .farm-shop-toggle { opacity: .45; pointer-events: none; }
 #farm-overlay.shop-open .farm-shop-toggle { background: rgba(42,19,13,.86); color: #fbeedd; box-shadow: none; border: 1px solid rgba(255,214,170,.3); }
 #farm-overlay .farm-shop { width: min(980px,100%); display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; pointer-events: auto; }
 #farm-overlay .farm-item { display: grid; grid-template-columns: 58px 1fr; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 14px;
@@ -75,14 +78,80 @@ function itemImage(itemId) {
 export function createFarmView({ onClose = () => {} } = {}) {
   let root = null, glCanvas = null, marks = null, mctx = null, scene = null;
   let frame = null, farm = null, hover = -1, last = 0, time = 0;
+  // colheita em andamento: { t, coins, startCoins, score, nextPop }
+  let run = null;
+  const pops = [];
   const images = new Map();
 
   function message(text) { root.querySelector('.farm-msg').textContent = text || ''; }
 
+  // Lavoura: cresce com a nota da colheita que espera o trator; depois de
+  // colhida (ou antes da primeira fase) fica so a terra (-1).
   function plantState() {
-    const score = farm?.lastHarvest?.score;
-    if (!Number.isFinite(score)) return 1;
+    const score = run ? run.score : null;
+    if (!Number.isFinite(score)) return -1;
     return score >= 85 ? 2 : score >= 60 ? 1 : 0;
+  }
+
+  function startHarvest() {
+    const pending = pendingHarvests(farm);
+    if (!pending.length) return false;
+    run = { t: 0, coins: pendingCoins(farm), startCoins: farm.coins, score: pending.at(-1).score, nextPop: 0 };
+    root.classList.add('harvesting');
+    message('A colheitadeira está saindo para colher o feijão…');
+    return true;
+  }
+
+  function finishHarvest() {
+    if (!run) return;
+    const { coins } = collectHarvests(farm);
+    saveFarm(farm);
+    run = null;
+    root.classList.remove('harvesting');
+    renderShop();
+    message(`Colheita vendida: +${coins} moedas!`);
+  }
+
+  function updateHarvest(dt) {
+    if (!run) return;
+    run.t += dt;
+    const pose = harvestPose(run.t);
+    const k = pose.phase === 'pass' ? pose.progress : pose.phase === 'enter' ? 0 : 1;
+    root.querySelector('.farm-coins-value').textContent = run.startCoins + Math.round(run.coins * k);
+    if (pose.phase === 'pass') {
+      if (run.t >= run.nextPop) {
+        run.nextPop = run.t + .4;
+        const p = scene.sceneToScreen(pose.pos[0] + 70, pose.pos[1] - HARVEST_PATH.height * .8, depthAt(pose.pos[1]));
+        pops.push({ x: p.x, y: p.y, vy: -42, life: 1.3, value: Math.max(1, Math.round(run.coins / 16)) });
+      }
+      if (run.t > HARVEST_PATH.enterSeconds + .4 && !run.said) { run.said = true; message('Colhendo o feijão…'); }
+    }
+    if (pose.phase === 'done') finishHarvest();
+  }
+
+  // giroflex, poeira e moedas subindo (por cima da cena)
+  function drawHarvestFx(dt) {
+    for (const pop of pops) { pop.life -= dt; pop.y += pop.vy * dt; }
+    for (let i = pops.length - 1; i >= 0; i--) if (pops[i].life <= 0) pops.splice(i, 1);
+    if (run) {
+      const pose = harvestPose(run.t);
+      const h = HARVEST_PATH.height;
+      const top = scene.sceneToScreen(pose.pos[0] + h * 1.84 * .02, pose.pos[1] - h * .98, depthAt(pose.pos[1]));
+      const blink = .5 + .5 * Math.sin(time * 10);
+      const g = mctx.createRadialGradient(top.x, top.y, 0, top.x, top.y, 26 * top.scale * 2);
+      g.addColorStop(0, `rgba(255,190,60,${.55 * blink})`); g.addColorStop(1, 'rgba(255,160,40,0)');
+      mctx.fillStyle = g; mctx.beginPath(); mctx.arc(top.x, top.y, 52 * top.scale, 0, Math.PI * 2); mctx.fill();
+    }
+    for (const pop of pops) {
+      const a = Math.min(1, pop.life * 1.5);
+      mctx.globalAlpha = a;
+      mctx.fillStyle = '#f2b63c'; mctx.strokeStyle = '#b97a17'; mctx.lineWidth = 2;
+      mctx.beginPath(); mctx.arc(pop.x, pop.y, 9, 0, Math.PI * 2); mctx.fill(); mctx.stroke();
+      mctx.fillStyle = '#fff6d0'; mctx.font = '800 15px system-ui'; mctx.textAlign = 'left';
+      mctx.strokeStyle = 'rgba(60,30,5,.7)'; mctx.lineWidth = 3;
+      mctx.strokeText(`+${pop.value}`, pop.x + 13, pop.y + 5); mctx.fillText(`+${pop.value}`, pop.x + 13, pop.y + 5);
+      mctx.globalAlpha = 1;
+    }
   }
 
   function placedItems() {
@@ -142,7 +211,13 @@ export function createFarmView({ onClose = () => {} } = {}) {
     if (!root || root.hidden) return;
     const dt = last ? Math.min(.05, (now - last) / 1000) : 0;
     last = now; time += dt;
-    if (scene) { scene.render(dt); drawMarks(); }
+    // a colheita so anda depois que a cena carregou
+    if (scene) {
+      if (scene.ready) updateHarvest(dt);
+      scene.render(dt);
+      drawMarks();
+      drawHarvestFx(dt);
+    }
     frame = requestAnimationFrame(loop);
   }
 
@@ -201,7 +276,7 @@ export function createFarmView({ onClose = () => {} } = {}) {
     glCanvas = root.querySelector('.farm-gl');
     marks = root.querySelector('.farm-marks');
     mctx = marks.getContext('2d');
-    scene = createFarmScene(glCanvas, { items: placedItems, plantState });
+    scene = createFarmScene(glCanvas, { items: placedItems, plantState, harvest: () => run });
     if (!scene) root.querySelector('.farm-loading').textContent = 'Este navegador não tem WebGL.';
     else scene.loading.then(() => { root.querySelector('.farm-loading').hidden = true; })
       .catch(() => { root.querySelector('.farm-loading').textContent = 'Não foi possível carregar a fazendinha.'; });
@@ -239,7 +314,7 @@ export function createFarmView({ onClose = () => {} } = {}) {
     });
     marks.addEventListener('pointerup', () => { setTimeout(() => { drag = null; }, 0); });
     marks.addEventListener('click', event => {
-      if (!scene || (drag && drag.moved > 8)) return;
+      if (!scene || run || (drag && drag.moved > 8)) return;
       const rect = marks.getBoundingClientRect();
       const index = slotAt(event.clientX - rect.left, event.clientY - rect.top);
       if (index < 0) return;
@@ -269,6 +344,7 @@ export function createFarmView({ onClose = () => {} } = {}) {
     farm = loadFarm();
     root.hidden = false;
     hover = -1; last = 0;
+    pops.length = 0;
     setShop(false);
     renderShop();
     const touch = window.matchMedia?.('(pointer: coarse)').matches;
@@ -277,10 +353,13 @@ export function createFarmView({ onClose = () => {} } = {}) {
       : farm.coins ? 'Use as moedas da colheita na lojinha.' : 'Conclua fases para colher moedas.');
     if (!frame) frame = requestAnimationFrame(loop);
     root.querySelector('.farm-back').focus();
+    startHarvest();
   }
 
   function close() {
     if (!root || root.hidden) return;
+    // saiu no meio: a colheita termina na hora (as moedas nao se perdem)
+    finishHarvest();
     root.hidden = true;
     if (frame) cancelAnimationFrame(frame);
     frame = null;
@@ -291,6 +370,8 @@ export function createFarmView({ onClose = () => {} } = {}) {
     open,
     close,
     get isOpen() { return Boolean(root && !root.hidden); },
+    // para testes: adianta a colheita em andamento
+    advanceHarvest(seconds) { if (run) run.t += seconds; },
     get slotCount() { return FARM_SLOT_COUNT; },
   };
 }

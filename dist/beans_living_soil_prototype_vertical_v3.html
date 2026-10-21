@@ -1158,7 +1158,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"b1266c0","subject":"Fazendinha: canvases transparentes (o fundo #222 global dos canvas do jo","builtAt":"2026-10-21 20:03"};
+window.__BEANS_BUILD__ = {"commit":"62cff8a","subject":"Fazendinha: lavoura de feijao de frente (4 fileiras repetidas na horizon","builtAt":"2026-10-21 20:11"};
 (() => {
 'use strict';
 const __modules = {
@@ -1202,7 +1202,7 @@ const { arrivalTourSeen, createArrivalTour } = __require("src/procgen/arrival-to
 const { buildPhaseScoreReport } = __require("src/procgen/phase-score.js");
 const { createPhaseResultPanel } = __require("src/procgen/phase-result-panel.js");
 const { createFarmView } = __require("src/farm/farm-view.js");
-const { creditHarvest, harvestIdFor, loadFarm, saveFarm } = __require("src/farm/farm-state.js");
+const { harvestIdFor, loadFarm, pendingCoins, registerHarvest, saveFarm } = __require("src/farm/farm-state.js");
 const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");
 const { getPrimaryTraversalPlatforms } = __require("src/procgen/traversal-route.js");
 const { ROUTE_GATE_KINDS, ROUTE_GATE_REQUIRED_ABILITY, ROUTE_GATE_REQUIRED_ORGANISM } = __require("src/procgen/phase-vertical-plan.js");
@@ -2877,17 +2877,18 @@ function maybeAdvanceCampaign() {
   if (!campaign.transitionCaptured) {
     const report = buildPhaseReport();
     recordPhaseResult(campaign, report);
-    // Colheita: a nota vira moedas na fazendinha, uma vez por fase (o id da
-    // colheita impede pagar de novo se a pagina recarregar). Phase Lab nao paga.
-    campaign.harvest = { report, credited: false, totalCoins: null, shown: false, continued: false };
+    // Colheita: a nota planta a lavoura da fazendinha, uma vez por fase (o id
+    // impede plantar de novo se a pagina recarregar). As moedas entram quando a
+    // colheitadeira colhe, na fazendinha. Phase Lab nao planta.
+    campaign.harvest = { report, credited: false, pending: 0, shown: false, continued: false };
     if (!phaseLab.enabled) {
       const farm = loadFarm();
-      const paid = creditHarvest(farm, {
+      const planted = registerHarvest(farm, {
         harvestId: harvestIdFor(campaign.seed, displayPhaseNumber(campaign)),
         coins: report.coinsEarned, score: report.score, phase: displayPhaseNumber(campaign),
       });
       saveFarm(farm);
-      Object.assign(campaign.harvest, { credited: paid.credited, totalCoins: farm.coins });
+      Object.assign(campaign.harvest, { credited: planted.registered, pending: pendingCoins(farm) });
     }
     // A fase inteira acontece embaixo da terra. Aqui — e so aqui, com os
     // objetivos ja validados pelo guard do `goal-system` — a camera sobe e
@@ -2937,7 +2938,7 @@ function maybeAdvanceCampaign() {
   if (harvest && !phaseLab.enabled && !harvest.continued) {
     if (!harvest.shown) {
       harvest.shown = true;
-      phaseResultPanel.show(harvest.report, { credited: harvest.credited, totalCoins: harvest.totalCoins });
+      phaseResultPanel.show(harvest.report, { credited: harvest.credited, pending: harvest.pending });
     }
     return false;
   }
@@ -3081,7 +3082,7 @@ const farmView = createFarmView({
   onClose: () => {
     const harvest = campaign.harvest;
     if (harvest && harvest.shown && !harvest.continued) {
-      phaseResultPanel.show(harvest.report, { credited: harvest.credited, totalCoins: loadFarm().coins });
+      phaseResultPanel.show(harvest.report, { credited: harvest.credited, pending: pendingCoins(loadFarm()), visited: true });
     }
   },
 });
@@ -51320,7 +51321,7 @@ function createPhaseResultPanel({ onContinue = () => {}, onFarm = () => {} } = {
     }, true);
   }
 
-  function show(report, { credited = true, totalCoins = null } = {}) {
+  function show(report, { credited = true, pending = 0, visited = false } = {}) {
     ensureDom();
     const b = report.breakdown;
     const pillars = b.harvest.pillars.map(p => row(p.label, p.points, p.max)).join('');
@@ -51328,7 +51329,7 @@ function createPhaseResultPanel({ onContinue = () => {}, onFarm = () => {} } = {
       <div class="pr-eyebrow">Resultado da colheita · Fase ${report.displayPhase ?? report.phase}</div>
       <div class="pr-head">
         <div class="pr-score">${report.score}<small>/100</small></div>
-        <div class="pr-coins" title="Moedas ganhas"><span class="pr-coin"></span>+${report.coinsEarned}</div>
+        <div class="pr-coins" title="Moedas da colheita"><span class="pr-coin"></span>+${report.coinsEarned}</div>
       </div>
       <p class="pr-label" data-state="${report.plantState}">${report.summaryLabel}</p>
       <ul class="pr-rows">
@@ -51337,9 +51338,11 @@ function createPhaseResultPanel({ onContinue = () => {}, onFarm = () => {} } = {
         ${pillars}
       </ul>
       ${report.hint ? `<p class="pr-hint">${report.hint}</p>` : ''}
-      <p class="pr-total">${credited ? '' : 'Esta colheita já tinha sido creditada. '}${Number.isFinite(totalCoins) ? `Na fazendinha: ${totalCoins} moedas.` : ''}</p>
+      <p class="pr-total">${!credited ? 'Esta lavoura já tinha sido plantada. '
+        : pending > 0 ? `A lavoura está pronta: colha na fazendinha para receber ${pending} moedas.`
+        : visited ? 'Colheita recebida na fazendinha.' : ''}</p>
       <div class="pr-actions">
-        <button type="button" class="pr-farm">Fazendinha</button>
+        <button type="button" class="pr-farm">${pending > 0 ? 'Colher na fazendinha' : 'Fazendinha'}</button>
         <button type="button" class="pr-continue">Continuar</button>
       </div>`;
     root.hidden = false;
@@ -51365,8 +51368,8 @@ Object.assign(__exports, { createPhaseResultPanel });
 // Arte provisoria desenhada em canvas; quando houver ilustracao, troca-se o
 // desenho de cada camada sem mexer no estado (farm-state.js).
 const { FARM_ITEMS, FARM_SLOT_COUNT, getFarmItem } = __require("src/farm/farm-items.js");
-const { buyItem, canBuy, loadFarm, pickUpItem, placeItem, saveFarm } = __require("src/farm/farm-state.js");
-const { createFarmScene, depthAt, FARM_SLOTS } = __require("src/farm/farm-scene.js");
+const { buyItem, canBuy, collectHarvests, loadFarm, pendingCoins, pendingHarvests, pickUpItem, placeItem, saveFarm } = __require("src/farm/farm-state.js");
+const { createFarmScene, depthAt, FARM_SLOTS, HARVEST_PATH, harvestPose } = __require("src/farm/farm-scene.js");
 const STYLE = `
 #farm-overlay { position: fixed; inset: 0; z-index: 240; background: #1b120c; color: #fbeedd; overflow: hidden;
   font-family: 'Tutorial Atkinson','Atkinson Hyperlegible',system-ui,sans-serif; touch-action: none; }
@@ -51393,6 +51396,7 @@ const STYLE = `
 #farm-overlay .farm-shop-toggle { pointer-events: auto; border: 0; border-radius: 999px; padding: 11px 22px; background: #ffc35a; color: #3a1608;
   font: 800 1.05rem/1 'Tutorial Grandstander','Grandstander',system-ui; box-shadow: 0 4px 0 #b3651f, 0 10px 24px rgba(0,0,0,.3); cursor: pointer; }
 #farm-overlay:not(.shop-open) .farm-shop { display: none; }
+#farm-overlay.harvesting .farm-shop-toggle { opacity: .45; pointer-events: none; }
 #farm-overlay.shop-open .farm-shop-toggle { background: rgba(42,19,13,.86); color: #fbeedd; box-shadow: none; border: 1px solid rgba(255,214,170,.3); }
 #farm-overlay .farm-shop { width: min(980px,100%); display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; pointer-events: auto; }
 #farm-overlay .farm-item { display: grid; grid-template-columns: 58px 1fr; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 14px;
@@ -51432,14 +51436,80 @@ function itemImage(itemId) {
 function createFarmView({ onClose = () => {} } = {}) {
   let root = null, glCanvas = null, marks = null, mctx = null, scene = null;
   let frame = null, farm = null, hover = -1, last = 0, time = 0;
+  // colheita em andamento: { t, coins, startCoins, score, nextPop }
+  let run = null;
+  const pops = [];
   const images = new Map();
 
   function message(text) { root.querySelector('.farm-msg').textContent = text || ''; }
 
+  // Lavoura: cresce com a nota da colheita que espera o trator; depois de
+  // colhida (ou antes da primeira fase) fica so a terra (-1).
   function plantState() {
-    const score = farm?.lastHarvest?.score;
-    if (!Number.isFinite(score)) return 1;
+    const score = run ? run.score : null;
+    if (!Number.isFinite(score)) return -1;
     return score >= 85 ? 2 : score >= 60 ? 1 : 0;
+  }
+
+  function startHarvest() {
+    const pending = pendingHarvests(farm);
+    if (!pending.length) return false;
+    run = { t: 0, coins: pendingCoins(farm), startCoins: farm.coins, score: pending.at(-1).score, nextPop: 0 };
+    root.classList.add('harvesting');
+    message('A colheitadeira está saindo para colher o feijão…');
+    return true;
+  }
+
+  function finishHarvest() {
+    if (!run) return;
+    const { coins } = collectHarvests(farm);
+    saveFarm(farm);
+    run = null;
+    root.classList.remove('harvesting');
+    renderShop();
+    message(`Colheita vendida: +${coins} moedas!`);
+  }
+
+  function updateHarvest(dt) {
+    if (!run) return;
+    run.t += dt;
+    const pose = harvestPose(run.t);
+    const k = pose.phase === 'pass' ? pose.progress : pose.phase === 'enter' ? 0 : 1;
+    root.querySelector('.farm-coins-value').textContent = run.startCoins + Math.round(run.coins * k);
+    if (pose.phase === 'pass') {
+      if (run.t >= run.nextPop) {
+        run.nextPop = run.t + .4;
+        const p = scene.sceneToScreen(pose.pos[0] + 70, pose.pos[1] - HARVEST_PATH.height * .8, depthAt(pose.pos[1]));
+        pops.push({ x: p.x, y: p.y, vy: -42, life: 1.3, value: Math.max(1, Math.round(run.coins / 16)) });
+      }
+      if (run.t > HARVEST_PATH.enterSeconds + .4 && !run.said) { run.said = true; message('Colhendo o feijão…'); }
+    }
+    if (pose.phase === 'done') finishHarvest();
+  }
+
+  // giroflex, poeira e moedas subindo (por cima da cena)
+  function drawHarvestFx(dt) {
+    for (const pop of pops) { pop.life -= dt; pop.y += pop.vy * dt; }
+    for (let i = pops.length - 1; i >= 0; i--) if (pops[i].life <= 0) pops.splice(i, 1);
+    if (run) {
+      const pose = harvestPose(run.t);
+      const h = HARVEST_PATH.height;
+      const top = scene.sceneToScreen(pose.pos[0] + h * 1.84 * .02, pose.pos[1] - h * .98, depthAt(pose.pos[1]));
+      const blink = .5 + .5 * Math.sin(time * 10);
+      const g = mctx.createRadialGradient(top.x, top.y, 0, top.x, top.y, 26 * top.scale * 2);
+      g.addColorStop(0, `rgba(255,190,60,${.55 * blink})`); g.addColorStop(1, 'rgba(255,160,40,0)');
+      mctx.fillStyle = g; mctx.beginPath(); mctx.arc(top.x, top.y, 52 * top.scale, 0, Math.PI * 2); mctx.fill();
+    }
+    for (const pop of pops) {
+      const a = Math.min(1, pop.life * 1.5);
+      mctx.globalAlpha = a;
+      mctx.fillStyle = '#f2b63c'; mctx.strokeStyle = '#b97a17'; mctx.lineWidth = 2;
+      mctx.beginPath(); mctx.arc(pop.x, pop.y, 9, 0, Math.PI * 2); mctx.fill(); mctx.stroke();
+      mctx.fillStyle = '#fff6d0'; mctx.font = '800 15px system-ui'; mctx.textAlign = 'left';
+      mctx.strokeStyle = 'rgba(60,30,5,.7)'; mctx.lineWidth = 3;
+      mctx.strokeText(`+${pop.value}`, pop.x + 13, pop.y + 5); mctx.fillText(`+${pop.value}`, pop.x + 13, pop.y + 5);
+      mctx.globalAlpha = 1;
+    }
   }
 
   function placedItems() {
@@ -51499,7 +51569,13 @@ function createFarmView({ onClose = () => {} } = {}) {
     if (!root || root.hidden) return;
     const dt = last ? Math.min(.05, (now - last) / 1000) : 0;
     last = now; time += dt;
-    if (scene) { scene.render(dt); drawMarks(); }
+    // a colheita so anda depois que a cena carregou
+    if (scene) {
+      if (scene.ready) updateHarvest(dt);
+      scene.render(dt);
+      drawMarks();
+      drawHarvestFx(dt);
+    }
     frame = requestAnimationFrame(loop);
   }
 
@@ -51558,7 +51634,7 @@ function createFarmView({ onClose = () => {} } = {}) {
     glCanvas = root.querySelector('.farm-gl');
     marks = root.querySelector('.farm-marks');
     mctx = marks.getContext('2d');
-    scene = createFarmScene(glCanvas, { items: placedItems, plantState });
+    scene = createFarmScene(glCanvas, { items: placedItems, plantState, harvest: () => run });
     if (!scene) root.querySelector('.farm-loading').textContent = 'Este navegador não tem WebGL.';
     else scene.loading.then(() => { root.querySelector('.farm-loading').hidden = true; })
       .catch(() => { root.querySelector('.farm-loading').textContent = 'Não foi possível carregar a fazendinha.'; });
@@ -51596,7 +51672,7 @@ function createFarmView({ onClose = () => {} } = {}) {
     });
     marks.addEventListener('pointerup', () => { setTimeout(() => { drag = null; }, 0); });
     marks.addEventListener('click', event => {
-      if (!scene || (drag && drag.moved > 8)) return;
+      if (!scene || run || (drag && drag.moved > 8)) return;
       const rect = marks.getBoundingClientRect();
       const index = slotAt(event.clientX - rect.left, event.clientY - rect.top);
       if (index < 0) return;
@@ -51626,6 +51702,7 @@ function createFarmView({ onClose = () => {} } = {}) {
     farm = loadFarm();
     root.hidden = false;
     hover = -1; last = 0;
+    pops.length = 0;
     setShop(false);
     renderShop();
     const touch = window.matchMedia?.('(pointer: coarse)').matches;
@@ -51634,10 +51711,13 @@ function createFarmView({ onClose = () => {} } = {}) {
       : farm.coins ? 'Use as moedas da colheita na lojinha.' : 'Conclua fases para colher moedas.');
     if (!frame) frame = requestAnimationFrame(loop);
     root.querySelector('.farm-back').focus();
+    startHarvest();
   }
 
   function close() {
     if (!root || root.hidden) return;
+    // saiu no meio: a colheita termina na hora (as moedas nao se perdem)
+    finishHarvest();
     root.hidden = true;
     if (frame) cancelAnimationFrame(frame);
     frame = null;
@@ -51648,6 +51728,8 @@ function createFarmView({ onClose = () => {} } = {}) {
     open,
     close,
     get isOpen() { return Boolean(root && !root.hidden); },
+    // para testes: adianta a colheita em andamento
+    advanceHarvest(seconds) { if (run) run.t += seconds; },
     get slotCount() { return FARM_SLOT_COUNT; },
   };
 }
@@ -51725,9 +51807,12 @@ Object.assign(__exports, { FARM_SLOT_COUNT, FARM_ITEMS, getFarmItem });
 // ESTADO DA FAZENDINHA (moedas, compras, slots e colheitas ja creditadas)
 //
 // A campanha mora no sessionStorage; a fazendinha precisa durar entre sessoes,
-// entao fica no localStorage, em chave propria. Cada fase concluida credita as
-// moedas UMA vez: a colheita tem um id (campanha + fase) e um id repetido nao
-// paga de novo, mesmo recarregando a pagina no meio do fim de fase.
+// entao fica no localStorage, em chave propria.
+//
+// Cada fase concluida PLANTA uma lavoura (a nota decide como ela cresce). As
+// moedas so entram quando a colheitadeira colhe, na fazendinha. A colheita tem
+// um id (campanha + fase): um id repetido nao planta de novo, mesmo recarregando
+// a pagina no meio do fim de fase. Colheitas nao colhidas ficam guardadas.
 const { FARM_SLOT_COUNT, getFarmItem } = __require("src/farm/farm-items.js");
 const FARM_STORAGE_KEY = 'miguelito:farm:v1';
 
@@ -51750,7 +51835,13 @@ function sanitize(raw) {
   if (!raw || typeof raw !== 'object') return farm;
   farm.coins = Math.max(0, Math.floor(Number(raw.coins) || 0));
   farm.totalEarned = Math.max(0, Math.floor(Number(raw.totalEarned) || 0));
-  farm.harvests = raw.harvests && typeof raw.harvests === 'object' ? { ...raw.harvests } : {};
+  farm.harvests = {};
+  if (raw.harvests && typeof raw.harvests === 'object') {
+    for (const [id, entry] of Object.entries(raw.harvests)) {
+      // registro antigo (sem `collected`) ja tinha pago as moedas
+      farm.harvests[id] = { ...entry, collected: entry?.collected !== false };
+    }
+  }
   farm.inventory = Array.isArray(raw.inventory) ? raw.inventory.filter(id => getFarmItem(id)) : [];
   if (Array.isArray(raw.slots)) {
     farm.slots = Array.from({ length: FARM_SLOT_COUNT }, (_, i) => (getFarmItem(raw.slots[i]) ? raw.slots[i] : null));
@@ -51777,18 +51868,37 @@ function harvestIdFor(campaignSeed, phaseNumber) {
 }
 
 /**
- * Credita a colheita de uma fase. Devolve { credited, coins }: `credited` falso
- * quando esse id ja foi pago (recarga, fase repetida).
+ * Planta a colheita de uma fase (sem pagar ainda). Devolve { registered, coins }:
+ * `registered` falso quando esse id ja existia (recarga, fase repetida).
  */
-function creditHarvest(farm, { harvestId, coins, score = null, phase = null, at = Date.now() }) {
-  if (!harvestId) return { credited: false, coins: 0 };
-  if (farm.harvests[harvestId]) return { credited: false, coins: farm.harvests[harvestId].coins || 0 };
+function registerHarvest(farm, { harvestId, coins, score = null, phase = null, at = Date.now() }) {
+  if (!harvestId) return { registered: false, coins: 0 };
+  if (farm.harvests[harvestId]) return { registered: false, coins: farm.harvests[harvestId].coins || 0 };
   const amount = Math.max(0, Math.round(Number(coins) || 0));
-  farm.harvests[harvestId] = { coins: amount, score, phase, at };
-  farm.coins += amount;
-  farm.totalEarned += amount;
+  farm.harvests[harvestId] = { coins: amount, score, phase, at, collected: false };
   farm.lastHarvest = { harvestId, coins: amount, score, phase };
-  return { credited: true, coins: amount };
+  return { registered: true, coins: amount };
+}
+
+function pendingHarvests(farm) {
+  return Object.entries(farm.harvests)
+    .filter(([, entry]) => entry.collected === false)
+    .map(([harvestId, entry]) => ({ harvestId, ...entry }))
+    .sort((a, b) => (a.at || 0) - (b.at || 0));
+}
+
+function pendingCoins(farm) {
+  return pendingHarvests(farm).reduce((sum, entry) => sum + (entry.coins || 0), 0);
+}
+
+/** A colheitadeira passou: tudo o que estava plantado vira moeda. */
+function collectHarvests(farm) {
+  const pending = pendingHarvests(farm);
+  const coins = pending.reduce((sum, entry) => sum + (entry.coins || 0), 0);
+  for (const entry of pending) farm.harvests[entry.harvestId].collected = true;
+  farm.coins += coins;
+  farm.totalEarned += coins;
+  return { coins, count: pending.length, score: pending.at(-1)?.score ?? null };
 }
 
 function itemCount(farm) {
@@ -51831,7 +51941,7 @@ function pickUpItem(farm, slotIndex) {
   farm.inventory.unshift(itemId);
   return true;
 }
-Object.assign(__exports, { FARM_STORAGE_KEY, blankFarm, loadFarm, saveFarm, harvestIdFor, creditHarvest, itemCount, canBuy, buyItem, placeItem, pickUpItem });
+Object.assign(__exports, { FARM_STORAGE_KEY, blankFarm, loadFarm, saveFarm, harvestIdFor, registerHarvest, pendingHarvests, pendingCoins, collectHarvests, itemCount, canBuy, buyItem, placeItem, pickUpItem });
 },
 "src/farm/farm-scene.js": (__exports, __require) => {
 // CENA DA FAZENDINHA EM WEBGL
@@ -51871,19 +51981,51 @@ const LAYERS = {
   bean2: { src: 'feijao-2.webp', normal: true },
   bean3: { src: 'feijao-3.webp', normal: true },
   bean4: { src: 'feijao-4.webp', normal: true },
+  tractor: { src: 'colheitadeira.webp', normal: true },
   foreground: { src: 'primeiro-plano.webp', blur: 3.2 },
   ground: { src: 'chao.webp' },
 };
 
 // Lavoura de feijao: fileiras vistas de frente, repetidas na horizontal e
 // recuando em perspectiva (a de tras menor). `base`: linha do solo na cena.
+// Fica perto da linha da casa (mais ao fundo), longe da arvore e do lago.
 const BEAN_ROWS = [
-  { tex: 'bean4', base: 688, height: 46, x0: 1010 },
-  { tex: 'bean2', base: 726, height: 62, x0: 995 },
-  { tex: 'bean3', base: 770, height: 84, x0: 980 },
-  { tex: 'bean1', base: 822, height: 112, x0: 960 },
+  { tex: 'bean4', base: 650, height: 26, x0: 1000 },
+  { tex: 'bean2', base: 664, height: 33, x0: 992 },
+  { tex: 'bean3', base: 680, height: 42, x0: 984 },
+  { tex: 'bean1', base: 698, height: 54, x0: 975 },
 ];
-const BEAN_X1 = SCENE_W + 120;
+const BEAN_X1 = 1720;
+
+// Colheitadeira: sai de tras da casa, passa na frente da lavoura colhendo e
+// some atras da arvore da direita. `t` em segundos.
+const HARVEST_PATH = Object.freeze({
+  height: 98,
+  start: [790, 664], turn: [985, 664], enter: [1060, 712], end: [1790, 712], exit: [2200, 712],
+  enterSeconds: 1.8, passSeconds: 6.4, exitSeconds: 2.2,
+});
+const HARVEST_SECONDS = HARVEST_PATH.enterSeconds + HARVEST_PATH.passSeconds + HARVEST_PATH.exitSeconds;
+const lerp2 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+const easeInOut = k => k * k * (3 - 2 * k);
+/** Posicao da colheitadeira e ate onde a lavoura ja foi colhida. */
+function harvestPose(t) {
+  const P = HARVEST_PATH;
+  if (t < P.enterSeconds) {
+    // primeiro anda atras da casa (escondida por ela), depois desce para a
+    // frente da lavoura: assim nunca "pula" para a frente da casa
+    const k = t / P.enterSeconds;
+    const pos = k < .62 ? lerp2(P.start, P.turn, easeInOut(k / .62)) : lerp2(P.turn, P.enter, easeInOut((k - .62) / .38));
+    return { pos, cut: -Infinity, phase: 'enter' };
+  }
+  const t2 = t - P.enterSeconds;
+  if (t2 < P.passSeconds) {
+    const k = t2 / P.passSeconds;
+    const pos = lerp2(P.enter, P.end, k);
+    return { pos, cut: pos[0] + 90, phase: 'pass', progress: k };
+  }
+  const k = Math.min(1, (t2 - P.passSeconds) / P.exitSeconds);
+  return { pos: lerp2(P.end, P.exit, k * k), cut: Infinity, phase: k >= 1 ? 'done' : 'exit', progress: 1 };
+}
 
 // Espacos de melhoria: base do item na cena e escala.
 const FARM_SLOTS = [
@@ -51930,12 +52072,15 @@ uniform float uOpacity;
 uniform float uRim;
 uniform float uSick;
 uniform float uFlip;
+uniform float uCut;
 void main(){
   vec2 uv = vUv;
   if (uSwayMode > 0.5) {
     float k = uSwayMode < 1.5 ? pow(1.0 - uv.y, 2.2) : pow(1.0 - uv.y, 1.2);
     uv.x += (sin(uTime * 1.1 + uv.y * 5.0 + uSeed) + .35 * sin(uTime * 2.9 + uv.y * 19.0 + uv.x * 7.0 + uSeed)) * uSwayAmp * k;
   }
+  // lavoura colhida: a esquerda do corte so sobra a faixa de terra
+  if (vScene.x < uCut && uv.y < 0.88) discard;
   vec4 c = texture2D(uTex, uv);
   if (c.a < 0.01) discard;
   vec3 col = c.rgb * uTint;
@@ -52110,7 +52255,7 @@ function normalsFor(img) {
  * @param {HTMLCanvasElement} canvas
  * @param {{ items?: () => Array<{slot:number, image:HTMLCanvasElement, key:string}>, plantState?: () => number }} hooks
  */
-function createFarmScene(canvas, { items = () => [], plantState = () => 1 } = {}) {
+function createFarmScene(canvas, { items = () => [], plantState = () => 1, harvest = () => null } = {}) {
   const gl = canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false });
   if (!gl) return null;
   const quad = gl.createBuffer();
@@ -52199,7 +52344,7 @@ function createFarmScene(canvas, { items = () => [], plantState = () => 1 } = {}
     gl.uniform4f(prog.u.uView, sx, sy, ox, oy);
   }
 
-  function drawSprite(tex, rect, { depth = .5, sway = 0, swayAmp = 0, seed = 0, haze = 0, tint = [1, 1, 1], opacity = 1, rim = 0, sick = 0 } = {}) {
+  function drawSprite(tex, rect, { depth = .5, sway = 0, swayAmp = 0, seed = 0, haze = 0, tint = [1, 1, 1], opacity = 1, rim = 0, sick = 0, cut = -1e6 } = {}) {
     const P = progSprite;
     gl.useProgram(P.p);
     useView(P, depth);
@@ -52218,6 +52363,7 @@ function createFarmScene(canvas, { items = () => [], plantState = () => 1 } = {}
     gl.uniform1f(P.u.uRim, rim);
     gl.uniform1f(P.u.uSick, sick);
     gl.uniform1f(P.u.uFlip, rect[2] < 0 ? -1 : 1);
+    gl.uniform1f(P.u.uCut, Number.isFinite(cut) ? cut : (cut > 0 ? 1e6 : -1e6));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
@@ -52272,8 +52418,11 @@ function createFarmScene(canvas, { items = () => [], plantState = () => 1 } = {}
 
     // tudo que pousa no chao, de tras para frente
     const state = plantState();
-    // a ultima colheita decide a cara da lavoura
+    // a nota da colheita decide a cara da lavoura; -1 = ja colhida (so terra)
     const sick = state === 0 ? .85 : state === 1 ? .18 : 0;
+    const run = harvest();
+    const pose = run ? harvestPose(run.t) : null;
+    const cut = state < 0 ? Infinity : pose ? pose.cut : -Infinity;
     const props = [
       { id: 'house', y: LAYERS.house.at[1], draw: () => drawSprite(textures.house, anchoredRect(LAYERS.house, textures.house), { depth: .3, haze: .12, rim: .55 }) },
       { id: 'treeB', y: LAYERS.treeB.at[1], draw: () => drawSprite(textures.treeB, anchoredRect(LAYERS.treeB, textures.treeB), { depth: .43, sway: 1, swayAmp: LAYERS.treeB.swayAmp, seed: 1.7, rim: .75 }) },
@@ -52289,7 +52438,7 @@ function createFarmScene(canvas, { items = () => [], plantState = () => 1 } = {}
           // espelha um pedaco sim, outro nao: a repeticao nao fica obvia
           const flip = k % 2 === 1;
           drawSprite(tex, flip ? [x + w, row.base - h * .97, -w, h] : [x, row.base - h * .97, w, h],
-            { depth: depthAt(row.base), sway: 2, swayAmp: .006, seed: r * 2.1 + k * 1.3, rim: .55, sick });
+            { depth: depthAt(row.base), sway: 2, swayAmp: .006, seed: r * 2.1 + k * 1.3, rim: .55, sick, cut });
         }
       } });
     });
@@ -52303,6 +52452,14 @@ function createFarmScene(canvas, { items = () => [], plantState = () => 1 } = {}
       }
       const w = tex.w * slot.s * .8, h = tex.h * slot.s * .8;
       props.push({ id: item.key, y: slot.y, draw: () => drawSprite(tex, [slot.x - w / 2, slot.y - h * .94, w, h], { depth: depthAt(slot.y), rim: .7 }) });
+    }
+    if (pose && pose.phase !== 'done') {
+      const tex = textures.tractor;
+      const h = HARVEST_PATH.height, w = tex.w * h / tex.h;
+      // balanco do terreno
+      const bob = Math.sin(time * 9) * 1.2 + Math.sin(time * 13.7) * .6;
+      props.push({ id: 'tractor', y: pose.pos[1], draw: () => drawSprite(tex,
+        [pose.pos[0] - w * .5, pose.pos[1] - h + bob, w, h], { depth: depthAt(pose.pos[1]), rim: .6 }) });
     }
     props.sort((a, b) => a.y - b.y).forEach(prop => prop.draw());
 
@@ -52340,7 +52497,7 @@ function createFarmScene(canvas, { items = () => [], plantState = () => 1 } = {}
     get maxPan() { return view.maxPan || 0; },
   };
 }
-Object.assign(__exports, { SCENE_W, SCENE_H, HORIZON, FARM_SLOTS, depthAt, createFarmScene });
+Object.assign(__exports, { SCENE_W, SCENE_H, HORIZON, HARVEST_PATH, HARVEST_SECONDS, harvestPose, FARM_SLOTS, depthAt, createFarmScene });
 },
 "experimental/2_5d/gl/sprite-normals.js": (__exports, __require) => {
 // Normal maps derivados da propria arte, sem redesenhar nada.

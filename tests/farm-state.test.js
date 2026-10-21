@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  blankFarm, buyItem, canBuy, creditHarvest, FARM_STORAGE_KEY, harvestIdFor, loadFarm, pickUpItem, placeItem, saveFarm,
+  blankFarm, buyItem, canBuy, collectHarvests, FARM_STORAGE_KEY, harvestIdFor, loadFarm, pendingCoins, pickUpItem,
+  placeItem, registerHarvest, saveFarm,
 } from '../src/farm/farm-state.js';
 import { FARM_ITEMS } from '../src/farm/farm-items.js';
 
@@ -10,18 +11,30 @@ function memoryStorage() {
   return { getItem: k => (data.has(k) ? data.get(k) : null), setItem: (k, v) => data.set(k, String(v)), data };
 }
 
-test('cada colheita paga uma vez so (recarga nao duplica)', () => {
+test('cada fase planta uma vez so; as moedas entram quando a colheitadeira colhe', () => {
   const storage = memoryStorage();
   const id = harvestIdFor('seed-x', 3);
   let farm = loadFarm(storage);
-  assert.equal(creditHarvest(farm, { harvestId: id, coins: 83, score: 83 }).credited, true);
+  assert.equal(registerHarvest(farm, { harvestId: id, coins: 83, score: 83 }).registered, true);
+  assert.equal(farm.coins, 0, 'plantar nao paga');
   saveFarm(farm, storage);
   farm = loadFarm(storage); // "recarregou a pagina"
-  assert.equal(creditHarvest(farm, { harvestId: id, coins: 83, score: 83 }).credited, false);
-  assert.equal(farm.coins, 83);
-  assert.equal(creditHarvest(farm, { harvestId: harvestIdFor('seed-x', 4), coins: 50 }).credited, true);
+  assert.equal(registerHarvest(farm, { harvestId: id, coins: 83, score: 83 }).registered, false);
+  registerHarvest(farm, { harvestId: harvestIdFor('seed-x', 4), coins: 50, score: 50 });
+  assert.equal(pendingCoins(farm), 133);
+  const result = collectHarvests(farm);
+  assert.deepEqual([result.coins, result.count, result.score], [133, 2, 50]);
   assert.equal(farm.coins, 133);
+  assert.equal(collectHarvests(farm).coins, 0, 'colher de novo nao paga');
   assert.ok(storage.data.has(FARM_STORAGE_KEY));
+});
+
+test('registro antigo (sem collected) conta como ja pago', () => {
+  const storage = memoryStorage();
+  storage.setItem(FARM_STORAGE_KEY, JSON.stringify({ coins: 16, harvests: { 'a:fase-2': { coins: 16 } } }));
+  const farm = loadFarm(storage);
+  assert.equal(pendingCoins(farm), 0);
+  assert.equal(farm.coins, 16);
 });
 
 test('loja: 3 itens, compra com moedas, 4 espacos', () => {

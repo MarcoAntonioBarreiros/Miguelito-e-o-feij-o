@@ -37,19 +37,51 @@ const LAYERS = {
   bean2: { src: 'feijao-2.webp', normal: true },
   bean3: { src: 'feijao-3.webp', normal: true },
   bean4: { src: 'feijao-4.webp', normal: true },
+  tractor: { src: 'colheitadeira.webp', normal: true },
   foreground: { src: 'primeiro-plano.webp', blur: 3.2 },
   ground: { src: 'chao.webp' },
 };
 
 // Lavoura de feijao: fileiras vistas de frente, repetidas na horizontal e
 // recuando em perspectiva (a de tras menor). `base`: linha do solo na cena.
+// Fica perto da linha da casa (mais ao fundo), longe da arvore e do lago.
 const BEAN_ROWS = [
-  { tex: 'bean4', base: 688, height: 46, x0: 1010 },
-  { tex: 'bean2', base: 726, height: 62, x0: 995 },
-  { tex: 'bean3', base: 770, height: 84, x0: 980 },
-  { tex: 'bean1', base: 822, height: 112, x0: 960 },
+  { tex: 'bean4', base: 650, height: 26, x0: 1000 },
+  { tex: 'bean2', base: 664, height: 33, x0: 992 },
+  { tex: 'bean3', base: 680, height: 42, x0: 984 },
+  { tex: 'bean1', base: 698, height: 54, x0: 975 },
 ];
-const BEAN_X1 = SCENE_W + 120;
+const BEAN_X1 = 1720;
+
+// Colheitadeira: sai de tras da casa, passa na frente da lavoura colhendo e
+// some atras da arvore da direita. `t` em segundos.
+export const HARVEST_PATH = Object.freeze({
+  height: 98,
+  start: [790, 664], turn: [985, 664], enter: [1060, 712], end: [1790, 712], exit: [2200, 712],
+  enterSeconds: 1.8, passSeconds: 6.4, exitSeconds: 2.2,
+});
+export const HARVEST_SECONDS = HARVEST_PATH.enterSeconds + HARVEST_PATH.passSeconds + HARVEST_PATH.exitSeconds;
+const lerp2 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+const easeInOut = k => k * k * (3 - 2 * k);
+/** Posicao da colheitadeira e ate onde a lavoura ja foi colhida. */
+export function harvestPose(t) {
+  const P = HARVEST_PATH;
+  if (t < P.enterSeconds) {
+    // primeiro anda atras da casa (escondida por ela), depois desce para a
+    // frente da lavoura: assim nunca "pula" para a frente da casa
+    const k = t / P.enterSeconds;
+    const pos = k < .62 ? lerp2(P.start, P.turn, easeInOut(k / .62)) : lerp2(P.turn, P.enter, easeInOut((k - .62) / .38));
+    return { pos, cut: -Infinity, phase: 'enter' };
+  }
+  const t2 = t - P.enterSeconds;
+  if (t2 < P.passSeconds) {
+    const k = t2 / P.passSeconds;
+    const pos = lerp2(P.enter, P.end, k);
+    return { pos, cut: pos[0] + 90, phase: 'pass', progress: k };
+  }
+  const k = Math.min(1, (t2 - P.passSeconds) / P.exitSeconds);
+  return { pos: lerp2(P.end, P.exit, k * k), cut: Infinity, phase: k >= 1 ? 'done' : 'exit', progress: 1 };
+}
 
 // Espacos de melhoria: base do item na cena e escala.
 export const FARM_SLOTS = [
@@ -96,12 +128,15 @@ uniform float uOpacity;
 uniform float uRim;
 uniform float uSick;
 uniform float uFlip;
+uniform float uCut;
 void main(){
   vec2 uv = vUv;
   if (uSwayMode > 0.5) {
     float k = uSwayMode < 1.5 ? pow(1.0 - uv.y, 2.2) : pow(1.0 - uv.y, 1.2);
     uv.x += (sin(uTime * 1.1 + uv.y * 5.0 + uSeed) + .35 * sin(uTime * 2.9 + uv.y * 19.0 + uv.x * 7.0 + uSeed)) * uSwayAmp * k;
   }
+  // lavoura colhida: a esquerda do corte so sobra a faixa de terra
+  if (vScene.x < uCut && uv.y < 0.88) discard;
   vec4 c = texture2D(uTex, uv);
   if (c.a < 0.01) discard;
   vec3 col = c.rgb * uTint;
@@ -276,7 +311,7 @@ function normalsFor(img) {
  * @param {HTMLCanvasElement} canvas
  * @param {{ items?: () => Array<{slot:number, image:HTMLCanvasElement, key:string}>, plantState?: () => number }} hooks
  */
-export function createFarmScene(canvas, { items = () => [], plantState = () => 1 } = {}) {
+export function createFarmScene(canvas, { items = () => [], plantState = () => 1, harvest = () => null } = {}) {
   const gl = canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false });
   if (!gl) return null;
   const quad = gl.createBuffer();
@@ -365,7 +400,7 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
     gl.uniform4f(prog.u.uView, sx, sy, ox, oy);
   }
 
-  function drawSprite(tex, rect, { depth = .5, sway = 0, swayAmp = 0, seed = 0, haze = 0, tint = [1, 1, 1], opacity = 1, rim = 0, sick = 0 } = {}) {
+  function drawSprite(tex, rect, { depth = .5, sway = 0, swayAmp = 0, seed = 0, haze = 0, tint = [1, 1, 1], opacity = 1, rim = 0, sick = 0, cut = -1e6 } = {}) {
     const P = progSprite;
     gl.useProgram(P.p);
     useView(P, depth);
@@ -384,6 +419,7 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
     gl.uniform1f(P.u.uRim, rim);
     gl.uniform1f(P.u.uSick, sick);
     gl.uniform1f(P.u.uFlip, rect[2] < 0 ? -1 : 1);
+    gl.uniform1f(P.u.uCut, Number.isFinite(cut) ? cut : (cut > 0 ? 1e6 : -1e6));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
@@ -438,8 +474,11 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
 
     // tudo que pousa no chao, de tras para frente
     const state = plantState();
-    // a ultima colheita decide a cara da lavoura
+    // a nota da colheita decide a cara da lavoura; -1 = ja colhida (so terra)
     const sick = state === 0 ? .85 : state === 1 ? .18 : 0;
+    const run = harvest();
+    const pose = run ? harvestPose(run.t) : null;
+    const cut = state < 0 ? Infinity : pose ? pose.cut : -Infinity;
     const props = [
       { id: 'house', y: LAYERS.house.at[1], draw: () => drawSprite(textures.house, anchoredRect(LAYERS.house, textures.house), { depth: .3, haze: .12, rim: .55 }) },
       { id: 'treeB', y: LAYERS.treeB.at[1], draw: () => drawSprite(textures.treeB, anchoredRect(LAYERS.treeB, textures.treeB), { depth: .43, sway: 1, swayAmp: LAYERS.treeB.swayAmp, seed: 1.7, rim: .75 }) },
@@ -455,7 +494,7 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
           // espelha um pedaco sim, outro nao: a repeticao nao fica obvia
           const flip = k % 2 === 1;
           drawSprite(tex, flip ? [x + w, row.base - h * .97, -w, h] : [x, row.base - h * .97, w, h],
-            { depth: depthAt(row.base), sway: 2, swayAmp: .006, seed: r * 2.1 + k * 1.3, rim: .55, sick });
+            { depth: depthAt(row.base), sway: 2, swayAmp: .006, seed: r * 2.1 + k * 1.3, rim: .55, sick, cut });
         }
       } });
     });
@@ -469,6 +508,14 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
       }
       const w = tex.w * slot.s * .8, h = tex.h * slot.s * .8;
       props.push({ id: item.key, y: slot.y, draw: () => drawSprite(tex, [slot.x - w / 2, slot.y - h * .94, w, h], { depth: depthAt(slot.y), rim: .7 }) });
+    }
+    if (pose && pose.phase !== 'done') {
+      const tex = textures.tractor;
+      const h = HARVEST_PATH.height, w = tex.w * h / tex.h;
+      // balanco do terreno
+      const bob = Math.sin(time * 9) * 1.2 + Math.sin(time * 13.7) * .6;
+      props.push({ id: 'tractor', y: pose.pos[1], draw: () => drawSprite(tex,
+        [pose.pos[0] - w * .5, pose.pos[1] - h + bob, w, h], { depth: depthAt(pose.pos[1]), rim: .6 }) });
     }
     props.sort((a, b) => a.y - b.y).forEach(prop => prop.draw());
 
