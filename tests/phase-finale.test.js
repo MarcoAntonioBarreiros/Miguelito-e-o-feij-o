@@ -526,7 +526,7 @@ test('com audio o stinger continua sendo mais longo que a cena', () => {
 
 test('falha da cinematica nao prende a campanha', () => {
   const app = source('src/procgen/app.js');
-  assert.match(app, /campaign\.finaleDeadline = sim\.state\.time \+ phaseFinaleSeconds\(celebrationSeconds\) \+ 1\.5/);
+  assert.match(app, /campaign\.finaleDeadline = sim\.state\.time \+ phaseFinaleSeconds\(celebrationSeconds\) \+ FINALE_HARVEST_SECONDS \+ 1\.5/);
   assert.match(app, /sim\.state\.time < \(campaign\.finaleDeadline \|\| 0\)/);
 
   // E sem gol nao ha cinematica: `begin` recusa em vez de travar.

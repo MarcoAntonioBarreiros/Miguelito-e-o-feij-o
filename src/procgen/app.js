@@ -57,7 +57,7 @@ import { arrivalTourSeen, createArrivalTour } from './arrival-tour.js';
 import { buildPhaseScoreReport } from './phase-score.js';
 import { createPhaseResultPanel } from './phase-result-panel.js';
 import { createFarmView } from '../farm/farm-view.js';
-import { harvestIdFor, loadFarm, pendingCoins, registerHarvest, saveFarm } from '../farm/farm-state.js';
+import { collectHarvests, harvestIdFor, loadFarm, pendingCoins, registerHarvest, saveFarm } from '../farm/farm-state.js';
 import { createResponsiveCanvas } from './responsive-canvas.js';
 import { getPrimaryTraversalPlatforms } from './traversal-route.js';
 import {
@@ -81,7 +81,7 @@ import {
   createPathogenArrival,
   PATHOGEN_ARRIVAL_DEFAULTS,
 } from './pathogen-arrival.js';
-import { createPhaseFinale, phaseFinaleSeconds } from './phase-finale.js';
+import { createPhaseFinale, FINALE_HARVEST_SECONDS, phaseFinaleSeconds } from './phase-finale.js';
 import { rhizosphereSurfaceY } from '../render/rhizosphere-geometry.js';
 import { GEOMETRY_ENABLED } from '../render/geometry-preference.js';
 import { vfxParticles } from '../render/vfx-particles.js';
@@ -857,7 +857,16 @@ const phaseFinale = createPhaseFinale({
   state: sim.state,
   cameraView,
   getViewport: () => ({ width: canvas.width, height: canvas.height }),
+  // a colheitadeira terminou de colher o feijoal: a lavoura vira moeda
+  onHarvested: () => {
+    if (phaseLab.enabled || !campaign.harvest) return;
+    const farm = loadFarm();
+    const sold = collectHarvests(farm);
+    saveFarm(farm);
+    Object.assign(campaign.harvest, { sold: sold.coins, pending: 0, total: farm.coins });
+  },
 });
+window.miguelitoPhaseFinale = phaseFinale;
 // O ciclo da comemoracao sai da PROPRIA folha de sprite (8 quadros a 6 fps =
 // 1,333 s). O afastamento nao pode comecar antes de ele terminar, e este numero
 // nao pode viver duplicado aqui.
@@ -1775,7 +1784,7 @@ function maybeAdvanceCampaign() {
     phaseFinale.begin({ report, celebrationSeconds });
     // Teto duro da espera pela cena: se o quadro parar de chamar `update` por
     // qualquer motivo, a fase avanca assim mesmo. Nunca prende a campanha.
-    campaign.finaleDeadline = sim.state.time + phaseFinaleSeconds(celebrationSeconds) + 1.5;
+    campaign.finaleDeadline = sim.state.time + phaseFinaleSeconds(celebrationSeconds) + FINALE_HARVEST_SECONDS + 1.5;
     // Uma vez por fase, no ponto exato da captura. `beginPhaseVictory` faz mais
     // que tocar o stinger: suprime a musica da fase, abaixa o ambiente e para as
     // gotas — antes a musica continuava audivel por baixo da vitoria.
@@ -1811,7 +1820,7 @@ function maybeAdvanceCampaign() {
   if (harvest && !phaseLab.enabled && !harvest.continued) {
     if (!harvest.shown) {
       harvest.shown = true;
-      phaseResultPanel.show(harvest.report, { credited: harvest.credited, pending: harvest.pending });
+      phaseResultPanel.show(harvest.report, { credited: harvest.credited, pending: harvest.pending, sold: harvest.sold, total: harvest.total });
     }
     return false;
   }
@@ -1955,7 +1964,8 @@ const farmView = createFarmView({
   onClose: () => {
     const harvest = campaign.harvest;
     if (harvest && harvest.shown && !harvest.continued) {
-      phaseResultPanel.show(harvest.report, { credited: harvest.credited, pending: pendingCoins(loadFarm()), visited: true });
+      const farmNow = loadFarm();
+      phaseResultPanel.show(harvest.report, { credited: harvest.credited, pending: pendingCoins(farmNow), sold: harvest.sold, total: farmNow.coins, visited: true });
     }
   },
 });

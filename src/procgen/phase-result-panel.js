@@ -80,7 +80,7 @@ export function createPhaseResultPanel({ onContinue = () => {}, onFarm = () => {
     }, true);
   }
 
-  function show(report, { credited = true, pending = 0, visited = false } = {}) {
+  function show(report, { credited = true, pending = 0, sold = 0, total = null, visited = false } = {}) {
     ensureDom();
     const b = report.breakdown;
     const pillars = b.harvest.pillars.map(p => row(p.label, p.points, p.max)).join('');
@@ -99,6 +99,7 @@ export function createPhaseResultPanel({ onContinue = () => {}, onFarm = () => {
       ${report.hint ? `<p class="pr-hint">${report.hint}</p>` : ''}
       <p class="pr-total">${!credited ? 'Esta lavoura já tinha sido plantada. '
         : pending > 0 ? `A lavoura está pronta: colha na fazendinha para receber ${pending} moedas.`
+        : sold > 0 ? `Colheita vendida: +${sold} moedas.${Number.isFinite(total) ? ` Na fazendinha: ${total}.` : ''}`
         : visited ? 'Colheita recebida na fazendinha.' : ''}</p>
       <div class="pr-actions">
         <button type="button" class="pr-farm">${pending > 0 ? 'Colher na fazendinha' : 'Fazendinha'}</button>
