@@ -1,17 +1,17 @@
-// FAZENDINHA: uma tela 2D frontal, ilustrada em camadas (ceu, morro, casinha,
-// canteiro e quatro espacos de melhoria), com a lojinha embaixo. Nada de mapa,
-// grade ou vista de cima: e uma "tela viva" clicavel.
-//
-// Arte provisoria desenhada em canvas; quando houver ilustracao, troca-se o
-// desenho de cada camada sem mexer no estado (farm-state.js).
+// FAZENDINHA: uma tela frontal ilustrada em camadas (farm-scene.js), com a
+// lojinha embaixo. Casas, arvores e objetos sao itens comprados com as moedas
+// da colheita e postos nos lugares da cena (farm-layout.js): cada lugar aceita
+// um tipo de item e o item escala pela perspectiva do lugar.
 
-import { FARM_ITEMS, FARM_SLOT_COUNT, getFarmItem } from './farm-items.js';
+import { FARM_ITEMS, FARM_TABS, getFarmItem } from './farm-items.js';
 import {
-  buyItem, canBuy, collectHarvests, loadFarm, pendingCoins, pendingHarvests, pickUpItem, placeItem, saveFarm,
+  buyItem, canBuy, canPlace, collectHarvests, loadFarm, pendingCoins, pendingHarvests, pickUpItem, placeItem, saveFarm,
 } from './farm-state.js';
 import { fieldLevelFromScore } from './bean-field.js';
-import { createFarmScene, depthAt, FARM_SLOTS, HARVEST_PATH, harvestPose } from './farm-scene.js';
+import { FARM_SLOTS, FARM_SLOT_COUNT, itemSceneRect, perspectiveAt } from './farm-layout.js';
+import { createFarmScene, depthAt, HARVEST_PATH, harvestPose } from './farm-scene.js';
 
+const ART = './assets/farm/';
 
 const STYLE = `
 #farm-overlay { position: fixed; inset: 0; z-index: 240; background: #1b120c; color: #fbeedd; overflow: hidden;
@@ -41,21 +41,34 @@ const STYLE = `
 #farm-overlay:not(.shop-open) .farm-shop { display: none; }
 #farm-overlay.harvesting .farm-shop-toggle { opacity: .45; pointer-events: none; }
 #farm-overlay.shop-open .farm-shop-toggle { background: rgba(42,19,13,.86); color: #fbeedd; box-shadow: none; border: 1px solid rgba(255,214,170,.3); }
-#farm-overlay .farm-shop { width: min(980px,100%); display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; pointer-events: auto; }
-#farm-overlay .farm-item { display: grid; grid-template-columns: 58px 1fr; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 14px;
-  background: rgba(42,19,13,.86); border: 1px solid rgba(255,214,170,.22); backdrop-filter: blur(6px); }
-#farm-overlay .farm-item canvas { width: 58px; height: 46px; }
-#farm-overlay .farm-item strong { display: block; font-size: .98rem; }
-#farm-overlay .farm-item small { display: block; color: #dcbfa3; font-size: .78rem; line-height: 1.3; margin: 2px 0 6px; }
-#farm-overlay .farm-buy { border: 0; border-radius: 999px; padding: 7px 14px; background: #ffc35a; color: #3a1608; font: 800 .9rem/1 system-ui;
+#farm-overlay .farm-shop { width: min(1040px,100%); pointer-events: auto; border-radius: 16px; padding: 10px; background: rgba(42,19,13,.9);
+  border: 1px solid rgba(255,214,170,.22); backdrop-filter: blur(6px); }
+#farm-overlay .farm-tabs { display: flex; gap: 6px; margin-bottom: 8px; overflow-x: auto; }
+#farm-overlay .farm-tab { border: 1px solid rgba(255,214,170,.28); background: transparent; color: #fbeedd; border-radius: 999px; padding: 7px 14px;
+  font: 700 .92rem/1 inherit; cursor: pointer; white-space: nowrap; }
+#farm-overlay .farm-tab[aria-selected="true"] { background: #ffc35a; color: #3a1608; border-color: #ffc35a; }
+#farm-overlay .farm-tab small { opacity: .75; font-weight: 600; }
+#farm-overlay .farm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; max-height: min(44vh, 360px);
+  overflow-y: auto; padding-right: 4px; }
+#farm-overlay .farm-item { display: grid; grid-template-rows: 72px auto auto; justify-items: center; gap: 4px; padding: 8px 6px; border-radius: 12px;
+  background: rgba(255,240,220,.06); border: 1px solid rgba(255,214,170,.14); text-align: center; }
+#farm-overlay .farm-item img { width: 100%; height: 72px; object-fit: contain; }
+#farm-overlay .farm-item strong { font-size: .84rem; line-height: 1.15; }
+#farm-overlay .farm-buy { border: 0; border-radius: 999px; padding: 6px 12px; background: #ffc35a; color: #3a1608; font: 800 .86rem/1 system-ui;
   box-shadow: 0 3px 0 #b3651f; cursor: pointer; }
 #farm-overlay .farm-buy:disabled { opacity: .4; cursor: default; box-shadow: none; }
+#farm-overlay .farm-hand { pointer-events: auto; display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 14px;
+  background: rgba(42,19,13,.86); border: 1px solid rgba(255,214,170,.22); max-width: 100%; overflow-x: auto; }
+#farm-overlay .farm-hand[hidden] { display: none; }
+#farm-overlay .farm-hand span { font-weight: 700; font-size: .85rem; color: #dcbfa3; padding: 0 4px; white-space: nowrap; }
+#farm-overlay .farm-hand button { flex: none; width: 58px; height: 50px; border-radius: 10px; border: 2px solid transparent; background: rgba(255,240,220,.08);
+  padding: 3px; cursor: pointer; }
+#farm-overlay .farm-hand button[aria-pressed="true"] { border-color: #ffc35a; background: rgba(255,195,90,.22); }
+#farm-overlay .farm-hand img { width: 100%; height: 100%; object-fit: contain; }
 #farm-overlay .farm-loading[hidden] { display: none; }
 #farm-overlay .farm-loading { position: absolute; inset: 0; display: grid; place-items: center; color: #dcbfa3; pointer-events: none; }
 @media (max-width: 760px) {
-  #farm-overlay .farm-shop { grid-template-columns: repeat(3, minmax(150px, 1fr)); overflow-x: auto; }
-  #farm-overlay .farm-item { grid-template-columns: 1fr; text-align: center; justify-items: center; }
-  #farm-overlay .farm-item small { display: none; }
+  #farm-overlay .farm-grid { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); max-height: 38vh; }
   #farm-overlay h1 { font-size: 1.4rem; }
 }
 `;
@@ -68,21 +81,14 @@ function ensureStyle() {
   document.head.appendChild(style);
 }
 
-// Item da loja desenhado num canvas proprio (vira textura com relevo na cena).
-function itemImage(itemId) {
-  const c = document.createElement('canvas');
-  c.width = 420; c.height = 330;
-  getFarmItem(itemId).draw(c.getContext('2d'), 210, 318, 2.1);
-  return c;
-}
-
 export function createFarmView({ onClose = () => {} } = {}) {
   let root = null, glCanvas = null, marks = null, mctx = null, scene = null;
-  let frame = null, farm = null, hover = -1, last = 0, time = 0;
+  let frame = null, farm = null, hover = null, last = 0, time = 0;
+  // item da mao que vai ser colocado (id) e aba aberta na lojinha
+  let selected = null, tab = FARM_TABS[0].kind;
   // colheita em andamento: { t, coins, startCoins, score, nextPop }
   let run = null;
   const pops = [];
-  const images = new Map();
 
   function message(text) { root.querySelector('.farm-msg').textContent = text || ''; }
 
@@ -157,54 +163,85 @@ export function createFarmView({ onClose = () => {} } = {}) {
 
   function placedItems() {
     if (!farm) return [];
-    return farm.slots.map((itemId, slot) => {
-      if (!itemId) return null;
-      if (!images.has(itemId)) images.set(itemId, itemImage(itemId));
-      return { slot, key: itemId, image: images.get(itemId) };
-    }).filter(Boolean);
+    return farm.slots.map((itemId, slot) => (itemId ? { slot, item: getFarmItem(itemId) } : null)).filter(Boolean);
   }
 
-  // marcas dos espacos (vazios pulsam quando ha item para colocar)
+  // retangulo do item colocado, em px da tela
+  function screenRect(index) {
+    const item = getFarmItem(farm.slots[index]);
+    const slot = FARM_SLOTS[index];
+    const [x, y, w, h] = itemSceneRect(slot, item);
+    const depth = depthAt(slot.y);
+    const a = scene.sceneToScreen(x, y, depth), b = scene.sceneToScreen(x + w, y + h, depth);
+    return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
+  }
+
+  // lugares livres que aceitam o item da mao
+  function targets() {
+    if (!selected) return [];
+    return FARM_SLOTS.map((_, i) => i).filter(i => canPlace(farm, i, selected));
+  }
+
+  function markRadius(slot, p) {
+    return Math.max(16, 110 * perspectiveAt(slot.y) * p.scale);
+  }
+
+  // marcas: com item na mao, os lugares que servem pulsam; sem item, o toque
+  // num item colocado o devolve para a mao (mudar de lugar)
   function drawMarks() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const cw = marks.clientWidth, ch = marks.clientHeight;
     if (marks.width !== Math.round(cw * dpr)) { marks.width = Math.round(cw * dpr); marks.height = Math.round(ch * dpr); }
     mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     mctx.clearRect(0, 0, cw, ch);
-    const placing = farm.inventory.length > 0;
-    FARM_SLOTS.forEach((slot, index) => {
+    const pulse = .6 + .4 * Math.sin(time * 5);
+    for (const index of targets()) {
+      const slot = FARM_SLOTS[index];
       const p = scene.sceneToScreen(slot.x, slot.y, depthAt(slot.y));
-      const r = 88 * slot.s * p.scale;
-      if (farm.slots[index]) {
-        if (hover === index && !placing) {
-          mctx.font = '700 13px system-ui'; mctx.textAlign = 'center';
-          mctx.fillStyle = 'rgba(30,14,8,.7)';
-          mctx.fillRect(p.x - 92, p.y + 8, 184, 22);
-          mctx.fillStyle = '#fff4e2';
-          mctx.fillText('toque para mudar de lugar', p.x, p.y + 24);
-        }
-        return;
-      }
-      const pulse = placing ? .6 + .4 * Math.sin(time * 5) : .45;
+      const r = markRadius(slot, p);
+      const on = hover && hover.type === 'slot' && hover.index === index;
       mctx.save();
       mctx.setLineDash([7, 6]); mctx.lineWidth = 2.5;
-      mctx.strokeStyle = placing ? `rgba(255,214,110,${pulse})` : 'rgba(255,255,255,.55)';
-      mctx.fillStyle = placing ? 'rgba(255,214,110,.18)' : 'rgba(255,255,255,.1)';
-      mctx.beginPath(); mctx.ellipse(p.x, p.y - 4, r, r * .28, 0, 0, Math.PI * 2); mctx.fill(); mctx.stroke();
+      mctx.strokeStyle = `rgba(255,214,110,${on ? 1 : pulse})`;
+      mctx.fillStyle = on ? 'rgba(255,214,110,.34)' : 'rgba(255,214,110,.18)';
+      mctx.beginPath(); mctx.ellipse(p.x, p.y - 2, r, r * .28, 0, 0, Math.PI * 2); mctx.fill(); mctx.stroke();
       mctx.setLineDash([]);
-      mctx.fillStyle = placing ? '#ffd36f' : 'rgba(255,255,255,.85)';
-      mctx.font = `800 ${Math.round(Math.max(16, 26 * slot.s * p.scale / .6))}px system-ui`; mctx.textAlign = 'center';
-      mctx.fillText('+', p.x, p.y + 4);
+      mctx.fillStyle = '#ffd36f';
+      mctx.font = `800 ${Math.round(Math.max(15, r * .45))}px system-ui`; mctx.textAlign = 'center';
+      mctx.fillText('+', p.x, p.y + 5);
       mctx.restore();
-    });
+    }
+    if (hover && hover.type === 'item' && !run) {
+      const r = screenRect(hover.index);
+      mctx.save();
+      mctx.strokeStyle = 'rgba(255,240,200,.75)'; mctx.lineWidth = 2; mctx.setLineDash([6, 5]);
+      mctx.strokeRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+      mctx.setLineDash([]);
+      const label = `${getFarmItem(farm.slots[hover.index]).name}: toque para mudar de lugar`;
+      mctx.font = '700 13px system-ui'; mctx.textAlign = 'center';
+      const w = mctx.measureText(label).width + 16, cx = (r.x0 + r.x1) / 2;
+      mctx.fillStyle = 'rgba(30,14,8,.75)'; mctx.fillRect(cx - w / 2, r.y1 + 6, w, 22);
+      mctx.fillStyle = '#fff4e2'; mctx.fillText(label, cx, r.y1 + 22);
+      mctx.restore();
+    }
   }
 
-  function slotAt(px, py) {
-    return FARM_SLOTS.findIndex(slot => {
+  // o que esta sob o ponteiro: um lugar marcado (com item na mao) ou um item
+  function pick(px, py) {
+    if (!scene) return null;
+    for (const index of targets()) {
+      const slot = FARM_SLOTS[index];
       const p = scene.sceneToScreen(slot.x, slot.y, depthAt(slot.y));
-      const r = 95 * slot.s * p.scale;
-      return Math.abs(px - p.x) < r && py < p.y + 24 * p.scale && py > p.y - 230 * slot.s * p.scale;
-    });
+      const r = markRadius(slot, p) * 1.15;
+      if (((px - p.x) / r) ** 2 + ((py - p.y) / (r * .6)) ** 2 <= 1) return { type: 'slot', index };
+    }
+    // itens: o mais da frente primeiro
+    const placed = farm.slots.map((id, i) => (id ? i : -1)).filter(i => i >= 0).sort((a, b) => FARM_SLOTS[b].y - FARM_SLOTS[a].y);
+    for (const index of placed) {
+      const r = screenRect(index);
+      if (px >= r.x0 && px <= r.x1 && py >= r.y0 && py <= r.y1) return { type: 'item', index };
+    }
+    return null;
   }
 
   function loop(now) {
@@ -222,21 +259,57 @@ export function createFarmView({ onClose = () => {} } = {}) {
     frame = requestAnimationFrame(loop);
   }
 
+  function shopCards() {
+    return FARM_ITEMS.filter(item => item.kind === tab).map(item => `
+      <div class="farm-item" data-item="${item.id}">
+        <img src="${ART}${item.src}" alt="" loading="lazy" decoding="async">
+        <strong>${item.name}</strong>
+        <button type="button" class="farm-buy"><span class="farm-coin"></span> ${item.price}</button>
+      </div>`).join('');
+  }
+
+  function renderTabs() {
+    const free = kind => FARM_SLOTS.filter((slot, i) => slot.kind === kind && !farm.slots[i]).length;
+    root.querySelector('.farm-tabs').innerHTML = FARM_TABS.map(t => `
+      <button type="button" class="farm-tab" role="tab" data-kind="${t.kind}" aria-selected="${t.kind === tab}">
+        ${t.label} <small>${free(t.kind)} lugares</small></button>`).join('');
+  }
+
+  function renderHand() {
+    const hand = root.querySelector('.farm-hand');
+    hand.hidden = !farm.inventory.length;
+    if (selected && !farm.inventory.includes(selected)) selected = null;
+    if (!selected && farm.inventory.length) selected = farm.inventory[0];
+    hand.innerHTML = `<span>Para colocar:</span>${farm.inventory.map(id => {
+      const item = getFarmItem(id);
+      return `<button type="button" data-item="${id}" title="${item.name}" aria-pressed="${id === selected}"><img src="${ART}${item.src}" alt="${item.name}"></button>`;
+    }).join('')}`;
+  }
+
   function renderShop() {
     root.querySelector('.farm-coins-value').textContent = farm.coins;
+    renderTabs();
+    renderHand();
     for (const card of root.querySelectorAll('.farm-item')) {
       const check = canBuy(farm, card.dataset.item);
       const button = card.querySelector('.farm-buy');
       button.disabled = !check.ok;
       button.title = check.reason === 'coins' ? 'Moedas insuficientes'
-        : check.reason === 'no-space' ? 'Sem espaço livre' : 'Comprar';
+        : check.reason === 'no-space' ? 'Sem lugar livre para este tipo' : 'Comprar';
     }
+  }
+
+  function showTab(kind) {
+    tab = kind;
+    root.querySelector('.farm-grid').innerHTML = shopCards();
+    root.querySelector('.farm-grid').scrollTop = 0;
+    renderShop();
   }
 
   function persist() { saveFarm(farm); renderShop(); }
 
   // A lojinha abre por cima da parte de baixo da cena; fechada, a fazenda
-  // fica inteira a vista (e os espacos da frente ficam livres para tocar).
+  // fica inteira a vista (e os lugares da frente ficam livres para tocar).
   function setShop(open) {
     root.classList.toggle('shop-open', open);
     const toggle = root.querySelector('.farm-shop-toggle');
@@ -265,13 +338,12 @@ export function createFarmView({ onClose = () => {} } = {}) {
       </div>
       <div class="farm-bottom">
         <p class="farm-msg" aria-live="polite"></p>
+        <div class="farm-hand" hidden></div>
         <button type="button" class="farm-shop-toggle" aria-expanded="false">Lojinha</button>
-        <div class="farm-shop">${FARM_ITEMS.map(item => `
-          <div class="farm-item" data-item="${item.id}">
-            <canvas width="116" height="92" aria-hidden="true"></canvas>
-            <div><strong>${item.name}</strong><small>${item.blurb}</small>
-              <button type="button" class="farm-buy"><span class="farm-coin"></span> ${item.price}</button></div>
-          </div>`).join('')}</div>
+        <div class="farm-shop">
+          <div class="farm-tabs" role="tablist"></div>
+          <div class="farm-grid"></div>
+        </div>
       </div>`;
     document.body.appendChild(root);
     glCanvas = root.querySelector('.farm-gl');
@@ -281,21 +353,32 @@ export function createFarmView({ onClose = () => {} } = {}) {
     if (!scene) root.querySelector('.farm-loading').textContent = 'Este navegador não tem WebGL.';
     else scene.loading.then(() => { root.querySelector('.farm-loading').hidden = true; })
       .catch(() => { root.querySelector('.farm-loading').textContent = 'Não foi possível carregar a fazendinha.'; });
-    for (const card of root.querySelectorAll('.farm-item')) {
-      const item = getFarmItem(card.dataset.item);
-      const c = card.querySelector('canvas').getContext('2d');
-      item.draw(c, 58, 88, item.id === 'fence' ? .62 : .58);
-      card.querySelector('.farm-buy').addEventListener('click', () => {
-        const result = buyItem(farm, item.id);
-        if (!result.ok) {
-          message(result.reason === 'coins' ? 'Moedas insuficientes: conclua mais uma fase para colher mais.' : 'Não há espaço livre na fazendinha.');
-          return;
-        }
-        persist();
-        setShop(false);
-        message(`${item.name} comprado! Toque num espaço livre para colocar.`);
-      });
-    }
+
+    root.querySelector('.farm-tabs').addEventListener('click', event => {
+      const button = event.target.closest('.farm-tab');
+      if (button) showTab(button.dataset.kind);
+    });
+    root.querySelector('.farm-grid').addEventListener('click', event => {
+      const button = event.target.closest('.farm-buy');
+      if (!button) return;
+      const item = getFarmItem(button.closest('.farm-item').dataset.item);
+      const result = buyItem(farm, item.id);
+      if (!result.ok) {
+        message(result.reason === 'coins' ? 'Moedas insuficientes: conclua mais uma fase para colher mais.' : 'Não há lugar livre para este tipo de item.');
+        return;
+      }
+      selected = item.id;
+      persist();
+      setShop(false);
+      message(`${item.name} comprado! Toque num lugar marcado para colocar.`);
+    });
+    root.querySelector('.farm-hand').addEventListener('click', event => {
+      const button = event.target.closest('button[data-item]');
+      if (!button) return;
+      selected = button.dataset.item;
+      renderHand();
+      message(targets().length ? `${getFarmItem(selected).name}: toque num lugar marcado.` : 'Não há lugar livre para este item: tire outro do lugar.');
+    });
     root.querySelector('.farm-shop-toggle').addEventListener('click', () => setShop(!root.classList.contains('shop-open')));
     root.querySelector('.farm-back').addEventListener('click', close);
 
@@ -306,9 +389,10 @@ export function createFarmView({ onClose = () => {} } = {}) {
       const x = event.clientX - rect.left, y = event.clientY - rect.top;
       if (event.pointerType === 'mouse') scene?.setPointer((x / rect.width) * 2 - 1, (y / rect.height) * 2 - 1);
       if (drag) { scene?.panBy(x - drag.x); drag.moved += Math.abs(x - drag.x); drag.x = x; }
-      hover = scene ? slotAt(x, y) : -1;
+      hover = event.pointerType === 'mouse' ? pick(x, y) : null;
+      marks.style.cursor = hover ? 'pointer' : 'default';
     });
-    marks.addEventListener('pointerleave', () => { hover = -1; scene?.releasePointer(); });
+    marks.addEventListener('pointerleave', () => { hover = null; scene?.releasePointer(); });
     marks.addEventListener('pointerdown', event => {
       const rect = marks.getBoundingClientRect();
       if (event.pointerType !== 'mouse') drag = { x: event.clientX - rect.left, moved: 0 };
@@ -317,19 +401,22 @@ export function createFarmView({ onClose = () => {} } = {}) {
     marks.addEventListener('click', event => {
       if (!scene || run || (drag && drag.moved > 8)) return;
       const rect = marks.getBoundingClientRect();
-      const index = slotAt(event.clientX - rect.left, event.clientY - rect.top);
-      if (index < 0) return;
-      if (farm.inventory.length && !farm.slots[index]) {
-        const name = getFarmItem(farm.inventory[0]).name;
-        placeItem(farm, index);
+      const hit = pick(event.clientX - rect.left, event.clientY - rect.top);
+      if (!hit) return;
+      if (hit.type === 'slot') {
+        const name = getFarmItem(selected).name;
+        placeItem(farm, hit.index, selected);
+        selected = null;
+        hover = null;
         persist();
-        message(farm.inventory.length ? 'Pronto! Ainda há item para colocar.' : `${name} no lugar.`);
-      } else if (farm.slots[index] && !farm.inventory.length) {
-        pickUpItem(farm, index);
+        message(farm.inventory.length ? `${name} no lugar. Ainda há itens para colocar.` : `${name} no lugar.`);
+      } else {
+        const name = getFarmItem(farm.slots[hit.index]).name;
+        pickUpItem(farm, hit.index);
+        selected = farm.inventory[0];
+        hover = null;
         persist();
-        message('Escolha o novo espaço para o item.');
-      } else if (farm.slots[index]) {
-        message('Coloque primeiro o item que está na mão.');
+        message(`${name} na mão: toque num lugar marcado.`);
       }
     });
     // Enquanto a fazendinha esta aberta, o teclado nao chega ao jogo.
@@ -344,12 +431,13 @@ export function createFarmView({ onClose = () => {} } = {}) {
     ensureDom();
     farm = loadFarm();
     root.hidden = false;
-    hover = -1; last = 0;
+    hover = null; last = 0;
     pops.length = 0;
+    selected = farm.inventory[0] || null;
     setShop(false);
-    renderShop();
+    showTab(tab);
     const touch = window.matchMedia?.('(pointer: coarse)').matches;
-    message(farm.inventory.length ? 'Toque num espaço livre para colocar o item.'
+    message(farm.inventory.length ? 'Toque num lugar marcado para colocar o item.'
       : touch ? 'Arraste para ver a fazenda toda.'
       : farm.coins ? 'Use as moedas da colheita na lojinha.' : 'Conclua fases para colher moedas.');
     if (!frame) frame = requestAnimationFrame(loop);

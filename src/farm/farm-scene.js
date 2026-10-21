@@ -2,7 +2,7 @@
 // ===========================
 //
 // Mesma linguagem do jogo: camadas em profundidade, luz e textura. As camadas
-// pintadas (morros, arvores, casa, canteiro, chao e primeiro plano) viram
+// pintadas (morros, lavoura, chao, primeiro plano e os itens comprados) viram
 // planos com relevo — o normal map sai da propria arte, pelo mesmo gerador do
 // renderizador 2,5D (sprite-normals.js) — e o sol, atras da cena, e uma luz de
 // verdade: contorna copas, telhado e itens comprados com borda quente.
@@ -17,6 +17,7 @@
 // Coordenadas da cena: 1920 x 1080. O enquadramento cobre a tela (cover).
 
 import { FIELD_ART, FIELD_LEVEL } from './bean-field.js';
+import { FARM_SLOTS, itemSceneRect } from './farm-layout.js';
 import { generateSpriteNormalMap } from '../../experimental/2_5d/gl/sprite-normals.js';
 
 export const SCENE_W = 1920;
@@ -27,22 +28,20 @@ const PARALLAX = 46;   // px de cena entre o mais longe e o mais perto
 const FOCUS = .35;     // profundidade que nao se move (o plano da casa)
 const BASE = './assets/farm/';
 
-// Camadas pintadas. `anchor`: ponto da imagem que pousa em `at` (base do
-// tronco, base da casa). `depth`: 0 longe, 1 perto.
+// Cenario fixo: ceu (procedural), morros com a linha de arvores, chao, lavoura
+// e o primeiro plano. Casas, arvores e objetos sao itens da lojinha, postos
+// nos lugares de farm-layout.js.
 const LAYERS = {
-  hills: { src: 'morros.webp', blur: 1.6 },
-  treeA: { src: 'arvore-a.webp', anchor: [584, 1057], at: [250, 806], height: 720, depth: .46, sway: 1, swayAmp: .006, normal: true },
-  treeB: { src: 'arvore-b.webp', anchor: [513, 1071], at: [1748, 792], height: 650, depth: .43, sway: 1, swayAmp: .006, normal: true },
-  house: { src: 'casa.webp', anchor: [631, 696], at: [790, 676], width: 270, depth: .3, normal: true },
-  bean1: { src: 'feijao-1.webp', normal: true },
-  bean2: { src: 'feijao-2.webp', normal: true },
-  bean3: { src: 'feijao-3.webp', normal: true },
-  bean4: { src: 'feijao-4.webp', normal: true },
+  hills: { src: 'cenario/morros.webp', blur: 1.6 },
+  bean1: { src: 'lavoura/feijao-1.webp', normal: true },
+  bean2: { src: 'lavoura/feijao-2.webp', normal: true },
+  bean3: { src: 'lavoura/feijao-3.webp', normal: true },
+  bean4: { src: 'lavoura/feijao-4.webp', normal: true },
   // lavoura seca, doente e saudavel (o super usa as quatro acima)
   ...Object.fromEntries(FIELD_ART.slice(0, FIELD_LEVEL.SUPER).flat().map(src => [src, { src, normal: true }])),
-  tractor: { src: 'colheitadeira.webp', normal: true },
-  foreground: { src: 'primeiro-plano.webp', blur: 3.2 },
-  ground: { src: 'chao.webp' },
+  tractor: { src: 'veiculos/colheitadeira.webp', normal: true },
+  foreground: { src: 'cenario/primeiro-plano.webp', blur: 3.2 },
+  ground: { src: 'cenario/chao.webp' },
 };
 
 // Lavoura de feijao: fileiras vistas de frente, repetidas na horizontal e
@@ -56,25 +55,26 @@ const BEAN_ROWS = [
 ];
 const BEAN_X1 = 1720;
 
-// Colheitadeira: sai de tras da casa, passa na frente da lavoura colhendo e
-// some atras da arvore da direita. `t` em segundos.
+// Colheitadeira: entra pela esquerda, de fora da tela, desacelerando ate a
+// velocidade da colheita; passa na frente da lavoura colhendo e sai pela
+// direita. `t` em segundos.
 export const HARVEST_PATH = Object.freeze({
   height: 98,
-  start: [790, 664], turn: [985, 664], enter: [1060, 712], end: [1790, 712], exit: [2200, 712],
-  enterSeconds: 1.8, passSeconds: 6.4, exitSeconds: 2.2,
+  start: [-340, 712], enter: [1060, 712], end: [1790, 712], exit: [2200, 712],
+  enterSeconds: 3.2, passSeconds: 6.4, exitSeconds: 2.2,
 });
 export const HARVEST_SECONDS = HARVEST_PATH.enterSeconds + HARVEST_PATH.passSeconds + HARVEST_PATH.exitSeconds;
 const lerp2 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
-const easeInOut = k => k * k * (3 - 2 * k);
 /** Posicao da colheitadeira e ate onde a lavoura ja foi colhida. */
 export function harvestPose(t) {
   const P = HARVEST_PATH;
   if (t < P.enterSeconds) {
-    // primeiro anda atras da casa (escondida por ela), depois desce para a
-    // frente da lavoura: assim nunca "pula" para a frente da casa
+    // f(k) = a k + b k^2: chega na lavoura ja na velocidade da passada
     const k = t / P.enterSeconds;
-    const pos = k < .62 ? lerp2(P.start, P.turn, easeInOut(k / .62)) : lerp2(P.turn, P.enter, easeInOut((k - .62) / .38));
-    return { pos, cut: -Infinity, phase: 'enter' };
+    const passSpeed = (P.end[0] - P.enter[0]) / P.passSeconds;
+    const endSlope = passSpeed * P.enterSeconds / (P.enter[0] - P.start[0]);
+    const b = endSlope - 1, a = 1 - b;
+    return { pos: lerp2(P.start, P.enter, a * k + b * k * k), cut: -Infinity, phase: 'enter' };
   }
   const t2 = t - P.enterSeconds;
   if (t2 < P.passSeconds) {
@@ -85,14 +85,6 @@ export function harvestPose(t) {
   const k = Math.min(1, (t2 - P.passSeconds) / P.exitSeconds);
   return { pos: lerp2(P.end, P.exit, k * k), cut: Infinity, phase: k >= 1 ? 'done' : 'exit', progress: 1 };
 }
-
-// Espacos de melhoria: base do item na cena e escala.
-export const FARM_SLOTS = [
-  { x: 640, y: 714, s: .6 },
-  { x: 735, y: 800, s: .76 },
-  { x: 430, y: 905, s: .95 },
-  { x: 1600, y: 912, s: .98 },
-];
 
 export function depthAt(y) {
   return Math.max(0, Math.min(1, .3 + (y - HORIZON) / (SCENE_H - HORIZON) * .7));
@@ -312,7 +304,7 @@ function normalsFor(img) {
 
 /**
  * @param {HTMLCanvasElement} canvas
- * @param {{ items?: () => Array<{slot:number, image:HTMLCanvasElement, key:string}>, plantState?: () => number }} hooks
+ * @param {{ items?: () => Array<{slot:number, item:object}>, plantState?: () => number }} hooks
  */
 export function createFarmScene(canvas, { items = () => [], plantState = () => 1, harvest = () => null } = {}) {
   const gl = canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false });
@@ -426,10 +418,18 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  function anchoredRect(layer, tex) {
-    const scale = layer.height ? layer.height / tex.h : layer.width / tex.w;
-    const w = tex.w * scale, h = tex.h * scale;
-    return [layer.at[0] - layer.anchor[0] * scale, layer.at[1] - layer.anchor[1] * scale, w, h];
+  // arte dos itens: carrega na primeira vez que aparece; o relevo vem depois
+  function itemTexture(src) {
+    let entry = itemTextures.get(src);
+    if (!entry) {
+      entry = { tex: null };
+      itemTextures.set(src, entry);
+      loadImage(BASE + src).then(img => {
+        entry.tex = { ...texture(img), norm: null };
+        setTimeout(() => { entry.tex.norm = texture(normalsFor(img)).t; }, 30);
+      }).catch(() => {});
+    }
+    return entry.tex;
   }
 
   function fullscreen(prog, extra = () => {}) {
@@ -483,11 +483,7 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
     const run = harvest();
     const pose = run ? harvestPose(run.t) : null;
     const cut = state < 0 ? Infinity : pose ? pose.cut : -Infinity;
-    const props = [
-      { id: 'house', y: LAYERS.house.at[1], draw: () => drawSprite(textures.house, anchoredRect(LAYERS.house, textures.house), { depth: .3, haze: .12, rim: .55 }) },
-      { id: 'treeB', y: LAYERS.treeB.at[1], draw: () => drawSprite(textures.treeB, anchoredRect(LAYERS.treeB, textures.treeB), { depth: .43, sway: 1, swayAmp: LAYERS.treeB.swayAmp, seed: 1.7, rim: .75 }) },
-      { id: 'treeA', y: LAYERS.treeA.at[1], draw: () => drawSprite(textures.treeA, anchoredRect(LAYERS.treeA, textures.treeA), { depth: .46, sway: 1, swayAmp: LAYERS.treeA.swayAmp, seed: 4.1, rim: .75 }) },
-    ];
+    const props = [];
     BEAN_ROWS.forEach((row, r) => {
       const tex = levelArt ? levelArt[r % levelArt.length] : textures[row.tex];
       const scale = row.height / (tex.h * .9);
@@ -504,16 +500,18 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
         }
       } });
     });
-    for (const item of items()) {
-      const slot = FARM_SLOTS[item.slot];
-      let tex = itemTextures.get(item.key);
-      if (!tex) {
-        tex = { ...texture(item.image), norm: null };
-        itemTextures.set(item.key, tex);
-        setTimeout(() => { tex.norm = texture(normalsFor(item.image)).t; }, 0);
-      }
-      const w = tex.w * slot.s * .8, h = tex.h * slot.s * .8;
-      props.push({ id: item.key, y: slot.y, draw: () => drawSprite(tex, [slot.x - w / 2, slot.y - h * .94, w, h], { depth: depthAt(slot.y), rim: .7 }) });
+    for (const { slot: index, item } of items()) {
+      const tex = itemTexture(item.src);
+      if (!tex) continue;
+      const slot = FARM_SLOTS[index];
+      const rect = itemSceneRect(slot, item);
+      // o que fica longe ganha um pouco do ar da tarde
+      const haze = Math.max(0, Math.min(.14, (720 - slot.y) / 360));
+      const tree = item.kind === 'arvore';
+      props.push({ id: `${item.id}@${index}`, y: slot.y, draw: () => drawSprite(tex, rect, {
+        depth: depthAt(slot.y), haze, rim: tree ? .75 : .6,
+        sway: tree ? 1 : 0, swayAmp: tree ? .006 : 0, seed: index * 1.7,
+      }) });
     }
     if (pose && pose.phase !== 'done') {
       const tex = textures.tractor;

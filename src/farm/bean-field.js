@@ -19,12 +19,12 @@ export function fieldLevelFromScore(score) {
   return FIELD_LEVEL.SECO;
 }
 
-// Arquivos em assets/farm, por nivel. As variacoes se alternam ao longo da
+// Arquivos em assets/farm/lavoura, por nivel. As variacoes se alternam ao longo da
 // fileira. No super, o fim de fase usa a fileira da frente (feijao-1) e a
 // fazendinha mantem as quatro fileiras em perspectiva.
 export const FIELD_ART = Object.freeze([
-  Object.freeze(['feijao-seco-1.webp']),
-  Object.freeze(['feijao-doente-1.webp', 'feijao-doente-2.webp']),
-  Object.freeze(['feijao-saudavel-1.webp', 'feijao-saudavel-2.webp', 'feijao-saudavel-3.webp']),
-  Object.freeze(['feijao-1.webp']),
+  Object.freeze(['lavoura/feijao-seco-1.webp']),
+  Object.freeze(['lavoura/feijao-doente-1.webp', 'lavoura/feijao-doente-2.webp']),
+  Object.freeze(['lavoura/feijao-saudavel-1.webp', 'lavoura/feijao-saudavel-2.webp', 'lavoura/feijao-saudavel-3.webp']),
+  Object.freeze(['lavoura/feijao-1.webp']),
 ]);

@@ -5,6 +5,7 @@ import {
   placeItem, registerHarvest, saveFarm,
 } from '../src/farm/farm-state.js';
 import { FARM_ITEMS } from '../src/farm/farm-items.js';
+import { FARM_SLOTS } from '../src/farm/farm-layout.js';
 
 function memoryStorage() {
   const data = new Map();
@@ -37,28 +38,57 @@ test('registro antigo (sem collected) conta como ja pago', () => {
   assert.equal(farm.coins, 16);
 });
 
-test('loja: 3 itens, compra com moedas, 4 espacos', () => {
-  assert.equal(FARM_ITEMS.length, 3);
+test('loja: catalogo com arte, compra com moedas e lugares por tipo', () => {
+  assert.ok(FARM_ITEMS.length > 100);
+  assert.equal(new Set(FARM_ITEMS.map(item => item.id)).size, FARM_ITEMS.length, 'ids unicos');
+  for (const item of FARM_ITEMS) {
+    assert.ok(['casa', 'arvore', 'objeto', 'pequeno'].includes(item.kind), item.id);
+    assert.ok(item.price > 0 && item.meters > 0 && item.src.startsWith('itens/'), item.id);
+  }
+  const casas = FARM_SLOTS.filter(slot => slot.kind === 'casa').length;
   const farm = blankFarm();
-  assert.equal(canBuy(farm, 'fence').reason, 'coins');
-  farm.coins = 1000;
-  for (let i = 0; i < 4; i++) assert.equal(buyItem(farm, 'fence').ok, true);
-  assert.equal(buyItem(farm, 'fence').reason, 'no-space');
-  assert.equal(farm.coins, 1000 - 4 * 30);
-  assert.equal(placeItem(farm, 0), true);
-  assert.equal(placeItem(farm, 0), false, 'espaco ocupado');
-  assert.equal(placeItem(farm, 9), false);
-  assert.deepEqual(farm.slots, ['fence', null, null, null]);
-  assert.equal(pickUpItem(farm, 0), true);
-  assert.equal(placeItem(farm, 3), true);
-  assert.equal(farm.slots[3], 'fence');
+  assert.equal(farm.slots.length, FARM_SLOTS.length);
+  assert.equal(canBuy(farm, 'casarao').reason, 'coins');
+  farm.coins = 10000;
+  for (let i = 0; i < casas; i++) assert.equal(buyItem(farm, 'casa-laranja').ok, true);
+  assert.equal(buyItem(farm, 'casa-laranja').reason, 'no-space', 'acabaram os lugares de casa');
+  assert.equal(buyItem(farm, 'macieira').ok, true, 'arvore tem lugar proprio');
+  const casaSlot = FARM_SLOTS.findIndex(slot => slot.kind === 'casa');
+  const arvoreSlot = FARM_SLOTS.findIndex(slot => slot.kind === 'arvore');
+  assert.equal(placeItem(farm, arvoreSlot, 'casa-laranja'), false, 'casa nao vai em lugar de arvore');
+  assert.equal(placeItem(farm, casaSlot, 'casa-laranja'), true);
+  assert.equal(placeItem(farm, casaSlot, 'casa-laranja'), false, 'lugar ocupado');
+  assert.equal(placeItem(farm, 99, 'macieira'), false);
+  assert.equal(placeItem(farm, arvoreSlot, 'macieira'), true);
+  assert.equal(pickUpItem(farm, casaSlot), true);
+  assert.equal(farm.inventory[0], 'casa-laranja');
 });
 
-test('estado salvo e restaurado; lixo no storage nao quebra', () => {
+test('enfeite pequeno tambem cabe em lugar de objeto', () => {
+  const farm = blankFarm();
+  farm.coins = 100000;
+  const objetos = FARM_SLOTS.filter(slot => slot.kind === 'objeto').length;
+  const pequenos = FARM_SLOTS.filter(slot => slot.kind === 'pequeno').length;
+  for (let i = 0; i < objetos + pequenos; i++) assert.equal(buyItem(farm, 'balde-metal').ok, true, `balde ${i}`);
+  assert.equal(buyItem(farm, 'balde-metal').reason, 'no-space');
+  assert.equal(buyItem(farm, 'caixa-agua-azul').reason, 'no-space', 'os baldes ocuparam os lugares de objeto');
+  const objetoSlot = FARM_SLOTS.findIndex(slot => slot.kind === 'objeto');
+  const pequenoSlot = FARM_SLOTS.findIndex(slot => slot.kind === 'pequeno');
+  assert.equal(placeItem(farm, objetoSlot, 'balde-metal'), true);
+  assert.equal(placeItem(farm, pequenoSlot, 'balde-metal'), true);
+});
+
+test('estado salvo e restaurado; save da primeira versao vira "sem lugar"; lixo nao quebra', () => {
   const storage = memoryStorage();
-  const farm = blankFarm(); farm.coins = 70; buyItem(farm, 'water-tank'); placeItem(farm, 2);
+  const farm = blankFarm(); farm.coins = 70; buyItem(farm, 'caixa-agua-azul');
+  const slot = FARM_SLOTS.findIndex(s => s.kind === 'objeto');
+  placeItem(farm, slot, 'caixa-agua-azul');
   saveFarm(farm, storage);
-  assert.deepEqual(loadFarm(storage).slots, [null, null, 'water-tank', null]);
+  assert.equal(loadFarm(storage).slots[slot], 'caixa-agua-azul');
+  storage.setItem(FARM_STORAGE_KEY, JSON.stringify({ version: 1, coins: 5, slots: [null, 'water-tank', 'fence', null], inventory: ['nursery'] }));
+  const old = loadFarm(storage);
+  assert.deepEqual(old.inventory.sort(), ['caixa-agua-azul', 'cerca-madeira-baixa', 'viveiro-pequeno']);
+  assert.equal(old.slots.filter(Boolean).length, 0);
   storage.setItem(FARM_STORAGE_KEY, '{quebrado');
   assert.deepEqual(loadFarm(storage), blankFarm());
 });

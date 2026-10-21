@@ -8,13 +8,14 @@
 // um id (campanha + fase): um id repetido nao planta de novo, mesmo recarregando
 // a pagina no meio do fim de fase. Colheitas nao colhidas ficam guardadas.
 
-import { FARM_SLOT_COUNT, getFarmItem } from './farm-items.js';
+import { getFarmItem } from './farm-items.js';
+import { FARM_SLOTS, FARM_SLOT_COUNT, slotAccepts } from './farm-layout.js';
 
 export const FARM_STORAGE_KEY = 'miguelito:farm:v1';
 
 export function blankFarm() {
   return {
-    version: 1,
+    version: 2,
     coins: 0,
     totalEarned: 0,
     harvests: {},
@@ -38,9 +39,20 @@ function sanitize(raw) {
       farm.harvests[id] = { ...entry, collected: entry?.collected !== false };
     }
   }
-  farm.inventory = Array.isArray(raw.inventory) ? raw.inventory.filter(id => getFarmItem(id)) : [];
-  if (Array.isArray(raw.slots)) {
-    farm.slots = Array.from({ length: FARM_SLOT_COUNT }, (_, i) => (getFarmItem(raw.slots[i]) ? raw.slots[i] : null));
+  const known = id => getFarmItem(id)?.id || null;
+  farm.inventory = Array.isArray(raw.inventory) ? raw.inventory.map(known).filter(Boolean) : [];
+  const oldSlots = Array.isArray(raw.slots) ? raw.slots.map(known) : [];
+  if (raw.version === 2) {
+    // item fora do tipo do lugar (catalogo mudou) volta para "sem lugar"
+    farm.slots = FARM_SLOTS.map((slot, i) => {
+      const id = oldSlots[i];
+      if (id && slotAccepts(slot.kind, getFarmItem(id).kind)) return id;
+      if (id) farm.inventory.push(id);
+      return null;
+    });
+  } else {
+    // primeira versao (4 espacos sem tipo): os itens voltam para "sem lugar"
+    farm.inventory.push(...oldSlots.filter(Boolean));
   }
   farm.lastHarvest = raw.lastHarvest && typeof raw.lastHarvest === 'object' ? { ...raw.lastHarvest } : null;
   return farm;
@@ -101,11 +113,25 @@ export function itemCount(farm) {
   return farm.inventory.length + farm.slots.filter(Boolean).length;
 }
 
-/** Pode comprar se tem moedas e ainda ha espaco para o item. */
+/**
+ * Ainda cabe um item deste tipo? Conta os lugares livres de cada tipo menos
+ * os itens comprados que esperam lugar (pequeno tambem cabe em lugar de objeto).
+ */
+export function hasSpaceFor(farm, kind) {
+  const free = { casa: 0, arvore: 0, objeto: 0, pequeno: 0 };
+  FARM_SLOTS.forEach((slot, i) => { if (!farm.slots[i]) free[slot.kind]++; });
+  const waiting = { casa: 0, arvore: 0, objeto: 0, pequeno: 0 };
+  for (const id of farm.inventory) waiting[getFarmItem(id).kind]++;
+  waiting[kind]++;
+  if (waiting.casa > free.casa || waiting.arvore > free.arvore || waiting.objeto > free.objeto) return false;
+  return waiting.pequeno <= free.pequeno + (free.objeto - waiting.objeto);
+}
+
+/** Pode comprar se tem moedas e ainda ha lugar livre para o item. */
 export function canBuy(farm, itemId) {
   const item = getFarmItem(itemId);
   if (!item) return { ok: false, reason: 'unknown' };
-  if (itemCount(farm) >= FARM_SLOT_COUNT) return { ok: false, reason: 'no-space' };
+  if (!hasSpaceFor(farm, item.kind)) return { ok: false, reason: 'no-space' };
   if (farm.coins < item.price) return { ok: false, reason: 'coins' };
   return { ok: true };
 }
@@ -113,23 +139,30 @@ export function canBuy(farm, itemId) {
 export function buyItem(farm, itemId) {
   const check = canBuy(farm, itemId);
   if (!check.ok) return check;
-  farm.coins -= getFarmItem(itemId).price;
-  farm.inventory.push(itemId);
+  const item = getFarmItem(itemId);
+  farm.coins -= item.price;
+  farm.inventory.push(item.id);
   return { ok: true };
 }
 
-/** Coloca o primeiro item sem lugar (ou `itemId`) no espaco vazio indicado. */
+/** O item pode ir para este lugar (livre e do tipo certo)? */
+export function canPlace(farm, slotIndex, itemId) {
+  const slot = FARM_SLOTS[slotIndex];
+  const item = getFarmItem(itemId);
+  return Boolean(slot && item && !farm.slots[slotIndex] && slotAccepts(slot.kind, item.kind));
+}
+
+/** Coloca o primeiro item sem lugar (ou `itemId`) no lugar indicado. */
 export function placeItem(farm, slotIndex, itemId = farm.inventory[0]) {
   if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= FARM_SLOT_COUNT) return false;
-  if (farm.slots[slotIndex]) return false;
   const at = farm.inventory.indexOf(itemId);
-  if (at < 0) return false;
+  if (at < 0 || !canPlace(farm, slotIndex, itemId)) return false;
   farm.inventory.splice(at, 1);
   farm.slots[slotIndex] = itemId;
   return true;
 }
 
-/** Tira o item do espaco e devolve para "sem lugar" (para mudar de posicao). */
+/** Tira o item do lugar e devolve para "sem lugar" (para mudar de posicao). */
 export function pickUpItem(farm, slotIndex) {
   const itemId = farm.slots[slotIndex];
   if (!itemId) return false;
@@ -137,4 +170,3 @@ export function pickUpItem(farm, slotIndex) {
   farm.inventory.unshift(itemId);
   return true;
 }
-

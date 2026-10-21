@@ -1158,7 +1158,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"b1cfc3e","subject":"Nodulo: rizobios do cordao de infeccao e do nodulo usam a folha do rizob","builtAt":"2026-10-21 21:35"};
+window.__BEANS_BUILD__ = {"commit":"c649ed4","subject":"Add files via upload","builtAt":"2026-10-21 22:04"};
 (() => {
 'use strict';
 const __modules = {
@@ -51423,16 +51423,17 @@ function createPhaseResultPanel({ onContinue = () => {}, onFarm = () => {} } = {
 Object.assign(__exports, { createPhaseResultPanel });
 },
 "src/farm/farm-view.js": (__exports, __require) => {
-// FAZENDINHA: uma tela 2D frontal, ilustrada em camadas (ceu, morro, casinha,
-// canteiro e quatro espacos de melhoria), com a lojinha embaixo. Nada de mapa,
-// grade ou vista de cima: e uma "tela viva" clicavel.
-//
-// Arte provisoria desenhada em canvas; quando houver ilustracao, troca-se o
-// desenho de cada camada sem mexer no estado (farm-state.js).
-const { FARM_ITEMS, FARM_SLOT_COUNT, getFarmItem } = __require("src/farm/farm-items.js");
-const { buyItem, canBuy, collectHarvests, loadFarm, pendingCoins, pendingHarvests, pickUpItem, placeItem, saveFarm } = __require("src/farm/farm-state.js");
+// FAZENDINHA: uma tela frontal ilustrada em camadas (farm-scene.js), com a
+// lojinha embaixo. Casas, arvores e objetos sao itens comprados com as moedas
+// da colheita e postos nos lugares da cena (farm-layout.js): cada lugar aceita
+// um tipo de item e o item escala pela perspectiva do lugar.
+const { FARM_ITEMS, FARM_TABS, getFarmItem } = __require("src/farm/farm-items.js");
+const { buyItem, canBuy, canPlace, collectHarvests, loadFarm, pendingCoins, pendingHarvests, pickUpItem, placeItem, saveFarm } = __require("src/farm/farm-state.js");
 const { fieldLevelFromScore } = __require("src/farm/bean-field.js");
-const { createFarmScene, depthAt, FARM_SLOTS, HARVEST_PATH, harvestPose } = __require("src/farm/farm-scene.js");
+const { FARM_SLOTS, FARM_SLOT_COUNT, itemSceneRect, perspectiveAt } = __require("src/farm/farm-layout.js");
+const { createFarmScene, depthAt, HARVEST_PATH, harvestPose } = __require("src/farm/farm-scene.js");
+const ART = './assets/farm/';
+
 const STYLE = `
 #farm-overlay { position: fixed; inset: 0; z-index: 240; background: #1b120c; color: #fbeedd; overflow: hidden;
   font-family: 'Tutorial Atkinson','Atkinson Hyperlegible',system-ui,sans-serif; touch-action: none; }
@@ -51461,21 +51462,34 @@ const STYLE = `
 #farm-overlay:not(.shop-open) .farm-shop { display: none; }
 #farm-overlay.harvesting .farm-shop-toggle { opacity: .45; pointer-events: none; }
 #farm-overlay.shop-open .farm-shop-toggle { background: rgba(42,19,13,.86); color: #fbeedd; box-shadow: none; border: 1px solid rgba(255,214,170,.3); }
-#farm-overlay .farm-shop { width: min(980px,100%); display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; pointer-events: auto; }
-#farm-overlay .farm-item { display: grid; grid-template-columns: 58px 1fr; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 14px;
-  background: rgba(42,19,13,.86); border: 1px solid rgba(255,214,170,.22); backdrop-filter: blur(6px); }
-#farm-overlay .farm-item canvas { width: 58px; height: 46px; }
-#farm-overlay .farm-item strong { display: block; font-size: .98rem; }
-#farm-overlay .farm-item small { display: block; color: #dcbfa3; font-size: .78rem; line-height: 1.3; margin: 2px 0 6px; }
-#farm-overlay .farm-buy { border: 0; border-radius: 999px; padding: 7px 14px; background: #ffc35a; color: #3a1608; font: 800 .9rem/1 system-ui;
+#farm-overlay .farm-shop { width: min(1040px,100%); pointer-events: auto; border-radius: 16px; padding: 10px; background: rgba(42,19,13,.9);
+  border: 1px solid rgba(255,214,170,.22); backdrop-filter: blur(6px); }
+#farm-overlay .farm-tabs { display: flex; gap: 6px; margin-bottom: 8px; overflow-x: auto; }
+#farm-overlay .farm-tab { border: 1px solid rgba(255,214,170,.28); background: transparent; color: #fbeedd; border-radius: 999px; padding: 7px 14px;
+  font: 700 .92rem/1 inherit; cursor: pointer; white-space: nowrap; }
+#farm-overlay .farm-tab[aria-selected="true"] { background: #ffc35a; color: #3a1608; border-color: #ffc35a; }
+#farm-overlay .farm-tab small { opacity: .75; font-weight: 600; }
+#farm-overlay .farm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; max-height: min(44vh, 360px);
+  overflow-y: auto; padding-right: 4px; }
+#farm-overlay .farm-item { display: grid; grid-template-rows: 72px auto auto; justify-items: center; gap: 4px; padding: 8px 6px; border-radius: 12px;
+  background: rgba(255,240,220,.06); border: 1px solid rgba(255,214,170,.14); text-align: center; }
+#farm-overlay .farm-item img { width: 100%; height: 72px; object-fit: contain; }
+#farm-overlay .farm-item strong { font-size: .84rem; line-height: 1.15; }
+#farm-overlay .farm-buy { border: 0; border-radius: 999px; padding: 6px 12px; background: #ffc35a; color: #3a1608; font: 800 .86rem/1 system-ui;
   box-shadow: 0 3px 0 #b3651f; cursor: pointer; }
 #farm-overlay .farm-buy:disabled { opacity: .4; cursor: default; box-shadow: none; }
+#farm-overlay .farm-hand { pointer-events: auto; display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 14px;
+  background: rgba(42,19,13,.86); border: 1px solid rgba(255,214,170,.22); max-width: 100%; overflow-x: auto; }
+#farm-overlay .farm-hand[hidden] { display: none; }
+#farm-overlay .farm-hand span { font-weight: 700; font-size: .85rem; color: #dcbfa3; padding: 0 4px; white-space: nowrap; }
+#farm-overlay .farm-hand button { flex: none; width: 58px; height: 50px; border-radius: 10px; border: 2px solid transparent; background: rgba(255,240,220,.08);
+  padding: 3px; cursor: pointer; }
+#farm-overlay .farm-hand button[aria-pressed="true"] { border-color: #ffc35a; background: rgba(255,195,90,.22); }
+#farm-overlay .farm-hand img { width: 100%; height: 100%; object-fit: contain; }
 #farm-overlay .farm-loading[hidden] { display: none; }
 #farm-overlay .farm-loading { position: absolute; inset: 0; display: grid; place-items: center; color: #dcbfa3; pointer-events: none; }
 @media (max-width: 760px) {
-  #farm-overlay .farm-shop { grid-template-columns: repeat(3, minmax(150px, 1fr)); overflow-x: auto; }
-  #farm-overlay .farm-item { grid-template-columns: 1fr; text-align: center; justify-items: center; }
-  #farm-overlay .farm-item small { display: none; }
+  #farm-overlay .farm-grid { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); max-height: 38vh; }
   #farm-overlay h1 { font-size: 1.4rem; }
 }
 `;
@@ -51488,21 +51502,14 @@ function ensureStyle() {
   document.head.appendChild(style);
 }
 
-// Item da loja desenhado num canvas proprio (vira textura com relevo na cena).
-function itemImage(itemId) {
-  const c = document.createElement('canvas');
-  c.width = 420; c.height = 330;
-  getFarmItem(itemId).draw(c.getContext('2d'), 210, 318, 2.1);
-  return c;
-}
-
 function createFarmView({ onClose = () => {} } = {}) {
   let root = null, glCanvas = null, marks = null, mctx = null, scene = null;
-  let frame = null, farm = null, hover = -1, last = 0, time = 0;
+  let frame = null, farm = null, hover = null, last = 0, time = 0;
+  // item da mao que vai ser colocado (id) e aba aberta na lojinha
+  let selected = null, tab = FARM_TABS[0].kind;
   // colheita em andamento: { t, coins, startCoins, score, nextPop }
   let run = null;
   const pops = [];
-  const images = new Map();
 
   function message(text) { root.querySelector('.farm-msg').textContent = text || ''; }
 
@@ -51577,54 +51584,85 @@ function createFarmView({ onClose = () => {} } = {}) {
 
   function placedItems() {
     if (!farm) return [];
-    return farm.slots.map((itemId, slot) => {
-      if (!itemId) return null;
-      if (!images.has(itemId)) images.set(itemId, itemImage(itemId));
-      return { slot, key: itemId, image: images.get(itemId) };
-    }).filter(Boolean);
+    return farm.slots.map((itemId, slot) => (itemId ? { slot, item: getFarmItem(itemId) } : null)).filter(Boolean);
   }
 
-  // marcas dos espacos (vazios pulsam quando ha item para colocar)
+  // retangulo do item colocado, em px da tela
+  function screenRect(index) {
+    const item = getFarmItem(farm.slots[index]);
+    const slot = FARM_SLOTS[index];
+    const [x, y, w, h] = itemSceneRect(slot, item);
+    const depth = depthAt(slot.y);
+    const a = scene.sceneToScreen(x, y, depth), b = scene.sceneToScreen(x + w, y + h, depth);
+    return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
+  }
+
+  // lugares livres que aceitam o item da mao
+  function targets() {
+    if (!selected) return [];
+    return FARM_SLOTS.map((_, i) => i).filter(i => canPlace(farm, i, selected));
+  }
+
+  function markRadius(slot, p) {
+    return Math.max(16, 110 * perspectiveAt(slot.y) * p.scale);
+  }
+
+  // marcas: com item na mao, os lugares que servem pulsam; sem item, o toque
+  // num item colocado o devolve para a mao (mudar de lugar)
   function drawMarks() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const cw = marks.clientWidth, ch = marks.clientHeight;
     if (marks.width !== Math.round(cw * dpr)) { marks.width = Math.round(cw * dpr); marks.height = Math.round(ch * dpr); }
     mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     mctx.clearRect(0, 0, cw, ch);
-    const placing = farm.inventory.length > 0;
-    FARM_SLOTS.forEach((slot, index) => {
+    const pulse = .6 + .4 * Math.sin(time * 5);
+    for (const index of targets()) {
+      const slot = FARM_SLOTS[index];
       const p = scene.sceneToScreen(slot.x, slot.y, depthAt(slot.y));
-      const r = 88 * slot.s * p.scale;
-      if (farm.slots[index]) {
-        if (hover === index && !placing) {
-          mctx.font = '700 13px system-ui'; mctx.textAlign = 'center';
-          mctx.fillStyle = 'rgba(30,14,8,.7)';
-          mctx.fillRect(p.x - 92, p.y + 8, 184, 22);
-          mctx.fillStyle = '#fff4e2';
-          mctx.fillText('toque para mudar de lugar', p.x, p.y + 24);
-        }
-        return;
-      }
-      const pulse = placing ? .6 + .4 * Math.sin(time * 5) : .45;
+      const r = markRadius(slot, p);
+      const on = hover && hover.type === 'slot' && hover.index === index;
       mctx.save();
       mctx.setLineDash([7, 6]); mctx.lineWidth = 2.5;
-      mctx.strokeStyle = placing ? `rgba(255,214,110,${pulse})` : 'rgba(255,255,255,.55)';
-      mctx.fillStyle = placing ? 'rgba(255,214,110,.18)' : 'rgba(255,255,255,.1)';
-      mctx.beginPath(); mctx.ellipse(p.x, p.y - 4, r, r * .28, 0, 0, Math.PI * 2); mctx.fill(); mctx.stroke();
+      mctx.strokeStyle = `rgba(255,214,110,${on ? 1 : pulse})`;
+      mctx.fillStyle = on ? 'rgba(255,214,110,.34)' : 'rgba(255,214,110,.18)';
+      mctx.beginPath(); mctx.ellipse(p.x, p.y - 2, r, r * .28, 0, 0, Math.PI * 2); mctx.fill(); mctx.stroke();
       mctx.setLineDash([]);
-      mctx.fillStyle = placing ? '#ffd36f' : 'rgba(255,255,255,.85)';
-      mctx.font = `800 ${Math.round(Math.max(16, 26 * slot.s * p.scale / .6))}px system-ui`; mctx.textAlign = 'center';
-      mctx.fillText('+', p.x, p.y + 4);
+      mctx.fillStyle = '#ffd36f';
+      mctx.font = `800 ${Math.round(Math.max(15, r * .45))}px system-ui`; mctx.textAlign = 'center';
+      mctx.fillText('+', p.x, p.y + 5);
       mctx.restore();
-    });
+    }
+    if (hover && hover.type === 'item' && !run) {
+      const r = screenRect(hover.index);
+      mctx.save();
+      mctx.strokeStyle = 'rgba(255,240,200,.75)'; mctx.lineWidth = 2; mctx.setLineDash([6, 5]);
+      mctx.strokeRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+      mctx.setLineDash([]);
+      const label = `${getFarmItem(farm.slots[hover.index]).name}: toque para mudar de lugar`;
+      mctx.font = '700 13px system-ui'; mctx.textAlign = 'center';
+      const w = mctx.measureText(label).width + 16, cx = (r.x0 + r.x1) / 2;
+      mctx.fillStyle = 'rgba(30,14,8,.75)'; mctx.fillRect(cx - w / 2, r.y1 + 6, w, 22);
+      mctx.fillStyle = '#fff4e2'; mctx.fillText(label, cx, r.y1 + 22);
+      mctx.restore();
+    }
   }
 
-  function slotAt(px, py) {
-    return FARM_SLOTS.findIndex(slot => {
+  // o que esta sob o ponteiro: um lugar marcado (com item na mao) ou um item
+  function pick(px, py) {
+    if (!scene) return null;
+    for (const index of targets()) {
+      const slot = FARM_SLOTS[index];
       const p = scene.sceneToScreen(slot.x, slot.y, depthAt(slot.y));
-      const r = 95 * slot.s * p.scale;
-      return Math.abs(px - p.x) < r && py < p.y + 24 * p.scale && py > p.y - 230 * slot.s * p.scale;
-    });
+      const r = markRadius(slot, p) * 1.15;
+      if (((px - p.x) / r) ** 2 + ((py - p.y) / (r * .6)) ** 2 <= 1) return { type: 'slot', index };
+    }
+    // itens: o mais da frente primeiro
+    const placed = farm.slots.map((id, i) => (id ? i : -1)).filter(i => i >= 0).sort((a, b) => FARM_SLOTS[b].y - FARM_SLOTS[a].y);
+    for (const index of placed) {
+      const r = screenRect(index);
+      if (px >= r.x0 && px <= r.x1 && py >= r.y0 && py <= r.y1) return { type: 'item', index };
+    }
+    return null;
   }
 
   function loop(now) {
@@ -51642,21 +51680,57 @@ function createFarmView({ onClose = () => {} } = {}) {
     frame = requestAnimationFrame(loop);
   }
 
+  function shopCards() {
+    return FARM_ITEMS.filter(item => item.kind === tab).map(item => `
+      <div class="farm-item" data-item="${item.id}">
+        <img src="${ART}${item.src}" alt="" loading="lazy" decoding="async">
+        <strong>${item.name}</strong>
+        <button type="button" class="farm-buy"><span class="farm-coin"></span> ${item.price}</button>
+      </div>`).join('');
+  }
+
+  function renderTabs() {
+    const free = kind => FARM_SLOTS.filter((slot, i) => slot.kind === kind && !farm.slots[i]).length;
+    root.querySelector('.farm-tabs').innerHTML = FARM_TABS.map(t => `
+      <button type="button" class="farm-tab" role="tab" data-kind="${t.kind}" aria-selected="${t.kind === tab}">
+        ${t.label} <small>${free(t.kind)} lugares</small></button>`).join('');
+  }
+
+  function renderHand() {
+    const hand = root.querySelector('.farm-hand');
+    hand.hidden = !farm.inventory.length;
+    if (selected && !farm.inventory.includes(selected)) selected = null;
+    if (!selected && farm.inventory.length) selected = farm.inventory[0];
+    hand.innerHTML = `<span>Para colocar:</span>${farm.inventory.map(id => {
+      const item = getFarmItem(id);
+      return `<button type="button" data-item="${id}" title="${item.name}" aria-pressed="${id === selected}"><img src="${ART}${item.src}" alt="${item.name}"></button>`;
+    }).join('')}`;
+  }
+
   function renderShop() {
     root.querySelector('.farm-coins-value').textContent = farm.coins;
+    renderTabs();
+    renderHand();
     for (const card of root.querySelectorAll('.farm-item')) {
       const check = canBuy(farm, card.dataset.item);
       const button = card.querySelector('.farm-buy');
       button.disabled = !check.ok;
       button.title = check.reason === 'coins' ? 'Moedas insuficientes'
-        : check.reason === 'no-space' ? 'Sem espaço livre' : 'Comprar';
+        : check.reason === 'no-space' ? 'Sem lugar livre para este tipo' : 'Comprar';
     }
+  }
+
+  function showTab(kind) {
+    tab = kind;
+    root.querySelector('.farm-grid').innerHTML = shopCards();
+    root.querySelector('.farm-grid').scrollTop = 0;
+    renderShop();
   }
 
   function persist() { saveFarm(farm); renderShop(); }
 
   // A lojinha abre por cima da parte de baixo da cena; fechada, a fazenda
-  // fica inteira a vista (e os espacos da frente ficam livres para tocar).
+  // fica inteira a vista (e os lugares da frente ficam livres para tocar).
   function setShop(open) {
     root.classList.toggle('shop-open', open);
     const toggle = root.querySelector('.farm-shop-toggle');
@@ -51685,13 +51759,12 @@ function createFarmView({ onClose = () => {} } = {}) {
       </div>
       <div class="farm-bottom">
         <p class="farm-msg" aria-live="polite"></p>
+        <div class="farm-hand" hidden></div>
         <button type="button" class="farm-shop-toggle" aria-expanded="false">Lojinha</button>
-        <div class="farm-shop">${FARM_ITEMS.map(item => `
-          <div class="farm-item" data-item="${item.id}">
-            <canvas width="116" height="92" aria-hidden="true"></canvas>
-            <div><strong>${item.name}</strong><small>${item.blurb}</small>
-              <button type="button" class="farm-buy"><span class="farm-coin"></span> ${item.price}</button></div>
-          </div>`).join('')}</div>
+        <div class="farm-shop">
+          <div class="farm-tabs" role="tablist"></div>
+          <div class="farm-grid"></div>
+        </div>
       </div>`;
     document.body.appendChild(root);
     glCanvas = root.querySelector('.farm-gl');
@@ -51701,21 +51774,32 @@ function createFarmView({ onClose = () => {} } = {}) {
     if (!scene) root.querySelector('.farm-loading').textContent = 'Este navegador não tem WebGL.';
     else scene.loading.then(() => { root.querySelector('.farm-loading').hidden = true; })
       .catch(() => { root.querySelector('.farm-loading').textContent = 'Não foi possível carregar a fazendinha.'; });
-    for (const card of root.querySelectorAll('.farm-item')) {
-      const item = getFarmItem(card.dataset.item);
-      const c = card.querySelector('canvas').getContext('2d');
-      item.draw(c, 58, 88, item.id === 'fence' ? .62 : .58);
-      card.querySelector('.farm-buy').addEventListener('click', () => {
-        const result = buyItem(farm, item.id);
-        if (!result.ok) {
-          message(result.reason === 'coins' ? 'Moedas insuficientes: conclua mais uma fase para colher mais.' : 'Não há espaço livre na fazendinha.');
-          return;
-        }
-        persist();
-        setShop(false);
-        message(`${item.name} comprado! Toque num espaço livre para colocar.`);
-      });
-    }
+
+    root.querySelector('.farm-tabs').addEventListener('click', event => {
+      const button = event.target.closest('.farm-tab');
+      if (button) showTab(button.dataset.kind);
+    });
+    root.querySelector('.farm-grid').addEventListener('click', event => {
+      const button = event.target.closest('.farm-buy');
+      if (!button) return;
+      const item = getFarmItem(button.closest('.farm-item').dataset.item);
+      const result = buyItem(farm, item.id);
+      if (!result.ok) {
+        message(result.reason === 'coins' ? 'Moedas insuficientes: conclua mais uma fase para colher mais.' : 'Não há lugar livre para este tipo de item.');
+        return;
+      }
+      selected = item.id;
+      persist();
+      setShop(false);
+      message(`${item.name} comprado! Toque num lugar marcado para colocar.`);
+    });
+    root.querySelector('.farm-hand').addEventListener('click', event => {
+      const button = event.target.closest('button[data-item]');
+      if (!button) return;
+      selected = button.dataset.item;
+      renderHand();
+      message(targets().length ? `${getFarmItem(selected).name}: toque num lugar marcado.` : 'Não há lugar livre para este item: tire outro do lugar.');
+    });
     root.querySelector('.farm-shop-toggle').addEventListener('click', () => setShop(!root.classList.contains('shop-open')));
     root.querySelector('.farm-back').addEventListener('click', close);
 
@@ -51726,9 +51810,10 @@ function createFarmView({ onClose = () => {} } = {}) {
       const x = event.clientX - rect.left, y = event.clientY - rect.top;
       if (event.pointerType === 'mouse') scene?.setPointer((x / rect.width) * 2 - 1, (y / rect.height) * 2 - 1);
       if (drag) { scene?.panBy(x - drag.x); drag.moved += Math.abs(x - drag.x); drag.x = x; }
-      hover = scene ? slotAt(x, y) : -1;
+      hover = event.pointerType === 'mouse' ? pick(x, y) : null;
+      marks.style.cursor = hover ? 'pointer' : 'default';
     });
-    marks.addEventListener('pointerleave', () => { hover = -1; scene?.releasePointer(); });
+    marks.addEventListener('pointerleave', () => { hover = null; scene?.releasePointer(); });
     marks.addEventListener('pointerdown', event => {
       const rect = marks.getBoundingClientRect();
       if (event.pointerType !== 'mouse') drag = { x: event.clientX - rect.left, moved: 0 };
@@ -51737,19 +51822,22 @@ function createFarmView({ onClose = () => {} } = {}) {
     marks.addEventListener('click', event => {
       if (!scene || run || (drag && drag.moved > 8)) return;
       const rect = marks.getBoundingClientRect();
-      const index = slotAt(event.clientX - rect.left, event.clientY - rect.top);
-      if (index < 0) return;
-      if (farm.inventory.length && !farm.slots[index]) {
-        const name = getFarmItem(farm.inventory[0]).name;
-        placeItem(farm, index);
+      const hit = pick(event.clientX - rect.left, event.clientY - rect.top);
+      if (!hit) return;
+      if (hit.type === 'slot') {
+        const name = getFarmItem(selected).name;
+        placeItem(farm, hit.index, selected);
+        selected = null;
+        hover = null;
         persist();
-        message(farm.inventory.length ? 'Pronto! Ainda há item para colocar.' : `${name} no lugar.`);
-      } else if (farm.slots[index] && !farm.inventory.length) {
-        pickUpItem(farm, index);
+        message(farm.inventory.length ? `${name} no lugar. Ainda há itens para colocar.` : `${name} no lugar.`);
+      } else {
+        const name = getFarmItem(farm.slots[hit.index]).name;
+        pickUpItem(farm, hit.index);
+        selected = farm.inventory[0];
+        hover = null;
         persist();
-        message('Escolha o novo espaço para o item.');
-      } else if (farm.slots[index]) {
-        message('Coloque primeiro o item que está na mão.');
+        message(`${name} na mão: toque num lugar marcado.`);
       }
     });
     // Enquanto a fazendinha esta aberta, o teclado nao chega ao jogo.
@@ -51764,12 +51852,13 @@ function createFarmView({ onClose = () => {} } = {}) {
     ensureDom();
     farm = loadFarm();
     root.hidden = false;
-    hover = -1; last = 0;
+    hover = null; last = 0;
     pops.length = 0;
+    selected = farm.inventory[0] || null;
     setShop(false);
-    renderShop();
+    showTab(tab);
     const touch = window.matchMedia?.('(pointer: coarse)').matches;
-    message(farm.inventory.length ? 'Toque num espaço livre para colocar o item.'
+    message(farm.inventory.length ? 'Toque num lugar marcado para colocar o item.'
       : touch ? 'Arraste para ver a fazenda toda.'
       : farm.coins ? 'Use as moedas da colheita na lojinha.' : 'Conclua fases para colher moedas.');
     if (!frame) frame = requestAnimationFrame(loop);
@@ -51799,72 +51888,145 @@ function createFarmView({ onClose = () => {} } = {}) {
 Object.assign(__exports, { createFarmView });
 },
 "src/farm/farm-items.js": (__exports, __require) => {
-// Catalogo da lojinha da fazendinha. Arte provisoria em canvas (formas simples):
-// cada item sabe se desenhar com a base (chao) em (x, y) e escala `s`.
+// Catalogo da lojinha da fazendinha: itens com arte propria (assets/farm/itens),
+// separados por tipo de lugar (farm-layout.js). A lista fica em farm-catalog.js.
+const { FARM_CATALOG } = __require("src/farm/farm-catalog.js");
+const FARM_ITEMS = FARM_CATALOG;
 
-const FARM_SLOT_COUNT = 4;
-
-function fence(ctx, x, y, s) {
-  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
-  ctx.fillStyle = '#a9733f'; ctx.strokeStyle = '#6d4523'; ctx.lineWidth = 3;
-  for (const px of [-62, -21, 21, 62]) {
-    ctx.beginPath();
-    ctx.moveTo(px - 9, 0); ctx.lineTo(px - 9, -58); ctx.lineTo(px, -70); ctx.lineTo(px + 9, -58); ctx.lineTo(px + 9, 0);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-  }
-  for (const py of [-46, -20]) {
-    ctx.fillRect(-76, py, 152, 10); ctx.strokeRect(-76, py, 152, 10);
-  }
-  ctx.restore();
-}
-
-function waterTank(ctx, x, y, s) {
-  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
-  ctx.strokeStyle = '#5b4a3a'; ctx.lineWidth = 5;
-  for (const lx of [-34, 34]) { ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx * .7, -70); ctx.stroke(); }
-  ctx.beginPath(); ctx.moveTo(-30, -24); ctx.lineTo(30, -24); ctx.stroke();
-  const g = ctx.createLinearGradient(-44, 0, 44, 0);
-  g.addColorStop(0, '#3f8fb8'); g.addColorStop(.5, '#7cc8ea'); g.addColorStop(1, '#2f6f92');
-  ctx.fillStyle = g; ctx.strokeStyle = '#1f4a63'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.roundRect(-44, -136, 88, 66, 10); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#2a6688'; ctx.beginPath(); ctx.ellipse(0, -136, 44, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-30, -124, 8, 40);
-  ctx.restore();
-}
-
-function nursery(ctx, x, y, s) {
-  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
-  // estufinha: estrutura + plastico translucido + mudas
-  ctx.fillStyle = '#7a5532'; ctx.fillRect(-80, -8, 160, 8);
-  for (let i = 0; i < 6; i++) {
-    const px = -62 + i * 25;
-    ctx.fillStyle = '#5c3b22'; ctx.fillRect(px - 7, -22, 14, 14);
-    ctx.strokeStyle = '#3f9a3a'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(px, -22); ctx.lineTo(px, -38); ctx.stroke();
-    ctx.fillStyle = '#5fc24f';
-    ctx.beginPath(); ctx.ellipse(px - 6, -40, 7, 4, -.5, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(px + 6, -42, 7, 4, .5, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.fillStyle = 'rgba(210,240,255,.32)'; ctx.strokeStyle = '#e8f6ff'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(-84, -8); ctx.lineTo(-84, -70); ctx.quadraticCurveTo(0, -128, 84, -70); ctx.lineTo(84, -8); ctx.closePath();
-  ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-42, -96); ctx.lineTo(-42, -8); ctx.moveTo(0, -107); ctx.lineTo(0, -8); ctx.moveTo(42, -96); ctx.lineTo(42, -8); ctx.stroke();
-  ctx.restore();
-}
-
-const FARM_ITEMS = Object.freeze([
-  Object.freeze({ id: 'fence', name: 'Cerca de madeira', price: 30,
-    blurb: 'Protege o canteiro e deixa a fazendinha arrumada.', draw: fence }),
-  Object.freeze({ id: 'water-tank', name: "Caixa d'água", price: 70,
-    blurb: 'Água guardada para os dias secos.', draw: waterTank }),
-  Object.freeze({ id: 'nursery', name: 'Viveiro pequeno', price: 120,
-    blurb: 'Mudas protegidas até irem para o canteiro.', draw: nursery }),
+// abas da lojinha, na ordem
+const FARM_TABS = Object.freeze([
+  { kind: 'casa', label: 'Casas' },
+  { kind: 'arvore', label: 'Árvores' },
+  { kind: 'objeto', label: 'Objetos' },
+  { kind: 'pequeno', label: 'Enfeites' },
 ]);
 
+const BY_ID = new Map(FARM_ITEMS.map(item => [item.id, item]));
+
+// itens da primeira versao (arte em canvas) -> equivalentes com arte nova
+const LEGACY_ITEM_IDS = Object.freeze({
+  fence: 'cerca-madeira-baixa',
+  'water-tank': 'caixa-agua-azul',
+  nursery: 'viveiro-pequeno',
+});
+
 function getFarmItem(id) {
-  return FARM_ITEMS.find(item => item.id === id) || null;
+  return BY_ID.get(LEGACY_ITEM_IDS[id] || id) || null;
 }
-Object.assign(__exports, { FARM_SLOT_COUNT, FARM_ITEMS, getFarmItem });
+Object.assign(__exports, { FARM_ITEMS, FARM_TABS, LEGACY_ITEM_IDS, getFarmItem });
+},
+"src/farm/farm-catalog.js": (__exports, __require) => {
+// ITENS DA LOJINHA: nome, arquivo (assets/farm/), tamanho da imagem, altura real
+// em metros (o item escala pela perspectiva do lugar, farm-layout.js) e preco.
+const FARM_CATALOG = Object.freeze([
+  {id: "casa-de-pedra", name: "Casa de pedra", kind: "casa", src: "itens/casas/casa-de-pedra.webp", w: 1210, h: 698, meters: 4.6, price: 140, sway: 0},
+  {id: "casa-taipa-telhado-palha", name: "Casa de taipa e palha", kind: "casa", src: "itens/casas/casa-taipa-telhado-palha.webp", w: 376, h: 210, meters: 4.4, price: 90, sway: 0},
+  {id: "casa-barro-telhas-ceramicas", name: "Casa de barro com telhas", kind: "casa", src: "itens/casas/casa-barro-telhas-ceramicas.webp", w: 395, h: 209, meters: 4.4, price: 120, sway: 0},
+  {id: "casa-madeira-telhado-zinco", name: "Casa de madeira e zinco", kind: "casa", src: "itens/casas/casa-madeira-telhado-zinco.webp", w: 364, h: 203, meters: 4.4, price: 110, sway: 0},
+  {id: "casa-bambu-e-palha", name: "Casa de bambu e palha", kind: "casa", src: "itens/casas/casa-bambu-e-palha.webp", w: 333, h: 217, meters: 4.4, price: 90, sway: 0},
+  {id: "casa-palha-com-rede", name: "Casa de palha com rede", kind: "casa", src: "itens/casas/casa-palha-com-rede.webp", w: 362, h: 230, meters: 4.6, price: 100, sway: 0},
+  {id: "casa-barro-com-varanda", name: "Casa de barro com varanda", kind: "casa", src: "itens/casas/casa-barro-com-varanda.webp", w: 399, h: 198, meters: 4.3, price: 130, sway: 0},
+  {id: "casa-simples-de-madeira", name: "Casa simples de madeira", kind: "casa", src: "itens/casas/casa-simples-de-madeira.webp", w: 349, h: 198, meters: 4.3, price: 110, sway: 0},
+  {id: "casa-taipa-porta-azul", name: "Casa de taipa, porta azul", kind: "casa", src: "itens/casas/casa-taipa-porta-azul.webp", w: 412, h: 205, meters: 4.4, price: 120, sway: 0},
+  {id: "casa-madeira-com-varanda", name: "Casa de madeira com varanda", kind: "casa", src: "itens/casas/casa-madeira-com-varanda.webp", w: 370, h: 195, meters: 4.3, price: 130, sway: 0},
+  {id: "abrigo-rural-com-cocho", name: "Abrigo com cocho", kind: "casa", src: "itens/casas/abrigo-rural-com-cocho.webp", w: 380, h: 193, meters: 4.0, price: 90, sway: 0},
+  {id: "galpao-de-palha", name: "Galpão de palha", kind: "casa", src: "itens/casas/galpao-de-palha.webp", w: 392, h: 192, meters: 4.2, price: 90, sway: 0},
+  {id: "casa-branca-porta-azul", name: "Casa branca, porta azul", kind: "casa", src: "itens/casas/casa-branca-porta-azul.webp", w: 393, h: 216, meters: 4.5, price: 140, sway: 0},
+  {id: "casa-de-barro-com-telhas", name: "Casa de barro com quintal", kind: "casa", src: "itens/casas/casa-de-barro-com-telhas.webp", w: 361, h: 203, meters: 4.4, price: 130, sway: 0},
+  {id: "casa-de-madeira-elevada", name: "Casa de madeira elevada", kind: "casa", src: "itens/casas/casa-de-madeira-elevada.webp", w: 340, h: 239, meters: 5.2, price: 150, sway: 0},
+  {id: "galpao-palha-com-carroca", name: "Galpão com carroça", kind: "casa", src: "itens/casas/galpao-palha-com-carroca.webp", w: 340, h: 222, meters: 4.6, price: 110, sway: 0},
+  {id: "casinha-de-barro-e-palha", name: "Casinha de barro e palha", kind: "casa", src: "itens/casas/casinha-de-barro-e-palha.webp", w: 291, h: 191, meters: 4.0, price: 80, sway: 0},
+  {id: "casa-de-adobe", name: "Casa de adobe", kind: "casa", src: "itens/casas/casa-de-adobe.webp", w: 362, h: 215, meters: 4.0, price: 100, sway: 0},
+  {id: "casa-de-tabuas", name: "Casa de tábuas", kind: "casa", src: "itens/casas/casa-de-tabuas.webp", w: 374, h: 207, meters: 4.2, price: 100, sway: 0},
+  {id: "rancho-de-palha", name: "Rancho de palha", kind: "casa", src: "itens/casas/rancho-de-palha.webp", w: 376, h: 206, meters: 4.0, price: 90, sway: 0},
+  {id: "casa-branca-de-varanda", name: "Casa branca de varanda", kind: "casa", src: "itens/casas/casa-branca-de-varanda.webp", w: 406, h: 242, meters: 4.0, price: 140, sway: 0},
+  {id: "casa-branca-de-telhas", name: "Casa branca de telhas", kind: "casa", src: "itens/casas/casa-branca-de-telhas.webp", w: 554, h: 217, meters: 4.0, price: 130, sway: 0},
+  {id: "casa-de-palafita", name: "Casa de palafita", kind: "casa", src: "itens/casas/casa-de-palafita.webp", w: 465, h: 223, meters: 5.0, price: 150, sway: 0},
+  {id: "casa-comprida-de-palha", name: "Casa comprida de palha", kind: "casa", src: "itens/casas/casa-comprida-de-palha.webp", w: 462, h: 232, meters: 4.0, price: 110, sway: 0},
+  {id: "casa-laranja", name: "Casa laranja", kind: "casa", src: "itens/casas/casa-laranja.webp", w: 395, h: 197, meters: 4.0, price: 130, sway: 0},
+  {id: "casa-de-varanda-comprida", name: "Casa de varanda comprida", kind: "casa", src: "itens/casas/casa-de-varanda-comprida.webp", w: 607, h: 240, meters: 4.0, price: 170, sway: 0},
+  {id: "alpendre", name: "Alpendre", kind: "casa", src: "itens/casas/alpendre.webp", w: 360, h: 156, meters: 3.6, price: 80, sway: 0},
+  {id: "casinha-dos-fundos", name: "Casinha dos fundos", kind: "casa", src: "itens/casas/casinha-dos-fundos.webp", w: 199, h: 160, meters: 3.0, price: 60, sway: 0},
+  {id: "galpao-de-ferramentas", name: "Galpão de ferramentas", kind: "casa", src: "itens/casas/galpao-de-ferramentas.webp", w: 265, h: 157, meters: 3.8, price: 90, sway: 0},
+  {id: "galpao-do-feno", name: "Galpão do feno", kind: "casa", src: "itens/casas/galpao-do-feno.webp", w: 299, h: 161, meters: 3.8, price: 100, sway: 0},
+  {id: "garagem-do-trator", name: "Garagem do trator", kind: "casa", src: "itens/casas/garagem-do-trator.webp", w: 315, h: 157, meters: 3.8, price: 120, sway: 0},
+  {id: "casinha-caiada", name: "Casinha caiada", kind: "casa", src: "itens/casas/casinha-caiada.webp", w: 900, h: 709, meters: 4.6, price: 160, sway: 0},
+  {id: "casa-com-alpendre", name: "Casa com alpendre", kind: "casa", src: "itens/casas/casa-com-alpendre.webp", w: 881, h: 760, meters: 6.6, price: 230, sway: 0},
+  {id: "casa-de-dois-andares", name: "Casa de dois andares", kind: "casa", src: "itens/casas/casa-de-dois-andares.webp", w: 900, h: 725, meters: 7.0, price: 290, sway: 0},
+  {id: "sobrado", name: "Sobrado", kind: "casa", src: "itens/casas/sobrado.webp", w: 900, h: 723, meters: 8.6, price: 360, sway: 0},
+  {id: "casarao", name: "Casarão", kind: "casa", src: "itens/casas/casarao.webp", w: 865, h: 760, meters: 9.6, price: 450, sway: 0},
+  {id: "arvore-grande", name: "Árvore grande", kind: "arvore", src: "itens/arvores/arvore-grande.webp", w: 1311, h: 1059, meters: 11, price: 90, sway: 1},
+  {id: "arvore-copada", name: "Árvore copada", kind: "arvore", src: "itens/arvores/arvore-copada.webp", w: 1100, h: 1073, meters: 10.5, price: 90, sway: 1},
+  {id: "macieira", name: "Macieira", kind: "arvore", src: "itens/arvores/macieira.webp", w: 760, h: 895, meters: 6.0, price: 70, sway: 1},
+  {id: "laranjeira", name: "Laranjeira", kind: "arvore", src: "itens/arvores/laranjeira.webp", w: 722, h: 900, meters: 6.0, price: 70, sway: 1},
+  {id: "ipe-rosa", name: "Ipê-rosa", kind: "arvore", src: "itens/arvores/ipe-rosa.webp", w: 738, h: 900, meters: 9, price: 90, sway: 1},
+  {id: "jacaranda", name: "Jacarandá", kind: "arvore", src: "itens/arvores/jacaranda.webp", w: 760, h: 835, meters: 9, price: 90, sway: 1},
+  {id: "cipreste", name: "Cipreste", kind: "arvore", src: "itens/arvores/cipreste.webp", w: 375, h: 900, meters: 10, price: 50, sway: 1},
+  {id: "arvore-podada", name: "Árvore podada", kind: "arvore", src: "itens/arvores/arvore-podada.webp", w: 730, h: 900, meters: 7, price: 80, sway: 1},
+  {id: "cerca-madeira-baixa", name: "Cerca baixa de madeira", kind: "pequeno", src: "itens/objetos/cerca-madeira-baixa.webp", w: 122, h: 96, meters: 1.1, price: 10, sway: 0},
+  {id: "cerca-ripada", name: "Cerca ripada", kind: "pequeno", src: "itens/objetos/cerca-ripada.webp", w: 185, h: 92, meters: 1.1, price: 12, sway: 0},
+  {id: "porteira-madeira", name: "Porteira de madeira", kind: "pequeno", src: "itens/objetos/porteira-madeira.webp", w: 149, h: 100, meters: 1.3, price: 15, sway: 0},
+  {id: "cerca-tela", name: "Cerca de tela", kind: "pequeno", src: "itens/objetos/cerca-tela.webp", w: 141, h: 100, meters: 1.2, price: 12, sway: 0},
+  {id: "mureta-pedra", name: "Mureta de pedra", kind: "pequeno", src: "itens/objetos/mureta-pedra.webp", w: 139, h: 95, meters: 0.9, price: 18, sway: 0},
+  {id: "cerca-horizontal", name: "Cerca de varas", kind: "pequeno", src: "itens/objetos/cerca-horizontal.webp", w: 177, h: 94, meters: 1.1, price: 10, sway: 0},
+  {id: "caixa-agua-azul", name: "Caixa d’água azul", kind: "objeto", src: "itens/objetos/caixa-agua-azul.webp", w: 92, h: 172, meters: 4.4, price: 60, sway: 0},
+  {id: "caixa-agua-metal", name: "Caixa d’água de metal", kind: "objeto", src: "itens/objetos/caixa-agua-metal.webp", w: 74, h: 172, meters: 4.4, price: 60, sway: 0},
+  {id: "poco-artesiano", name: "Poço", kind: "objeto", src: "itens/objetos/poco-artesiano.webp", w: 151, h: 179, meters: 2.2, price: 45, sway: 0},
+  {id: "bebedouro-pedra", name: "Bebedouro de pedra", kind: "pequeno", src: "itens/objetos/bebedouro-pedra.webp", w: 148, h: 109, meters: 0.8, price: 15, sway: 0},
+  {id: "casinha-cachorro", name: "Casinha de cachorro", kind: "pequeno", src: "itens/objetos/casinha-cachorro.webp", w: 179, h: 139, meters: 1.1, price: 20, sway: 0},
+  {id: "placa-madeira-seta", name: "Placa de seta", kind: "objeto", src: "itens/objetos/placa-madeira-seta.webp", w: 92, h: 127, meters: 1.6, price: 8, sway: 0},
+  {id: "viveiro-pequeno", name: "Viveiro pequeno", kind: "objeto", src: "itens/objetos/viveiro-pequeno.webp", w: 164, h: 112, meters: 1.6, price: 40, sway: 0},
+  {id: "estufa-grande", name: "Estufa grande", kind: "objeto", src: "itens/objetos/estufa-grande.webp", w: 266, h: 129, meters: 2.8, price: 70, sway: 0},
+  {id: "viveiro-sombreado", name: "Viveiro sombreado", kind: "objeto", src: "itens/objetos/viveiro-sombreado.webp", w: 404, h: 130, meters: 2.4, price: 60, sway: 0},
+  {id: "bancada-mudas", name: "Bancada de mudas", kind: "pequeno", src: "itens/objetos/bancada-mudas.webp", w: 143, h: 117, meters: 1.2, price: 15, sway: 0},
+  {id: "bancada-mudas-estreita", name: "Bancada estreita", kind: "pequeno", src: "itens/objetos/bancada-mudas-estreita.webp", w: 129, h: 107, meters: 1.2, price: 12, sway: 0},
+  {id: "barraca-venda", name: "Barraca de venda", kind: "objeto", src: "itens/objetos/barraca-venda.webp", w: 268, h: 166, meters: 2.6, price: 50, sway: 0},
+  {id: "deposito-sacos", name: "Depósito de sacos", kind: "objeto", src: "itens/objetos/deposito-sacos.webp", w: 304, h: 137, meters: 2.4, price: 45, sway: 0},
+  {id: "sacos-adubo", name: "Sacos de adubo", kind: "pequeno", src: "itens/objetos/sacos-adubo.webp", w: 81, h: 88, meters: 0.8, price: 8, sway: 0},
+  {id: "poste-solar", name: "Poste solar", kind: "objeto", src: "itens/objetos/poste-solar.webp", w: 64, h: 129, meters: 3.0, price: 25, sway: 0},
+  {id: "puleiro-madeira", name: "Torre de madeira", kind: "objeto", src: "itens/objetos/puleiro-madeira.webp", w: 129, h: 250, meters: 3.0, price: 35, sway: 0},
+  {id: "trator-vermelho", name: "Trator", kind: "objeto", src: "itens/objetos/trator-vermelho.webp", w: 247, h: 151, meters: 2.7, price: 60, sway: 0},
+  {id: "colheitadeira-vermelha", name: "Colheitadeira", kind: "objeto", src: "itens/objetos/colheitadeira-vermelha.webp", w: 303, h: 152, meters: 3.4, price: 70, sway: 0},
+  {id: "carreta-vermelha", name: "Carreta", kind: "objeto", src: "itens/objetos/carreta-vermelha.webp", w: 228, h: 158, meters: 1.9, price: 35, sway: 0},
+  {id: "caixote-madeira", name: "Caixote de madeira", kind: "pequeno", src: "itens/objetos/caixote-madeira.webp", w: 113, h: 91, meters: 0.6, price: 5, sway: 0},
+  {id: "sacos-plantio", name: "Sacos de plantio", kind: "pequeno", src: "itens/objetos/sacos-plantio.webp", w: 96, h: 98, meters: 0.8, price: 6, sway: 0},
+  {id: "barril-madeira", name: "Barril", kind: "pequeno", src: "itens/objetos/barril-madeira.webp", w: 70, h: 93, meters: 1.0, price: 6, sway: 0},
+  {id: "tambor-azul", name: "Tambor azul", kind: "pequeno", src: "itens/objetos/tambor-azul.webp", w: 53, h: 89, meters: 0.95, price: 6, sway: 0},
+  {id: "tanque-agua-branco", name: "Tanque de água", kind: "objeto", src: "itens/objetos/tanque-agua-branco.webp", w: 98, h: 115, meters: 1.6, price: 25, sway: 0},
+  {id: "fardos-feno", name: "Fardos de feno", kind: "pequeno", src: "itens/objetos/fardos-feno.webp", w: 203, h: 111, meters: 1.3, price: 12, sway: 0},
+  {id: "lenha-empilhada", name: "Lenha empilhada", kind: "pequeno", src: "itens/objetos/lenha-empilhada.webp", w: 124, h: 93, meters: 1.0, price: 8, sway: 0},
+  {id: "carroca-madeira", name: "Carroça de madeira", kind: "pequeno", src: "itens/objetos/carroca-madeira.webp", w: 159, h: 106, meters: 1.4, price: 30, sway: 0},
+  {id: "carrinho-mao", name: "Carrinho de mão", kind: "pequeno", src: "itens/objetos/carrinho-mao.webp", w: 153, h: 97, meters: 0.8, price: 10, sway: 0},
+  {id: "banco-simples", name: "Banco simples", kind: "pequeno", src: "itens/objetos/banco-simples.webp", w: 128, h: 74, meters: 0.8, price: 8, sway: 0},
+  {id: "catavento", name: "Catavento", kind: "objeto", src: "itens/objetos/catavento.webp", w: 133, h: 229, meters: 6.0, price: 55, sway: 0},
+  {id: "carroca-feno", name: "Carroça de feno", kind: "objeto", src: "itens/objetos/carroca-feno.webp", w: 259, h: 93, meters: 1.9, price: 35, sway: 0},
+  {id: "balde-metal", name: "Balde", kind: "pequeno", src: "itens/objetos/balde-metal.webp", w: 75, h: 71, meters: 0.35, price: 3, sway: 0},
+  {id: "cocho-agua", name: "Cocho de água", kind: "pequeno", src: "itens/objetos/cocho-agua.webp", w: 167, h: 84, meters: 0.7, price: 10, sway: 0},
+  {id: "caixote-frutas", name: "Caixote de frutas", kind: "pequeno", src: "itens/objetos/caixote-frutas.webp", w: 108, h: 81, meters: 0.5, price: 6, sway: 0},
+  {id: "caixote-verduras", name: "Caixote de verduras", kind: "pequeno", src: "itens/objetos/caixote-verduras.webp", w: 153, h: 69, meters: 0.5, price: 6, sway: 0},
+  {id: "palete-madeira", name: "Palete", kind: "pequeno", src: "itens/objetos/palete-madeira.webp", w: 106, h: 75, meters: 0.5, price: 4, sway: 0},
+  {id: "fardo-feno", name: "Fardo de feno", kind: "pequeno", src: "itens/objetos/fardo-feno.webp", w: 114, h: 76, meters: 0.7, price: 5, sway: 0},
+  {id: "composteira-madeira", name: "Composteira", kind: "pequeno", src: "itens/objetos/composteira-madeira.webp", w: 99, h: 95, meters: 1.0, price: 15, sway: 0},
+  {id: "banco-jardim", name: "Banco de jardim", kind: "pequeno", src: "itens/objetos/banco-jardim.webp", w: 197, h: 113, meters: 0.9, price: 12, sway: 0},
+  {id: "mesa-madeira", name: "Mesa de madeira", kind: "pequeno", src: "itens/objetos/mesa-madeira.webp", w: 158, h: 106, meters: 1.0, price: 12, sway: 0},
+  {id: "cavalete-madeira", name: "Cavalete", kind: "pequeno", src: "itens/objetos/cavalete-madeira.webp", w: 105, h: 86, meters: 0.8, price: 5, sway: 0},
+  {id: "espantalho", name: "Espantalho", kind: "objeto", src: "itens/objetos/espantalho.webp", w: 117, h: 125, meters: 1.9, price: 15, sway: 0},
+  {id: "varal-roupas", name: "Varal", kind: "objeto", src: "itens/objetos/varal-roupas.webp", w: 156, h: 99, meters: 1.8, price: 10, sway: 0},
+  {id: "poste-lampiao-duplo", name: "Poste com dois lampiões", kind: "objeto", src: "itens/objetos/poste-lampiao-duplo.webp", w: 68, h: 125, meters: 2.8, price: 20, sway: 0},
+  {id: "lampiao-vintage", name: "Lampião antigo", kind: "objeto", src: "itens/objetos/lampiao-vintage.webp", w: 41, h: 135, meters: 2.6, price: 18, sway: 0},
+  {id: "poste-iluminacao", name: "Mourão de madeira", kind: "objeto", src: "itens/objetos/poste-iluminacao.webp", w: 38, h: 148, meters: 3.4, price: 20, sway: 0},
+  {id: "forno-lenha", name: "Forno a lenha", kind: "objeto", src: "itens/objetos/forno-lenha.webp", w: 119, h: 149, meters: 2.0, price: 35, sway: 0},
+  {id: "churrasqueira-tijolos", name: "Churrasqueira", kind: "objeto", src: "itens/objetos/churrasqueira-tijolos.webp", w: 123, h: 151, meters: 2.0, price: 35, sway: 0},
+  {id: "canteiro-madeira-vazio", name: "Canteiro vazio", kind: "pequeno", src: "itens/objetos/canteiro-madeira-vazio.webp", w: 176, h: 93, meters: 0.5, price: 8, sway: 0},
+  {id: "canteiro-verde", name: "Canteiro de verduras", kind: "pequeno", src: "itens/objetos/canteiro-verde.webp", w: 143, h: 97, meters: 0.7, price: 12, sway: 0},
+  {id: "placa-madeira-grande", name: "Placa grande", kind: "objeto", src: "itens/objetos/placa-madeira-grande.webp", w: 162, h: 110, meters: 1.6, price: 10, sway: 0},
+  {id: "galo-metal", name: "Cata-vento de galo", kind: "objeto", src: "itens/objetos/galo-metal.webp", w: 57, h: 113, meters: 2.0, price: 15, sway: 0},
+  {id: "placa-madeira-poste", name: "Placa no poste", kind: "objeto", src: "itens/objetos/placa-madeira-poste.webp", w: 56, h: 115, meters: 1.8, price: 8, sway: 0},
+  {id: "casa-passaros", name: "Casinha de passarinho", kind: "objeto", src: "itens/objetos/casa-passaros.webp", w: 74, h: 100, meters: 1.8, price: 10, sway: 0},
+  {id: "abrigo-passaros", name: "Comedouro de passarinho", kind: "objeto", src: "itens/objetos/abrigo-passaros.webp", w: 79, h: 136, meters: 2.0, price: 12, sway: 0},
+  {id: "caixa-flores", name: "Floreira", kind: "pequeno", src: "itens/objetos/caixa-flores.webp", w: 123, h: 115, meters: 0.8, price: 10, sway: 0},
+]);
+Object.assign(__exports, { FARM_CATALOG });
 },
 "src/farm/farm-state.js": (__exports, __require) => {
 // ESTADO DA FAZENDINHA (moedas, compras, slots e colheitas ja creditadas)
@@ -51876,12 +52038,13 @@ Object.assign(__exports, { FARM_SLOT_COUNT, FARM_ITEMS, getFarmItem });
 // moedas so entram quando a colheitadeira colhe, na fazendinha. A colheita tem
 // um id (campanha + fase): um id repetido nao planta de novo, mesmo recarregando
 // a pagina no meio do fim de fase. Colheitas nao colhidas ficam guardadas.
-const { FARM_SLOT_COUNT, getFarmItem } = __require("src/farm/farm-items.js");
+const { getFarmItem } = __require("src/farm/farm-items.js");
+const { FARM_SLOTS, FARM_SLOT_COUNT, slotAccepts } = __require("src/farm/farm-layout.js");
 const FARM_STORAGE_KEY = 'miguelito:farm:v1';
 
 function blankFarm() {
   return {
-    version: 1,
+    version: 2,
     coins: 0,
     totalEarned: 0,
     harvests: {},
@@ -51905,9 +52068,20 @@ function sanitize(raw) {
       farm.harvests[id] = { ...entry, collected: entry?.collected !== false };
     }
   }
-  farm.inventory = Array.isArray(raw.inventory) ? raw.inventory.filter(id => getFarmItem(id)) : [];
-  if (Array.isArray(raw.slots)) {
-    farm.slots = Array.from({ length: FARM_SLOT_COUNT }, (_, i) => (getFarmItem(raw.slots[i]) ? raw.slots[i] : null));
+  const known = id => getFarmItem(id)?.id || null;
+  farm.inventory = Array.isArray(raw.inventory) ? raw.inventory.map(known).filter(Boolean) : [];
+  const oldSlots = Array.isArray(raw.slots) ? raw.slots.map(known) : [];
+  if (raw.version === 2) {
+    // item fora do tipo do lugar (catalogo mudou) volta para "sem lugar"
+    farm.slots = FARM_SLOTS.map((slot, i) => {
+      const id = oldSlots[i];
+      if (id && slotAccepts(slot.kind, getFarmItem(id).kind)) return id;
+      if (id) farm.inventory.push(id);
+      return null;
+    });
+  } else {
+    // primeira versao (4 espacos sem tipo): os itens voltam para "sem lugar"
+    farm.inventory.push(...oldSlots.filter(Boolean));
   }
   farm.lastHarvest = raw.lastHarvest && typeof raw.lastHarvest === 'object' ? { ...raw.lastHarvest } : null;
   return farm;
@@ -51968,11 +52142,25 @@ function itemCount(farm) {
   return farm.inventory.length + farm.slots.filter(Boolean).length;
 }
 
-/** Pode comprar se tem moedas e ainda ha espaco para o item. */
+/**
+ * Ainda cabe um item deste tipo? Conta os lugares livres de cada tipo menos
+ * os itens comprados que esperam lugar (pequeno tambem cabe em lugar de objeto).
+ */
+function hasSpaceFor(farm, kind) {
+  const free = { casa: 0, arvore: 0, objeto: 0, pequeno: 0 };
+  FARM_SLOTS.forEach((slot, i) => { if (!farm.slots[i]) free[slot.kind]++; });
+  const waiting = { casa: 0, arvore: 0, objeto: 0, pequeno: 0 };
+  for (const id of farm.inventory) waiting[getFarmItem(id).kind]++;
+  waiting[kind]++;
+  if (waiting.casa > free.casa || waiting.arvore > free.arvore || waiting.objeto > free.objeto) return false;
+  return waiting.pequeno <= free.pequeno + (free.objeto - waiting.objeto);
+}
+
+/** Pode comprar se tem moedas e ainda ha lugar livre para o item. */
 function canBuy(farm, itemId) {
   const item = getFarmItem(itemId);
   if (!item) return { ok: false, reason: 'unknown' };
-  if (itemCount(farm) >= FARM_SLOT_COUNT) return { ok: false, reason: 'no-space' };
+  if (!hasSpaceFor(farm, item.kind)) return { ok: false, reason: 'no-space' };
   if (farm.coins < item.price) return { ok: false, reason: 'coins' };
   return { ok: true };
 }
@@ -51980,23 +52168,30 @@ function canBuy(farm, itemId) {
 function buyItem(farm, itemId) {
   const check = canBuy(farm, itemId);
   if (!check.ok) return check;
-  farm.coins -= getFarmItem(itemId).price;
-  farm.inventory.push(itemId);
+  const item = getFarmItem(itemId);
+  farm.coins -= item.price;
+  farm.inventory.push(item.id);
   return { ok: true };
 }
 
-/** Coloca o primeiro item sem lugar (ou `itemId`) no espaco vazio indicado. */
+/** O item pode ir para este lugar (livre e do tipo certo)? */
+function canPlace(farm, slotIndex, itemId) {
+  const slot = FARM_SLOTS[slotIndex];
+  const item = getFarmItem(itemId);
+  return Boolean(slot && item && !farm.slots[slotIndex] && slotAccepts(slot.kind, item.kind));
+}
+
+/** Coloca o primeiro item sem lugar (ou `itemId`) no lugar indicado. */
 function placeItem(farm, slotIndex, itemId = farm.inventory[0]) {
   if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= FARM_SLOT_COUNT) return false;
-  if (farm.slots[slotIndex]) return false;
   const at = farm.inventory.indexOf(itemId);
-  if (at < 0) return false;
+  if (at < 0 || !canPlace(farm, slotIndex, itemId)) return false;
   farm.inventory.splice(at, 1);
   farm.slots[slotIndex] = itemId;
   return true;
 }
 
-/** Tira o item do espaco e devolve para "sem lugar" (para mudar de posicao). */
+/** Tira o item do lugar e devolve para "sem lugar" (para mudar de posicao). */
 function pickUpItem(farm, slotIndex) {
   const itemId = farm.slots[slotIndex];
   if (!itemId) return false;
@@ -52004,7 +52199,61 @@ function pickUpItem(farm, slotIndex) {
   farm.inventory.unshift(itemId);
   return true;
 }
-Object.assign(__exports, { FARM_STORAGE_KEY, blankFarm, loadFarm, saveFarm, harvestIdFor, registerHarvest, pendingHarvests, pendingCoins, collectHarvests, itemCount, canBuy, buyItem, placeItem, pickUpItem });
+Object.assign(__exports, { FARM_STORAGE_KEY, blankFarm, loadFarm, saveFarm, harvestIdFor, registerHarvest, pendingHarvests, pendingCoins, collectHarvests, itemCount, hasSpaceFor, canBuy, buyItem, canPlace, placeItem, pickUpItem });
+},
+"src/farm/farm-layout.js": (__exports, __require) => {
+// LUGARES DA FAZENDINHA (sem DOM nem WebGL: o estado e os testes usam isto)
+//
+// Coordenadas da cena 1920 x 1080. Cada lugar aceita um tipo de item:
+//   casa    casas e galpoes, na linha da casa (fundo, a esquerda da lavoura)
+//   arvore  arvores
+//   objeto  objetos do meio do campo (tambem aceita os pequenos)
+//   pequeno enfeites na frente, abaixo do lago (so ate ~1,5 m)
+
+const FARM_SLOTS = Object.freeze([
+  { kind: 'casa', x: 600, y: 690 },
+  { kind: 'casa', x: 845, y: 678 },
+  { kind: 'casa', x: 1400, y: 644 },
+  { kind: 'arvore', x: 230, y: 806 },
+  { kind: 'arvore', x: 1750, y: 792 },
+  { kind: 'arvore', x: 70, y: 718 },
+  { kind: 'arvore', x: 1880, y: 712 },
+  { kind: 'arvore', x: 1130, y: 642 },
+  { kind: 'objeto', x: 470, y: 762 },
+  { kind: 'objeto', x: 700, y: 750 },
+  { kind: 'objeto', x: 930, y: 740 },
+  { kind: 'objeto', x: 1150, y: 762 },
+  { kind: 'objeto', x: 1410, y: 772 },
+  { kind: 'objeto', x: 1640, y: 760 },
+  { kind: 'pequeno', x: 600, y: 900 },
+  { kind: 'pequeno', x: 800, y: 908 },
+  { kind: 'pequeno', x: 1000, y: 898 },
+  { kind: 'pequeno', x: 1200, y: 906 },
+  { kind: 'pequeno', x: 1400, y: 896 },
+].map(Object.freeze));
+
+const FARM_SLOT_COUNT = FARM_SLOTS.length;
+
+/** O lugar `slotKind` aceita um item do tipo `itemKind`? */
+function slotAccepts(slotKind, itemKind) {
+  return slotKind === itemKind || (slotKind === 'objeto' && itemKind === 'pequeno');
+}
+
+// Perspectiva: o tamanho cresce a partir de y = 540 e vale 1 em y = 900
+// (frente do lago). 80 px de cena por metro em escala 1: a casa de pedra
+// (4,6 m) fica do tamanho que tinha no cenario fixo.
+const PX_PER_METER = 80;
+function perspectiveAt(y) {
+  return Math.max(.08, (y - 540) / 360);
+}
+
+/** Retangulo do item na cena ([x, y, w, h]), com a base pousada no lugar. */
+function itemSceneRect(slot, item) {
+  const h = item.meters * PX_PER_METER * perspectiveAt(slot.y);
+  const w = h * item.w / item.h;
+  return [slot.x - w / 2, slot.y - h * .97, w, h];
+}
+Object.assign(__exports, { FARM_SLOTS, FARM_SLOT_COUNT, slotAccepts, PX_PER_METER, perspectiveAt, itemSceneRect });
 },
 "src/farm/bean-field.js": (__exports, __require) => {
 // CARA DA LAVOURA PELA NOTA DA COLHEITA
@@ -52028,14 +52277,14 @@ function fieldLevelFromScore(score) {
   return FIELD_LEVEL.SECO;
 }
 
-// Arquivos em assets/farm, por nivel. As variacoes se alternam ao longo da
+// Arquivos em assets/farm/lavoura, por nivel. As variacoes se alternam ao longo da
 // fileira. No super, o fim de fase usa a fileira da frente (feijao-1) e a
 // fazendinha mantem as quatro fileiras em perspectiva.
 const FIELD_ART = Object.freeze([
-  Object.freeze(['feijao-seco-1.webp']),
-  Object.freeze(['feijao-doente-1.webp', 'feijao-doente-2.webp']),
-  Object.freeze(['feijao-saudavel-1.webp', 'feijao-saudavel-2.webp', 'feijao-saudavel-3.webp']),
-  Object.freeze(['feijao-1.webp']),
+  Object.freeze(['lavoura/feijao-seco-1.webp']),
+  Object.freeze(['lavoura/feijao-doente-1.webp', 'lavoura/feijao-doente-2.webp']),
+  Object.freeze(['lavoura/feijao-saudavel-1.webp', 'lavoura/feijao-saudavel-2.webp', 'lavoura/feijao-saudavel-3.webp']),
+  Object.freeze(['lavoura/feijao-1.webp']),
 ]);
 Object.assign(__exports, { FIELD_LEVEL, fieldLevelFromScore, FIELD_ART });
 },
@@ -52044,7 +52293,7 @@ Object.assign(__exports, { FIELD_LEVEL, fieldLevelFromScore, FIELD_ART });
 // ===========================
 //
 // Mesma linguagem do jogo: camadas em profundidade, luz e textura. As camadas
-// pintadas (morros, arvores, casa, canteiro, chao e primeiro plano) viram
+// pintadas (morros, lavoura, chao, primeiro plano e os itens comprados) viram
 // planos com relevo — o normal map sai da propria arte, pelo mesmo gerador do
 // renderizador 2,5D (sprite-normals.js) — e o sol, atras da cena, e uma luz de
 // verdade: contorna copas, telhado e itens comprados com borda quente.
@@ -52058,6 +52307,7 @@ Object.assign(__exports, { FIELD_LEVEL, fieldLevelFromScore, FIELD_ART });
 //
 // Coordenadas da cena: 1920 x 1080. O enquadramento cobre a tela (cover).
 const { FIELD_ART, FIELD_LEVEL } = __require("src/farm/bean-field.js");
+const { FARM_SLOTS, itemSceneRect } = __require("src/farm/farm-layout.js");
 const { generateSpriteNormalMap } = __require("experimental/2_5d/gl/sprite-normals.js");
 const SCENE_W = 1920;
 const SCENE_H = 1080;
@@ -52067,22 +52317,20 @@ const PARALLAX = 46;   // px de cena entre o mais longe e o mais perto
 const FOCUS = .35;     // profundidade que nao se move (o plano da casa)
 const BASE = './assets/farm/';
 
-// Camadas pintadas. `anchor`: ponto da imagem que pousa em `at` (base do
-// tronco, base da casa). `depth`: 0 longe, 1 perto.
+// Cenario fixo: ceu (procedural), morros com a linha de arvores, chao, lavoura
+// e o primeiro plano. Casas, arvores e objetos sao itens da lojinha, postos
+// nos lugares de farm-layout.js.
 const LAYERS = {
-  hills: { src: 'morros.webp', blur: 1.6 },
-  treeA: { src: 'arvore-a.webp', anchor: [584, 1057], at: [250, 806], height: 720, depth: .46, sway: 1, swayAmp: .006, normal: true },
-  treeB: { src: 'arvore-b.webp', anchor: [513, 1071], at: [1748, 792], height: 650, depth: .43, sway: 1, swayAmp: .006, normal: true },
-  house: { src: 'casa.webp', anchor: [631, 696], at: [790, 676], width: 270, depth: .3, normal: true },
-  bean1: { src: 'feijao-1.webp', normal: true },
-  bean2: { src: 'feijao-2.webp', normal: true },
-  bean3: { src: 'feijao-3.webp', normal: true },
-  bean4: { src: 'feijao-4.webp', normal: true },
+  hills: { src: 'cenario/morros.webp', blur: 1.6 },
+  bean1: { src: 'lavoura/feijao-1.webp', normal: true },
+  bean2: { src: 'lavoura/feijao-2.webp', normal: true },
+  bean3: { src: 'lavoura/feijao-3.webp', normal: true },
+  bean4: { src: 'lavoura/feijao-4.webp', normal: true },
   // lavoura seca, doente e saudavel (o super usa as quatro acima)
   ...Object.fromEntries(FIELD_ART.slice(0, FIELD_LEVEL.SUPER).flat().map(src => [src, { src, normal: true }])),
-  tractor: { src: 'colheitadeira.webp', normal: true },
-  foreground: { src: 'primeiro-plano.webp', blur: 3.2 },
-  ground: { src: 'chao.webp' },
+  tractor: { src: 'veiculos/colheitadeira.webp', normal: true },
+  foreground: { src: 'cenario/primeiro-plano.webp', blur: 3.2 },
+  ground: { src: 'cenario/chao.webp' },
 };
 
 // Lavoura de feijao: fileiras vistas de frente, repetidas na horizontal e
@@ -52096,25 +52344,26 @@ const BEAN_ROWS = [
 ];
 const BEAN_X1 = 1720;
 
-// Colheitadeira: sai de tras da casa, passa na frente da lavoura colhendo e
-// some atras da arvore da direita. `t` em segundos.
+// Colheitadeira: entra pela esquerda, de fora da tela, desacelerando ate a
+// velocidade da colheita; passa na frente da lavoura colhendo e sai pela
+// direita. `t` em segundos.
 const HARVEST_PATH = Object.freeze({
   height: 98,
-  start: [790, 664], turn: [985, 664], enter: [1060, 712], end: [1790, 712], exit: [2200, 712],
-  enterSeconds: 1.8, passSeconds: 6.4, exitSeconds: 2.2,
+  start: [-340, 712], enter: [1060, 712], end: [1790, 712], exit: [2200, 712],
+  enterSeconds: 3.2, passSeconds: 6.4, exitSeconds: 2.2,
 });
 const HARVEST_SECONDS = HARVEST_PATH.enterSeconds + HARVEST_PATH.passSeconds + HARVEST_PATH.exitSeconds;
 const lerp2 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
-const easeInOut = k => k * k * (3 - 2 * k);
 /** Posicao da colheitadeira e ate onde a lavoura ja foi colhida. */
 function harvestPose(t) {
   const P = HARVEST_PATH;
   if (t < P.enterSeconds) {
-    // primeiro anda atras da casa (escondida por ela), depois desce para a
-    // frente da lavoura: assim nunca "pula" para a frente da casa
+    // f(k) = a k + b k^2: chega na lavoura ja na velocidade da passada
     const k = t / P.enterSeconds;
-    const pos = k < .62 ? lerp2(P.start, P.turn, easeInOut(k / .62)) : lerp2(P.turn, P.enter, easeInOut((k - .62) / .38));
-    return { pos, cut: -Infinity, phase: 'enter' };
+    const passSpeed = (P.end[0] - P.enter[0]) / P.passSeconds;
+    const endSlope = passSpeed * P.enterSeconds / (P.enter[0] - P.start[0]);
+    const b = endSlope - 1, a = 1 - b;
+    return { pos: lerp2(P.start, P.enter, a * k + b * k * k), cut: -Infinity, phase: 'enter' };
   }
   const t2 = t - P.enterSeconds;
   if (t2 < P.passSeconds) {
@@ -52125,14 +52374,6 @@ function harvestPose(t) {
   const k = Math.min(1, (t2 - P.passSeconds) / P.exitSeconds);
   return { pos: lerp2(P.end, P.exit, k * k), cut: Infinity, phase: k >= 1 ? 'done' : 'exit', progress: 1 };
 }
-
-// Espacos de melhoria: base do item na cena e escala.
-const FARM_SLOTS = [
-  { x: 640, y: 714, s: .6 },
-  { x: 735, y: 800, s: .76 },
-  { x: 430, y: 905, s: .95 },
-  { x: 1600, y: 912, s: .98 },
-];
 
 function depthAt(y) {
   return Math.max(0, Math.min(1, .3 + (y - HORIZON) / (SCENE_H - HORIZON) * .7));
@@ -52352,7 +52593,7 @@ function normalsFor(img) {
 
 /**
  * @param {HTMLCanvasElement} canvas
- * @param {{ items?: () => Array<{slot:number, image:HTMLCanvasElement, key:string}>, plantState?: () => number }} hooks
+ * @param {{ items?: () => Array<{slot:number, item:object}>, plantState?: () => number }} hooks
  */
 function createFarmScene(canvas, { items = () => [], plantState = () => 1, harvest = () => null } = {}) {
   const gl = canvas.getContext('webgl', { alpha: false, antialias: true, premultipliedAlpha: false });
@@ -52466,10 +52707,18 @@ function createFarmScene(canvas, { items = () => [], plantState = () => 1, harve
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  function anchoredRect(layer, tex) {
-    const scale = layer.height ? layer.height / tex.h : layer.width / tex.w;
-    const w = tex.w * scale, h = tex.h * scale;
-    return [layer.at[0] - layer.anchor[0] * scale, layer.at[1] - layer.anchor[1] * scale, w, h];
+  // arte dos itens: carrega na primeira vez que aparece; o relevo vem depois
+  function itemTexture(src) {
+    let entry = itemTextures.get(src);
+    if (!entry) {
+      entry = { tex: null };
+      itemTextures.set(src, entry);
+      loadImage(BASE + src).then(img => {
+        entry.tex = { ...texture(img), norm: null };
+        setTimeout(() => { entry.tex.norm = texture(normalsFor(img)).t; }, 30);
+      }).catch(() => {});
+    }
+    return entry.tex;
   }
 
   function fullscreen(prog, extra = () => {}) {
@@ -52523,11 +52772,7 @@ function createFarmScene(canvas, { items = () => [], plantState = () => 1, harve
     const run = harvest();
     const pose = run ? harvestPose(run.t) : null;
     const cut = state < 0 ? Infinity : pose ? pose.cut : -Infinity;
-    const props = [
-      { id: 'house', y: LAYERS.house.at[1], draw: () => drawSprite(textures.house, anchoredRect(LAYERS.house, textures.house), { depth: .3, haze: .12, rim: .55 }) },
-      { id: 'treeB', y: LAYERS.treeB.at[1], draw: () => drawSprite(textures.treeB, anchoredRect(LAYERS.treeB, textures.treeB), { depth: .43, sway: 1, swayAmp: LAYERS.treeB.swayAmp, seed: 1.7, rim: .75 }) },
-      { id: 'treeA', y: LAYERS.treeA.at[1], draw: () => drawSprite(textures.treeA, anchoredRect(LAYERS.treeA, textures.treeA), { depth: .46, sway: 1, swayAmp: LAYERS.treeA.swayAmp, seed: 4.1, rim: .75 }) },
-    ];
+    const props = [];
     BEAN_ROWS.forEach((row, r) => {
       const tex = levelArt ? levelArt[r % levelArt.length] : textures[row.tex];
       const scale = row.height / (tex.h * .9);
@@ -52544,16 +52789,18 @@ function createFarmScene(canvas, { items = () => [], plantState = () => 1, harve
         }
       } });
     });
-    for (const item of items()) {
-      const slot = FARM_SLOTS[item.slot];
-      let tex = itemTextures.get(item.key);
-      if (!tex) {
-        tex = { ...texture(item.image), norm: null };
-        itemTextures.set(item.key, tex);
-        setTimeout(() => { tex.norm = texture(normalsFor(item.image)).t; }, 0);
-      }
-      const w = tex.w * slot.s * .8, h = tex.h * slot.s * .8;
-      props.push({ id: item.key, y: slot.y, draw: () => drawSprite(tex, [slot.x - w / 2, slot.y - h * .94, w, h], { depth: depthAt(slot.y), rim: .7 }) });
+    for (const { slot: index, item } of items()) {
+      const tex = itemTexture(item.src);
+      if (!tex) continue;
+      const slot = FARM_SLOTS[index];
+      const rect = itemSceneRect(slot, item);
+      // o que fica longe ganha um pouco do ar da tarde
+      const haze = Math.max(0, Math.min(.14, (720 - slot.y) / 360));
+      const tree = item.kind === 'arvore';
+      props.push({ id: `${item.id}@${index}`, y: slot.y, draw: () => drawSprite(tex, rect, {
+        depth: depthAt(slot.y), haze, rim: tree ? .75 : .6,
+        sway: tree ? 1 : 0, swayAmp: tree ? .006 : 0, seed: index * 1.7,
+      }) });
     }
     if (pose && pose.phase !== 'done') {
       const tex = textures.tractor;
@@ -52599,7 +52846,7 @@ function createFarmScene(canvas, { items = () => [], plantState = () => 1, harve
     get maxPan() { return view.maxPan || 0; },
   };
 }
-Object.assign(__exports, { SCENE_W, SCENE_H, HORIZON, HARVEST_PATH, HARVEST_SECONDS, harvestPose, FARM_SLOTS, depthAt, createFarmScene });
+Object.assign(__exports, { SCENE_W, SCENE_H, HORIZON, HARVEST_PATH, HARVEST_SECONDS, harvestPose, depthAt, createFarmScene });
 },
 "experimental/2_5d/gl/sprite-normals.js": (__exports, __require) => {
 // Normal maps derivados da propria arte, sem redesenhar nada.
@@ -57740,7 +57987,7 @@ function phaseFinaleSeconds(celebrationSeconds = 0) {
 // segue exatamente como antes, so com o feijoeiro.
 const FINALE_HARVEST_SECONDS = 6.5;
 const FIELD_ROW = { height: 1, lift: 0, haze: 0 };
-const HARVESTER_SRC = './assets/farm/colheitadeira.webp';
+const HARVESTER_SRC = './assets/farm/veiculos/colheitadeira.webp';
 
 // Arte da lavoura nos quatro niveis (bean-field.js): seca, doente, saudavel e
 // super. Cada nivel fica pronto quando todas as suas variacoes carregam.

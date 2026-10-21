@@ -77,7 +77,7 @@ export function phaseFinaleSeconds(celebrationSeconds = 0) {
 // segue exatamente como antes, so com o feijoeiro.
 export const FINALE_HARVEST_SECONDS = 6.5;
 const FIELD_ROW = { height: 1, lift: 0, haze: 0 };
-const HARVESTER_SRC = './assets/farm/colheitadeira.webp';
+const HARVESTER_SRC = './assets/farm/veiculos/colheitadeira.webp';
 
 // Arte da lavoura nos quatro niveis (bean-field.js): seca, doente, saudavel e
 // super. Cada nivel fica pronto quando todas as suas variacoes carregam.

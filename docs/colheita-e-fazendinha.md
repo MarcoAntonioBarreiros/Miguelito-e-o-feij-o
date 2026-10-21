@@ -33,13 +33,20 @@ A fase não avança mais sozinha: espera o Continuar. O Phase Lab mantém o flux
 
 ## Fazendinha — `src/farm/`
 
-- `farm-items.js`: catálogo (Cerca de madeira 30, Caixa d'água 70, Viveiro pequeno 120) com arte provisória em canvas.
-- `farm-state.js`: moedas, colheitas creditadas, itens sem lugar e 4 espaços; `localStorage` em `miguelito:farm:v1`.
-- `farm-view.js`: cena 2D frontal (céu, morro, casinha, canteiro e 4 espaços clicáveis) e a lojinha.
+- `farm-scene.js`: cena WebGL. Cenário fixo: céu procedural, morros com a linha de árvores, chão, lavoura e plantas da frente. Todo o resto é item comprado.
+- `farm-layout.js`: os 19 lugares e a perspectiva. Cada lugar aceita um tipo: `casa` (3, linha da casa e atrás da lavoura), `arvore` (5), `objeto` (6, faixa do meio; também aceita enfeite) e `pequeno` (5, na frente, abaixo do lago). O tamanho do item = altura real (m) × 80 px/m × perspectiva do lugar (`(y − 540) / 360`).
+- `farm-catalog.js`: os 106 itens (nome, arquivo, tamanho da imagem, altura em metros, preço). Itens até 1,5 m são enfeites. Preço e altura se ajustam aqui.
+- `farm-items.js`: abas da lojinha (Casas, Árvores, Objetos, Enfeites) e ids da primeira versão (cerca, caixa d'água, viveiro) mapeados para os novos.
+- `farm-state.js`: moedas, colheitas, itens sem lugar e lugares; `localStorage` em `miguelito:farm:v1` (versão 2; save da versão 1 manda os itens para "sem lugar").
+- `farm-view.js`: overlay, lojinha com abas, faixa "Para colocar" e marcas dos lugares que servem para o item da mão. Tocar num item colocado o devolve para a mão.
+
+Arte em `assets/farm/`: `cenario/`, `lavoura/`, `veiculos/` e `itens/{casas,arvores,objetos}` (webp recortado da arte original).
+
+A colheitadeira entra pela esquerda, de fora da tela, e chega à lavoura já na velocidade da colheita.
 
 Crédito único: cada colheita tem o id `semente-da-campanha:fase-N`; um id já pago não paga de novo (recarga da página, fase repetida).
 
-Também abre pelo menu de pausa (Fazendinha). O canteiro mostra o feijoeiro da última colheita.
+Também abre pelo menu de pausa (Fazendinha).
 
 ## Arte da lavoura por nota — `src/farm/bean-field.js`
 
