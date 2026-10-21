@@ -1158,7 +1158,7 @@ html.tutorial-open .phase-lab-toggle, html.tutorial-open .phase-lab { display: n
   </div>
 
   <script>
-window.__BEANS_BUILD__ = {"commit":"6ade37b","subject":"Colheita no fim da fase: feijoal cresce na superficie junto com o feijoe","builtAt":"2026-10-21 20:54"};
+window.__BEANS_BUILD__ = {"commit":"6d5b4c9","subject":"Fim de fase: colheitadeira entra logo depois que o feijoal cresce (antes","builtAt":"2026-10-21 21:13"};
 (() => {
 'use strict';
 const __modules = {
@@ -23685,6 +23685,7 @@ const { W } = __require("src/core/constants.js");
 const { narrate } = __require("src/procgen/narrator.js");
 const { visibleRootRect } = __require("src/render/rhizosphere-geometry.js");
 const { persistCampaign } = __require("src/procgen/campaign-progression.js");
+const { organismSprites } = __require("src/render/organism-sprites.js");
 // Primeiro nodulo da campanha: a camera se aproxima e acompanha as cinco
 // etapas no tempo normal (app.js, updateNodulationShowcase). Os seguintes
 // formam sem zoom e com as etapas NODULATION_REPEAT_SPEED vezes mais rapidas.
@@ -23696,6 +23697,13 @@ const NODULATION_REPEAT_SPEED = 2;
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
+
+// Rizobios dentro do cordao e do nodulo usam a folha do rizobio (como o
+// biofilme usa a do Bacillus). Elipses so enquanto a imagem carrega.
+function rhizobiumSpriteReady() {
+  const status = organismSprites.status('rhizobium');
+  return status.enabled && status.loaded && !status.failed;
+}
 
 const STAGES = [
   'recognition',
@@ -24038,10 +24046,23 @@ function createRhizobiumNodulation({ state, entities, inoculants }) {
     ctx.shadowBlur = 0;
 
     const cellCount = 2 + Math.floor(progress * 5);
+    const sprite = rhizobiumSpriteReady();
     for (let i = 0; i < cellCount; i++) {
       const t = (i + .5) / cellCount * progress;
       const yy = lerp(startY, site.surfaceY + site.depth, t);
       const xx = site.x + Math.sin(t * Math.PI * 3 + site.phase) * 5;
+      if (sprite) {
+        organismSprites.draw(ctx, 'rhizobium', {
+          x: xx,
+          y: yy,
+          height: 10,
+          time: state.time,
+          phase: site.phase + i,
+          rotation: Math.sin(t * Math.PI * 3 + site.phase) * .5,
+          flipX: i % 2 === 1,
+        });
+        continue;
+      }
       ctx.fillStyle = '#ead8ff';
       ctx.beginPath();
       ctx.ellipse(xx, yy, 2.8, 1.4, t * 2, 0, TAU);
@@ -24066,19 +24087,49 @@ function createRhizobiumNodulation({ state, entities, inoculants }) {
     ctx.fillStyle = gradient;
     ctx.strokeStyle = index >= 5 ? '#ffb2c5' : '#f1c7ac';
     ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    for (let i = 0; i < 18; i++) {
-      const angle = i / 18 * TAU;
-      const lobe = 1 + Math.sin(angle * site.lobes + site.phase) * .12 * development;
-      const x = Math.cos(angle) * radius * lobe;
-      const y = Math.sin(angle) * radius * lobe;
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-    }
-    ctx.closePath();
+    const outline = () => {
+      ctx.beginPath();
+      for (let i = 0; i < 18; i++) {
+        const angle = i / 18 * TAU;
+        const lobe = 1 + Math.sin(angle * site.lobes + site.phase) * .12 * development;
+        const x = Math.cos(angle) * radius * lobe;
+        const y = Math.sin(angle) * radius * lobe;
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.closePath();
+    };
+    outline();
     ctx.fill();
     ctx.stroke();
 
-    if (index >= 4) {
+    if (index >= 4 && rhizobiumSpriteReady()) {
+      // Rizobios (bacteroides) ocupando o nodulo: aparecem aos poucos enquanto
+      // ele cresce, presos dentro do contorno e sem o achatamento do nodulo.
+      const count = 5 + site.colony.sourceCount * 3;
+      const height = clamp(radius * .62, 7, 14);
+      const fill = index === 4 ? clamp(site.progress * 1.15, 0, 1) : 1;
+      ctx.save();
+      outline();
+      ctx.clip();
+      ctx.scale(1, 1 / .76);
+      for (let i = 0; i < count; i++) {
+        const appear = clamp(fill * count - i, 0, 1);
+        if (appear <= 0) break;
+        const angle = i / count * TAU + site.phase;
+        const rr = radius * (.2 + (i % 4) * .15);
+        organismSprites.draw(ctx, 'rhizobium', {
+          x: Math.cos(angle) * rr,
+          y: Math.sin(angle) * rr * .76,
+          height,
+          time: state.time,
+          phase: site.phase + i,
+          rotation: angle + Math.PI / 2,
+          flipX: i % 2 === 1,
+          alpha: appear * (.82 + (i % 3) * .06),
+        });
+      }
+      ctx.restore();
+    } else if (index >= 4) {
       const count = 5 + site.colony.sourceCount * 3;
       for (let i = 0; i < count; i++) {
         const angle = i / count * TAU + site.phase;
