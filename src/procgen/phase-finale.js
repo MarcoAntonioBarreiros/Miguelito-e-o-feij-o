@@ -74,7 +74,7 @@ export function phaseFinaleSeconds(celebrationSeconds = 0) {
 // superficie junto com o feijoeiro e, depois, a colheitadeira passa colhendo:
 // a lavoura vira moeda. A arte vem de assets/farm; sem ela (testes), a cena
 // segue exatamente como antes, so com o feijoeiro.
-export const FINALE_HARVEST_SECONDS = 7.5;
+export const FINALE_HARVEST_SECONDS = 6.5;
 const FIELD_ROWS = [
   { src: './assets/farm/feijao-1.webp', height: 1, lift: 0, haze: 0 },
 ];
@@ -292,14 +292,18 @@ export function createPhaseFinale({ state, cameraView, getViewport, onHarvested 
       skyAlpha = 1;
       growth = 1;
       cardAlpha = 1;
-      if (elapsed >= HOLD_SECONDS) {
-        // com a arte carregada, a colheitadeira entra; sem ela, termina como antes
-        if (fieldArt?.ready && endCamera) {
-          const { width } = viewport();
-          const span = width / endCamera.zoom;
-          harvest = { t: 0, x0: endCamera.x - span * .25, x1: endCamera.x + span * 1.25, coins: Number(report?.coinsEarned) || 0, shown: 0, nextPop: 0 };
-          mode = 'harvest';
-        } else mode = 'done';
+      // com a arte carregada, a colheitadeira entra logo (a musica de vitoria e
+      // curta); sem ela, a cena termina como antes, depois da pausa
+      const harvestReady = fieldArt?.ready && endCamera;
+      if (harvestReady && elapsed >= .2) {
+        const { width } = viewport();
+        const span = width / endCamera.zoom;
+        const half = harvesterSize().w * .55;
+        harvest = { t: 0, x0: endCamera.x - half, x1: endCamera.x + span + half, coins: Number(report?.coinsEarned) || 0, shown: 0, nextPop: 0 };
+        mode = 'harvest';
+        elapsed = 0;
+      } else if (!harvestReady && elapsed >= HOLD_SECONDS) {
+        mode = 'done';
         elapsed = 0;
       }
       publish();
