@@ -33,15 +33,27 @@ const LAYERS = {
   treeA: { src: 'arvore-a.webp', anchor: [584, 1057], at: [250, 806], height: 720, depth: .46, sway: 1, swayAmp: .006, normal: true },
   treeB: { src: 'arvore-b.webp', anchor: [513, 1071], at: [1748, 792], height: 650, depth: .43, sway: 1, swayAmp: .006, normal: true },
   house: { src: 'casa.webp', anchor: [631, 696], at: [790, 676], width: 270, depth: .3, normal: true },
-  bedHealthy: { src: 'canteiro-saudavel.webp', anchor: [719, 698], at: [1300, 812], width: 560, depth: .52, sway: 2, swayAmp: .004, normal: true },
-  bedSick: { src: 'canteiro-doente.webp', anchor: [689, 477], at: [1300, 812], width: 556, depth: .52, sway: 2, swayAmp: .003, normal: true },
+  bean1: { src: 'feijao-1.webp', normal: true },
+  bean2: { src: 'feijao-2.webp', normal: true },
+  bean3: { src: 'feijao-3.webp', normal: true },
+  bean4: { src: 'feijao-4.webp', normal: true },
   foreground: { src: 'primeiro-plano.webp', blur: 3.2 },
   ground: { src: 'chao.webp' },
 };
 
+// Lavoura de feijao: fileiras vistas de frente, repetidas na horizontal e
+// recuando em perspectiva (a de tras menor). `base`: linha do solo na cena.
+const BEAN_ROWS = [
+  { tex: 'bean4', base: 688, height: 46, x0: 1010 },
+  { tex: 'bean2', base: 726, height: 62, x0: 995 },
+  { tex: 'bean3', base: 770, height: 84, x0: 980 },
+  { tex: 'bean1', base: 822, height: 112, x0: 960 },
+];
+const BEAN_X1 = SCENE_W + 120;
+
 // Espacos de melhoria: base do item na cena e escala.
 export const FARM_SLOTS = [
-  { x: 975, y: 708, s: .64 },
+  { x: 640, y: 714, s: .6 },
   { x: 735, y: 800, s: .76 },
   { x: 430, y: 905, s: .95 },
   { x: 1600, y: 912, s: .98 },
@@ -82,6 +94,8 @@ uniform float uHaze;
 uniform vec3 uTint;
 uniform float uOpacity;
 uniform float uRim;
+uniform float uSick;
+uniform float uFlip;
 void main(){
   vec2 uv = vUv;
   if (uSwayMode > 0.5) {
@@ -91,9 +105,13 @@ void main(){
   vec4 c = texture2D(uTex, uv);
   if (c.a < 0.01) discard;
   vec3 col = c.rgb * uTint;
+  // lavoura doente: o verde amarela e perde vigor
+  float lum = dot(col, vec3(0.3, 0.59, 0.11));
+  col = mix(col, vec3(lum) * vec3(1.18, 0.98, 0.48), uSick * 0.8);
   vec2 toSun = normalize(uSun - vScene + 1e-4);
   if (uHasNorm > 0.5) {
     vec3 n = texture2D(uNorm, uv).xyz * 2.0 - 1.0;
+    n.x *= uFlip;
     // contraluz: a frente fica um pouco na sombra; as bordas viradas para o
     // sol acendem em tom quente (rim light)
     float facing = dot(n.xy, toSun);
@@ -347,7 +365,7 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
     gl.uniform4f(prog.u.uView, sx, sy, ox, oy);
   }
 
-  function drawSprite(tex, rect, { depth = .5, sway = 0, swayAmp = 0, seed = 0, haze = 0, tint = [1, 1, 1], opacity = 1, rim = 0 } = {}) {
+  function drawSprite(tex, rect, { depth = .5, sway = 0, swayAmp = 0, seed = 0, haze = 0, tint = [1, 1, 1], opacity = 1, rim = 0, sick = 0 } = {}) {
     const P = progSprite;
     gl.useProgram(P.p);
     useView(P, depth);
@@ -364,6 +382,8 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
     gl.uniform3f(P.u.uTint, tint[0], tint[1], tint[2]);
     gl.uniform1f(P.u.uOpacity, opacity);
     gl.uniform1f(P.u.uRim, rim);
+    gl.uniform1f(P.u.uSick, sick);
+    gl.uniform1f(P.u.uFlip, rect[2] < 0 ? -1 : 1);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
@@ -418,14 +438,27 @@ export function createFarmScene(canvas, { items = () => [], plantState = () => 1
 
     // tudo que pousa no chao, de tras para frente
     const state = plantState();
-    const bedId = state === 0 ? 'bedSick' : 'bedHealthy';
-    const bedTint = state === 1 ? [.94, .97, .86] : [1, 1, 1];
+    // a ultima colheita decide a cara da lavoura
+    const sick = state === 0 ? .85 : state === 1 ? .18 : 0;
     const props = [
       { id: 'house', y: LAYERS.house.at[1], draw: () => drawSprite(textures.house, anchoredRect(LAYERS.house, textures.house), { depth: .3, haze: .12, rim: .55 }) },
       { id: 'treeB', y: LAYERS.treeB.at[1], draw: () => drawSprite(textures.treeB, anchoredRect(LAYERS.treeB, textures.treeB), { depth: .43, sway: 1, swayAmp: LAYERS.treeB.swayAmp, seed: 1.7, rim: .75 }) },
       { id: 'treeA', y: LAYERS.treeA.at[1], draw: () => drawSprite(textures.treeA, anchoredRect(LAYERS.treeA, textures.treeA), { depth: .46, sway: 1, swayAmp: LAYERS.treeA.swayAmp, seed: 4.1, rim: .75 }) },
-      { id: 'bed', y: LAYERS[bedId].at[1], draw: () => drawSprite(textures[bedId], anchoredRect(LAYERS[bedId], textures[bedId]), { depth: .52, sway: 2, swayAmp: LAYERS[bedId].swayAmp, seed: 2.3, tint: bedTint, rim: .5 }) },
     ];
+    BEAN_ROWS.forEach((row, r) => {
+      const tex = textures[row.tex];
+      const scale = row.height / (tex.h * .9);
+      const w = tex.w * scale, h = tex.h * scale;
+      const step = w * .9; // pedacos se sobrepoem para nao mostrar emenda
+      props.push({ id: `beans-${r}`, y: row.base, draw: () => {
+        for (let x = row.x0, k = 0; x < BEAN_X1; x += step, k++) {
+          // espelha um pedaco sim, outro nao: a repeticao nao fica obvia
+          const flip = k % 2 === 1;
+          drawSprite(tex, flip ? [x + w, row.base - h * .97, -w, h] : [x, row.base - h * .97, w, h],
+            { depth: depthAt(row.base), sway: 2, swayAmp: .006, seed: r * 2.1 + k * 1.3, rim: .55, sick });
+        }
+      } });
+    });
     for (const item of items()) {
       const slot = FARM_SLOTS[item.slot];
       let tex = itemTextures.get(item.key);
