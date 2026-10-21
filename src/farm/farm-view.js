@@ -14,6 +14,8 @@ const STYLE = `
 #farm-overlay { position: fixed; inset: 0; z-index: 240; background: #1b120c; color: #fbeedd; overflow: hidden;
   font-family: 'Tutorial Atkinson','Atkinson Hyperlegible',system-ui,sans-serif; touch-action: none; }
 #farm-overlay[hidden] { display: none; }
+/* o jogo pinta todo <canvas> de #222 (index.html): aqui eles sao camadas transparentes */
+#farm-overlay canvas { background: transparent; image-rendering: auto; object-fit: fill; }
 #farm-overlay .farm-stage, #farm-overlay .farm-gl, #farm-overlay .farm-marks { position: absolute; inset: 0; width: 100%; height: 100%; }
 #farm-overlay .farm-marks { cursor: pointer; }
 #farm-overlay .farm-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 16px; right: 16px; display: flex; align-items: center; gap: 12px; pointer-events: none; }
