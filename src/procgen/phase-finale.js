@@ -172,7 +172,8 @@ export function createPhaseFinale({ state, cameraView, getViewport } = {}) {
     if (!startCamera) return false;
 
     report = phaseReport;
-    plantState = plantStateFromScore(phaseReport?.score);
+    // a nota nova (phase-score.js) ja traz o estado; relatorio antigo cai na regra antiga
+    plantState = Number.isInteger(phaseReport?.plantState) ? phaseReport.plantState : plantStateFromScore(phaseReport?.score);
     celebrateSeconds = Math.max(0, Number(celebrationSeconds) || 0);
     const bounds = finalRootBounds(goal, FINAL_ROOT_SCALE);
     collar = { x: bounds.collarX, y: bounds.collarY };
@@ -387,9 +388,8 @@ export function createPhaseFinale({ state, cameraView, getViewport } = {}) {
     ctx.font = '600 13px system-ui, sans-serif';
     ctx.fillText(BEAN_PLANT_LABEL[plantState], x + w / 2, y + 52);
     const numeros = [
-      Number.isFinite(report?.score) ? `${report.score} pontos` : '',
-      Number.isFinite(report?.rootHealth) ? `saúde ${report.rootHealth}%` : '',
-      Number.isFinite(report?.infestation) ? `infestação ${report.infestation}%` : '',
+      Number.isFinite(report?.score) ? `${report.score}/100 pontos` : '',
+      Number.isFinite(report?.coinsEarned) ? `+${report.coinsEarned} moedas` : '',
     ].filter(Boolean);
     if (numeros.length) {
       ctx.fillStyle = '#8fb8b0';

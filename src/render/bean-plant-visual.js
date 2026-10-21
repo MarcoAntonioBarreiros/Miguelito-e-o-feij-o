@@ -20,8 +20,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 export const BEAN_PLANT_LABEL = Object.freeze([
   'Feijoeiro doente',
-  'Feijoeiro sadio',
-  'Feijoeiro super sadio',
+  'Feijoeiro saudável',
+  'Feijoeiro super saudável',
 ]);
 
 export const BEAN_PLANT_CONFIG = Object.freeze([

@@ -54,6 +54,10 @@ import { createPlatformVisuals } from './platform-visuals.js';
 import { createRhizosphereLighting, readLightingPreference } from '../render/rhizosphere-lighting.js';
 import { createCameraView } from './camera-view.js';
 import { arrivalTourSeen, createArrivalTour } from './arrival-tour.js';
+import { buildPhaseScoreReport } from './phase-score.js';
+import { createPhaseResultPanel } from './phase-result-panel.js';
+import { createFarmView } from '../farm/farm-view.js';
+import { creditHarvest, harvestIdFor, loadFarm, saveFarm } from '../farm/farm-state.js';
 import { createResponsiveCanvas } from './responsive-canvas.js';
 import { getPrimaryTraversalPlatforms } from './traversal-route.js';
 import {
@@ -1602,6 +1606,8 @@ function startNewCampaign() {
   initGame({ announce: true });
 }
 
+// Relatorio do fim da fase: so COLETA as metricas; a nota, as moedas e o porque
+// saem de phase-score.js (buildPhaseScoreReport).
 function buildPhaseReport() {
   const scoredRoots = (sim.state.level.platforms || []).filter(root => root.type === 'root' && !root.final && !root.recovery && !root.mycorrhizaStructure);
   const rootHealth = scoredRoots.length
@@ -1609,15 +1615,7 @@ function buildPhaseReport() {
     : 1;
   const infestation = clamp((sim.meloidogyneLifecycle.infestationPercent || 0) / 100, 0, 1);
   const fixation = Math.max(0, (sim.state.level.rhizobiumNodules || []).reduce((sum, site) => sum + (site.fixationRate || 0), 0));
-  const protection = Math.min(1, (sim.bacillusBioprotection.protectedRootCount || 0) / 4);
   const vascularTransport = clamp(ralstoniaControl.averageTransport, 0, 1);
-  const score = Math.round(
-    rootHealth * 40
-    + (1 - infestation) * 20
-    + Math.min(1, fixation / 10) * 15
-    + protection * 15
-    + vascularTransport * 10,
-  );
   const finalTest = getPhaseManifest(campaign.phase)?.finalTest;
   const objectiveResults = objectiveEvaluator.evaluate(finalTest?.requires || []).results.map(result => ({
     conditionId: result.conditionId,
@@ -1625,17 +1623,52 @@ function buildPhaseReport() {
     actual: result.actual,
     passed: result.passed,
   }));
+  const wv = key => Number(objectiveEvaluator.worldValue({ type: 'worldState', key }) || 0);
+  const calm = sim.state.calm;
+  const calmedPathogenCount = calm
+    ? ['rhizoctonia', 'oportunista', 'ralstonia', 'meloidogyne-egg', 'meloidogyne-j2', 'meloidogyne-gall']
+      .reduce((sum, type) => sum + (calm.calmedCount(type) || 0), 0)
+    : 0;
+  const metrics = {
+    rootHealth,
+    infestation,
+    vascularTransport,
+    activeMatureNoduleCount: wv('activeMatureNoduleCount'),
+    totalFixationRate: fixation,
+    rootPhosphateStock: wv('rootPhosphateStock'),
+    mycorrhizalPhosphateTransported: wv('mycorrhizalPhosphateTransported'),
+    functionalBiofilmCount: wv('functionalBiofilmCount'),
+    protectedRootCount: sim.bacillusBioprotection.protectedRootCount || 0,
+    controlledOpportunisticFungusCount: wv('controlledOpportunisticFungusCount'),
+    neutralizedRhizoctoniaCount: wv('neutralizedRhizoctoniaCount'),
+    neutralizedEggMassCount: wv('neutralizedEggMassCount'),
+    ralstoniaControlCount: wv('preventedRalstoniaEntryCount') + wv('containedVascularRalstoniaCount') + wv('blockedRalstoniaSpreadCount'),
+    calmedPathogenCount,
+  };
+  const result = buildPhaseScoreReport({
+    phase: campaign.phase,
+    objectives: { passed: objectiveResults.filter(r => r.passed).length, total: objectiveResults.length },
+    metrics,
+  });
   return {
     phase: campaign.phase,
+    displayPhase: displayPhaseNumber(campaign),
     title: profile.title,
     theme: profile.theme,
+    // campos antigos, mantidos para quem ja le o relatorio
     rootHealth: Math.round(rootHealth * 100),
     infestation: Math.round(infestation * 100),
     fixation: Number(fixation.toFixed(1)),
-    protectedRoots: sim.bacillusBioprotection.protectedRootCount || 0,
+    protectedRoots: metrics.protectedRootCount,
     vascularTransport: Math.round(vascularTransport * 100),
     objectiveResults,
-    score,
+    // nota nova (0-100), moedas e o porque
+    score: result.score,
+    coinsEarned: result.coinsEarned,
+    plantState: result.plantState,
+    summaryLabel: result.summaryLabel,
+    hint: result.hint,
+    breakdown: result.breakdown,
   };
 }
 
@@ -1717,6 +1750,18 @@ function maybeAdvanceCampaign() {
   if (!campaign.transitionCaptured) {
     const report = buildPhaseReport();
     recordPhaseResult(campaign, report);
+    // Colheita: a nota vira moedas na fazendinha, uma vez por fase (o id da
+    // colheita impede pagar de novo se a pagina recarregar). Phase Lab nao paga.
+    campaign.harvest = { report, credited: false, totalCoins: null, shown: false, continued: false };
+    if (!phaseLab.enabled) {
+      const farm = loadFarm();
+      const paid = creditHarvest(farm, {
+        harvestId: harvestIdFor(campaign.seed, displayPhaseNumber(campaign)),
+        coins: report.coinsEarned, score: report.score, phase: displayPhaseNumber(campaign),
+      });
+      saveFarm(farm);
+      Object.assign(campaign.harvest, { credited: paid.credited, totalCoins: farm.coins });
+    }
     // A fase inteira acontece embaixo da terra. Aqui — e so aqui, com os
     // objetivos ja validados pelo guard do `goal-system` — a camera sobe e
     // mostra o feijoeiro que a raiz sustentava. O estado da planta sai de
@@ -1758,6 +1803,18 @@ function maybeAdvanceCampaign() {
     && phaseFinale.mode !== 'done'
     && sim.state.time < (campaign.finaleDeadline || 0)) return false;
 
+  // Resultado da colheita: com o feijoeiro revelado, o painel mostra a nota e as
+  // moedas e ESPERA o jogador (Continuar ou Fazendinha). Antes a fase seguia
+  // sozinha quando a musica de vitoria acabava.
+  const harvest = campaign.harvest;
+  if (harvest && !phaseLab.enabled && !harvest.continued) {
+    if (!harvest.shown) {
+      harvest.shown = true;
+      phaseResultPanel.show(harvest.report, { credited: harvest.credited, totalCoins: harvest.totalCoins });
+    }
+    return false;
+  }
+
   // Com o feijoeiro revelado, os ciclos dos organismos desta fase voltam como
   // revisao (antes eram a ultima pagina da primeira apresentacao, cedo demais).
   // O cartao pausa o mundo; a troca de fase so continua depois de fechado.
@@ -1798,6 +1855,7 @@ function maybeAdvanceCampaign() {
   // Fase seguinte: o stinger sai por fade, o ambiente volta, a musica nova entra
   // por crossfade e as gotas so retornam depois de alguns segundos.
   gameAudio.endPhaseVictory();
+  campaign.harvest = null;
   // Nenhum processo da fase anterior pode atravessar a troca.
   biologicalAudio.stopAll({ fade: .20, clearPending: true });
   prepareLevel();
@@ -1877,14 +1935,53 @@ document.addEventListener('mouseup', event => {
 
 const keys = {};
 const tutorialInputGate = createTutorialInputGate({ keys, sim });
+// Fim de fase: painel da colheita e fazendinha.
+const phaseResultPanel = createPhaseResultPanel({
+  onContinue: () => {
+    const harvest = campaign.harvest;
+    if (!harvest) return;
+    harvest.continued = true;
+    // quem clicou Continuar nao espera o fim da musica de vitoria
+    campaign.victoryAudioFinished = true;
+    campaign.transitionAt = 0;
+  },
+  onFarm: () => {
+    phaseResultPanel.setVisible(false);
+    farmView.open();
+  },
+});
+const farmView = createFarmView({
+  onClose: () => {
+    const harvest = campaign.harvest;
+    if (harvest && harvest.shown && !harvest.continued) {
+      phaseResultPanel.show(harvest.report, { credited: harvest.credited, totalCoins: loadFarm().coins });
+    }
+  },
+});
+window.miguelitoFarm = farmView;
+
 const pauseMenu = createPauseMenu({
   // O tutorial tem a própria pausa; os dois nunca se empilham.
-  canOpen: () => !window.miguelitoTutorial?.isOpen,
+  canOpen: () => !window.miguelitoTutorial?.isOpen && !farmView.isOpen && !phaseResultPanel.isOpen,
   onChange: () => {
     for (const code of Object.keys(keys)) keys[code] = false;
     sim.setInputs({});
   },
 });
+// Fazendinha tambem pelo menu de pausa (linha criada aqui, sem mexer no HTML).
+{
+  const options = document.getElementById('pause-options');
+  if (options && !options.querySelector('[data-pause-action="farm"]')) {
+    const row = document.createElement('label');
+    row.className = 'pause-row';
+    row.innerHTML = '<button class="mobile-tool" data-pause-action="farm" aria-label="Abrir a fazendinha">⌂</button><span>Fazendinha</span>';
+    options.appendChild(row);
+    row.querySelector('button').addEventListener('click', () => {
+      pauseMenu.close();
+      requestAnimationFrame(() => farmView.open());
+    });
+  }
+}
 document.querySelector('[data-pause-action="arrival"]')?.addEventListener('click', () => {
   if (sim.state.gameState !== 'play' || sim.state.introFall) return;
   pauseMenu.close();
@@ -2551,7 +2648,7 @@ function loop(now) {
     const advanced = advanceGameplayFrame({
       state: sim.state,
       // Menu de pausa aberto congela o mundo pelo mesmo caminho do tutorial.
-      manager: pauseMenu.isOpen || arrivalTour.blocking ? { isOpen: true } : tutorialManager,
+      manager: pauseMenu.isOpen || arrivalTour.blocking || farmView.isOpen ? { isOpen: true } : tutorialManager,
       sim,
       dt,
       advance: frameDt => {

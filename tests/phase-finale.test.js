@@ -396,7 +396,7 @@ test('a nota escolhe o porte, com cortes estaveis', () => {
     assert.equal(plantStateFromScore(valor), 1, `valor ${String(valor)}`);
   }
   assert.deepEqual([...BEAN_PLANT_LABEL], [
-    'Feijoeiro doente', 'Feijoeiro sadio', 'Feijoeiro super sadio',
+    'Feijoeiro doente', 'Feijoeiro saudável', 'Feijoeiro super saudável',
   ]);
 });
 

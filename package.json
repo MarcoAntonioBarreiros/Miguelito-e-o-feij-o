@@ -76,6 +76,8 @@
     "audit:softlock": "node tools/softlock-audit.mjs",
     "test:tutorial-text-revision": "node --test tests/tutorial-text-revision.test.js",
     "test:calm-zones": "node --test tests/calm-zones.test.js",
-    "test:opportunistic-visual": "node --test tests/opportunistic-mycelium-visual.test.js tests/opportunistic-mycoparasitism.test.js"
+    "test:opportunistic-visual": "node --test tests/opportunistic-mycelium-visual.test.js tests/opportunistic-mycoparasitism.test.js",
+    "test:phase-score": "node --test tests/phase-score.test.js",
+    "test:farm": "node --test tests/farm-state.test.js"
   }
 }
