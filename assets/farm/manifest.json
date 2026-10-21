@@ -1,0 +1,502 @@
+{
+  "origem": "Prancha de objetos gerada por IA, fundo transparente",
+  "total": 62,
+  "objetos": [
+    {
+      "nome": "cerca_madeira_baixa",
+      "arquivo": "01_cerca_madeira_baixa.png",
+      "dimensoes": [
+        140,
+        116
+      ]
+    },
+    {
+      "nome": "cerca_ripada",
+      "arquivo": "02_cerca_ripada.png",
+      "dimensoes": [
+        203,
+        112
+      ]
+    },
+    {
+      "nome": "porteira_madeira",
+      "arquivo": "03_porteira_madeira.png",
+      "dimensoes": [
+        167,
+        120
+      ]
+    },
+    {
+      "nome": "cerca_tela",
+      "arquivo": "04_cerca_tela.png",
+      "dimensoes": [
+        160,
+        120
+      ]
+    },
+    {
+      "nome": "mureta_pedra",
+      "arquivo": "05_mureta_pedra.png",
+      "dimensoes": [
+        158,
+        113
+      ]
+    },
+    {
+      "nome": "cerca_horizontal",
+      "arquivo": "06_cerca_horizontal.png",
+      "dimensoes": [
+        195,
+        114
+      ]
+    },
+    {
+      "nome": "caixa_agua_azul",
+      "arquivo": "07_caixa_agua_azul.png",
+      "dimensoes": [
+        110,
+        192
+      ]
+    },
+    {
+      "nome": "caixa_agua_metal",
+      "arquivo": "08_caixa_agua_metal.png",
+      "dimensoes": [
+        92,
+        188
+      ]
+    },
+    {
+      "nome": "poco_artesiano",
+      "arquivo": "09_poco_artesiano.png",
+      "dimensoes": [
+        169,
+        195
+      ]
+    },
+    {
+      "nome": "bebedouro_pedra",
+      "arquivo": "10_bebedouro_pedra.png",
+      "dimensoes": [
+        164,
+        127
+      ]
+    },
+    {
+      "nome": "casinha_cachorro",
+      "arquivo": "11_casinha_cachorro.png",
+      "dimensoes": [
+        197,
+        157
+      ]
+    },
+    {
+      "nome": "placa_madeira_seta",
+      "arquivo": "12_placa_madeira_seta.png",
+      "dimensoes": [
+        110,
+        147
+      ]
+    },
+    {
+      "nome": "viveiro_pequeno",
+      "arquivo": "13_viveiro_pequeno.png",
+      "dimensoes": [
+        182,
+        131
+      ]
+    },
+    {
+      "nome": "estufa_grande",
+      "arquivo": "14_estufa_grande.png",
+      "dimensoes": [
+        284,
+        149
+      ]
+    },
+    {
+      "nome": "viveiro_sombreado",
+      "arquivo": "15_viveiro_sombreado.png",
+      "dimensoes": [
+        420,
+        149
+      ]
+    },
+    {
+      "nome": "bancada_mudas",
+      "arquivo": "16_bancada_mudas.png",
+      "dimensoes": [
+        162,
+        134
+      ]
+    },
+    {
+      "nome": "bancada_mudas_estreita",
+      "arquivo": "17_bancada_mudas_estreita.png",
+      "dimensoes": [
+        146,
+        125
+      ]
+    },
+    {
+      "nome": "barraca_venda",
+      "arquivo": "18_barraca_venda.png",
+      "dimensoes": [
+        284,
+        182
+      ]
+    },
+    {
+      "nome": "deposito_sacos",
+      "arquivo": "19_deposito_sacos.png",
+      "dimensoes": [
+        322,
+        156
+      ]
+    },
+    {
+      "nome": "sacos_adubo",
+      "arquivo": "20_sacos_adubo.png",
+      "dimensoes": [
+        97,
+        104
+      ]
+    },
+    {
+      "nome": "poste_solar",
+      "arquivo": "21_poste_solar.png",
+      "dimensoes": [
+        82,
+        147
+      ]
+    },
+    {
+      "nome": "puleiro_madeira",
+      "arquivo": "22_puleiro_madeira.png",
+      "dimensoes": [
+        145,
+        268
+      ]
+    },
+    {
+      "nome": "trator_vermelho",
+      "arquivo": "23_trator_vermelho.png",
+      "dimensoes": [
+        265,
+        171
+      ]
+    },
+    {
+      "nome": "colheitadeira_vermelha",
+      "arquivo": "24_colheitadeira_vermelha.png",
+      "dimensoes": [
+        322,
+        170
+      ]
+    },
+    {
+      "nome": "carreta_vermelha",
+      "arquivo": "25_carreta_vermelha.png",
+      "dimensoes": [
+        244,
+        176
+      ]
+    },
+    {
+      "nome": "caixote_madeira",
+      "arquivo": "26_caixote_madeira.png",
+      "dimensoes": [
+        131,
+        111
+      ]
+    },
+    {
+      "nome": "sacos_plantio",
+      "arquivo": "27_sacos_plantio.png",
+      "dimensoes": [
+        112,
+        117
+      ]
+    },
+    {
+      "nome": "barril_madeira",
+      "arquivo": "28_barril_madeira.png",
+      "dimensoes": [
+        88,
+        111
+      ]
+    },
+    {
+      "nome": "tambor_azul",
+      "arquivo": "29_tambor_azul.png",
+      "dimensoes": [
+        69,
+        106
+      ]
+    },
+    {
+      "nome": "tanque_agua_branco",
+      "arquivo": "30_tanque_agua_branco.png",
+      "dimensoes": [
+        116,
+        133
+      ]
+    },
+    {
+      "nome": "fardos_feno",
+      "arquivo": "31_fardos_feno.png",
+      "dimensoes": [
+        221,
+        130
+      ]
+    },
+    {
+      "nome": "lenha_empilhada",
+      "arquivo": "32_lenha_empilhada.png",
+      "dimensoes": [
+        143,
+        111
+      ]
+    },
+    {
+      "nome": "carroca_madeira",
+      "arquivo": "33_carroca_madeira.png",
+      "dimensoes": [
+        178,
+        125
+      ]
+    },
+    {
+      "nome": "carrinho_mao",
+      "arquivo": "34_carrinho_mao.png",
+      "dimensoes": [
+        171,
+        116
+      ]
+    },
+    {
+      "nome": "banco_simples",
+      "arquivo": "35_banco_simples.png",
+      "dimensoes": [
+        148,
+        91
+      ]
+    },
+    {
+      "nome": "catavento",
+      "arquivo": "36_catavento.png",
+      "dimensoes": [
+        151,
+        248
+      ]
+    },
+    {
+      "nome": "carroca_feno",
+      "arquivo": "37_carroca_feno.png",
+      "dimensoes": [
+        277,
+        110
+      ]
+    },
+    {
+      "nome": "balde_metal",
+      "arquivo": "38_balde_metal.png",
+      "dimensoes": [
+        95,
+        91
+      ]
+    },
+    {
+      "nome": "cocho_agua",
+      "arquivo": "39_cocho_agua.png",
+      "dimensoes": [
+        186,
+        102
+      ]
+    },
+    {
+      "nome": "caixote_frutas",
+      "arquivo": "40_caixote_frutas.png",
+      "dimensoes": [
+        126,
+        99
+      ]
+    },
+    {
+      "nome": "caixote_verduras",
+      "arquivo": "41_caixote_verduras.png",
+      "dimensoes": [
+        171,
+        87
+      ]
+    },
+    {
+      "nome": "palete_madeira",
+      "arquivo": "42_palete_madeira.png",
+      "dimensoes": [
+        122,
+        93
+      ]
+    },
+    {
+      "nome": "fardo_feno",
+      "arquivo": "43_fardo_feno.png",
+      "dimensoes": [
+        131,
+        94
+      ]
+    },
+    {
+      "nome": "composteira_madeira",
+      "arquivo": "44_composteira_madeira.png",
+      "dimensoes": [
+        119,
+        113
+      ]
+    },
+    {
+      "nome": "banco_jardim",
+      "arquivo": "45_banco_jardim.png",
+      "dimensoes": [
+        216,
+        133
+      ]
+    },
+    {
+      "nome": "mesa_madeira",
+      "arquivo": "46_mesa_madeira.png",
+      "dimensoes": [
+        176,
+        124
+      ]
+    },
+    {
+      "nome": "cavalete_madeira",
+      "arquivo": "47_cavalete_madeira.png",
+      "dimensoes": [
+        123,
+        103
+      ]
+    },
+    {
+      "nome": "espantalho",
+      "arquivo": "48_espantalho.png",
+      "dimensoes": [
+        136,
+        145
+      ]
+    },
+    {
+      "nome": "varal_roupas",
+      "arquivo": "49_varal_roupas.png",
+      "dimensoes": [
+        175,
+        116
+      ]
+    },
+    {
+      "nome": "poste_lampiao_duplo",
+      "arquivo": "50_poste_lampiao_duplo.png",
+      "dimensoes": [
+        86,
+        143
+      ]
+    },
+    {
+      "nome": "lampiao_vintage",
+      "arquivo": "51_lampiao_vintage.png",
+      "dimensoes": [
+        59,
+        152
+      ]
+    },
+    {
+      "nome": "poste_iluminacao",
+      "arquivo": "52_poste_iluminacao.png",
+      "dimensoes": [
+        56,
+        166
+      ]
+    },
+    {
+      "nome": "forno_lenha",
+      "arquivo": "53_forno_lenha.png",
+      "dimensoes": [
+        137,
+        168
+      ]
+    },
+    {
+      "nome": "churrasqueira_tijolos",
+      "arquivo": "54_churrasqueira_tijolos.png",
+      "dimensoes": [
+        139,
+        168
+      ]
+    },
+    {
+      "nome": "canteiro_madeira_vazio",
+      "arquivo": "55_canteiro_madeira_vazio.png",
+      "dimensoes": [
+        194,
+        113
+      ]
+    },
+    {
+      "nome": "canteiro_verde",
+      "arquivo": "56_canteiro_verde.png",
+      "dimensoes": [
+        159,
+        116
+      ]
+    },
+    {
+      "nome": "placa_madeira_grande",
+      "arquivo": "57_placa_madeira_grande.png",
+      "dimensoes": [
+        180,
+        128
+      ]
+    },
+    {
+      "nome": "galo_metal",
+      "arquivo": "58_galo_metal.png",
+      "dimensoes": [
+        75,
+        130
+      ]
+    },
+    {
+      "nome": "placa_madeira_poste",
+      "arquivo": "59_placa_madeira_poste.png",
+      "dimensoes": [
+        76,
+        135
+      ]
+    },
+    {
+      "nome": "casa_passaros",
+      "arquivo": "60_casa_passaros.png",
+      "dimensoes": [
+        93,
+        119
+      ]
+    },
+    {
+      "nome": "abrigo_passaros",
+      "arquivo": "61_abrigo_passaros.png",
+      "dimensoes": [
+        99,
+        156
+      ]
+    },
+    {
+      "nome": "caixa_flores",
+      "arquivo": "62_caixa_flores.png",
+      "dimensoes": [
+        141,
+        134
+      ]
+    }
+  ]
+}
